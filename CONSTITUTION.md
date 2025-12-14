@@ -1,6 +1,6 @@
 Agent OS: A Constitutional Operating System for Local AI
 Public Declaration of Prior Art & Creative Commons Release
-Date: December 15, 2024
+Date: December 15, 2025
 Version: 1.0
 Author: Kase Branham
 Repository: https://github.com/kase1111-hash/Agent-OS
