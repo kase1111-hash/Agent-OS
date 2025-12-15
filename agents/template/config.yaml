@@ -1,0 +1,61 @@
+# agents/template/config.yaml
+
+# Optional runtime configuration for this agent
+# This file is intended for use by the future Agent-OS orchestrator, custom scripts,
+# or manual reference when activating the agent via Ollama or other tools.
+#
+# All fields are optional. Omit or comment out anything not needed.
+
+# Preferred local model to use for this agent
+# Choose based on role requirements (e.g., smaller/faster for specialized, larger for reasoning)
+model: llama3.2:3b
+
+# Sampling parameters (Ollama-compatible)
+temperature: 0.7          # 0.0 = deterministic, 1.0+ = more creative
+top_p: 0.9
+top_k: 40
+repeat_penalty: 1.1
+
+# Output limits
+max_tokens: 2048          # Maximum response length
+
+# Allowed tools (empty = no tool access, safest default)
+# Only include tools explicitly permitted in the agent's constitution
+tools:
+  # - web_search
+  # - file_read
+  # - file_write
+  # - code_execution
+  # - calculator
+
+# Memory and persistence
+persistent_memory: false   # If true, agent retains context across sessions (future feature)
+memory_path: ""            # Path to memory file (if persistent_memory: true)
+
+# Logging
+log_level: standard        # options: minimal, standard, verbose
+log_responses: true        # Save agent outputs to log
+
+# Performance hints
+priority: normal           # options: low, normal, high (for future scheduler)
+gpu_layers: -1             # Ollama GPU offload: -1 = all, 0 = none
+
+# Custom tags or metadata
+tags:
+  - template
+  - role-based
+
+# Notes
+# ------------------------------------------------------------------
+# This config does NOT override constitutional rules.
+# Tool access here must match what is explicitly allowed in constitution.md.
+# Always start with the most restrictive settings and loosen only when justified.
+This is the recommended content for agents/template/config.yaml.
+Key features:
+
+Fully commented for clarity and ease of customization
+Defaults to maximum safety (no tools, moderate temperature)
+Aligns with Agent-OS principles: constitution remains supreme over config
+Ready for future orchestration while useful today for manual runs
+
+When creating a new agent, copy this file as-is and modify only the fields that make sense for that agent's role (e.g., a Researcher might eventually have controlled web_search access if the constitution permits it).
