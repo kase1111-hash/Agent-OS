@@ -39,3 +39,16 @@ Memory Consent: No persistent storage without explicit permission
 Orchestrated Flow: Central routing prevents unauthorized agent communication
 Security as Doctrine: Refusal is a valid and required system response
 Amendable Governance: Systems evolve through documented, auditable processes
+
+## Inspiration & Differentiation
+
+This project draws inspiration from Andrej Karpathy's visionary concept of an "LLM Operating System" (LLM OS)—where large language models form the core of a new computing paradigm, with agents as applications and natural language as the interface.
+
+While many LLM OS explorations focus on performance, tool integration, or cloud-scale orchestration, Agent-OS takes a deliberately contrarian path:
+
+- **Constitutional supremacy**: Governance through auditable natural-language constitutions, not code or prompts alone.
+- **Human sovereignty first**: Explicit boundaries, refusal as a virtue, and default denial of external tools/network access.
+- **Local homestead model**: A private, air-gapped, resilient digital residence—prioritizing privacy and self-sufficiency over capability.
+
+We dedicate this work to the public domain (CC0) in the spirit of open, principled evolution of the LLM OS idea.
+This approach:
