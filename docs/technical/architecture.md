@@ -1,6 +1,6 @@
 Agent OS: Complete Architecture & Reference Implementation
 Version: 2.0
-Last Updated: December 2024
+Last Updated: December 2025
 License: CC0 1.0 Universal (Public Domain)
 Maintained By: Agent OS Community
 
@@ -549,6 +549,6 @@ Security Policy Making Guide
 
 
 Document Version: 2.0
-Last Updated: December 2024
+Last Updated: December 2025
 Maintained By: Agent OS Community
 License: CC0 1.0 Universal (Public Domain)
