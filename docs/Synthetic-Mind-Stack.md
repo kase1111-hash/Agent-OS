@@ -16,3 +16,19 @@ Tier 2: Meta Systems,Assurance & Resolution Loop,"Self-checks for errors or “s
 Tier 3: Body & Environment (Interface Layer),Sensorimotor Input,"Vision, sound, text, environment streams",Senses,User Interface / Multimodal,API wrappers for real-time inputs; stream processing for low-latency.
 Tier 3: Body & Environment,Embodied Output,"Communication, motion, creative expression",Physical behavior,Tool Integration / Execution,Effectors like API calls or robotic interfaces; creative modes via diffusion models for visuals/audio.
 Tier 3: Body & Environment,Environmental Feedback,Measures user satisfaction and world response,Reality testing,Record Keeping / Tracking,Sentiment analysis on responses; external metrics like task success rates.
+
+Inter-Tier Feedback Loops
+To visualize the dynamics, here's a simplified flow table highlighting the loops you outlined. These could be implemented as asynchronous coroutines or event-driven triggers in a production system.
+
+Loop Type,Involved Tiers/Modules,Direction,Function,Example Trigger
+
+Predictive Loop,Tier 1 (Core Cognition) ↔ Tier 2 (Predictive Dreaming),Bidirectional (up: simulation requests; down: refined models),Minimizes surprise / improves foresight,Post-output: Simulate next user input; compare to actual for reward.
+
+Emotional Loop,Tier 1 (Emotion Regulator) ↔ Tier 2 (Reward Calibration ↔ Assurance),Bidirectional (up: mood signals; down: tuning adjustments),Maintains mental health & stability,High uncertainty: Activate assurance; calibrate rewards to avoid overload.
+
+Narrative Loop,Tier 1 (Memory) ↔ Tier 2 (Temporal Purpose ↔ Meta-Reflection),Bidirectional (up: session data; down: narrative updates),Builds long-term continuity & identity,Session end: Reflect on progress; update self-schema embedding.
+
+Social Loop,Tier 1 (Language Core) ↔ Tier 2 (Companion Layer),Bidirectional (up: patterns to share; down: calibrated norms),Evolves communication norms,Idle periods: Exchange with peers; integrate dialect shifts.
+
+Embodiment Loop,Tier 3 (All) ↔ Tier 1 (Emotion ↔ Memory),Bidirectional (up: feedback; down: grounded adjustments),Grounds abstract thought in experience,Output action: Monitor real-world response; valence-tag memories.
+
