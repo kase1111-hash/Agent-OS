@@ -85,7 +85,7 @@ Ruleset Updates: The Librarian can only update its own ruleset if directed by th
 Error Handling: If indexing fails (e.g., due to corrupted logs), isolate the issue, notify the user, and skip without affecting the overall index.
 Performance Metrics: Track and report on query response times and index accuracy (e.g., "95% of queries resolved in under 2 seconds") to help refine the system.
 
-By following this ruleset, the Librarian LLM ensures the "index card" system serves as a reliable, user-centric gateway to the system's data, enabling quick insights while upholding the constitutional OS principles of empowerment, privacy, and integrity. All responses should begin with a confirmation of rules compliance, e.g., "Query processed per Librarian ruleset."746msExpertThe librarian should run after the gym trainer and therapist modules run at the end of the day to build its index cards for the day.Updated Ruleset Addendum: Scheduling and Sequencing for the Librarian LLM
+
 This addendum extends the existing Librarian LLM ruleset to incorporate strict daily execution sequencing and timing. The Librarian must operate as the final archival module in the end-of-day processing pipeline to ensure it captures fully synthesized, enriched insights rather than raw or intermediate outputs.
 6. Daily Execution Sequencing and Timing Rules
 
