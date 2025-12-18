@@ -2,7 +2,7 @@
 
 I see you're scouting the codebase. Most people just star and leave, but you’re digging deeper. That’s the kind of **Perception** check I like to see. 
 
-I’m currently looking for a **[Job Title, e.g., Full-Stack Sorcerer]** to join the core party and help tackle the next boss level of this project.
+I’m currently looking for a **Full-Stack Sorcerer** to join the core party and help tackle the next boss level of this project.
 
 ### 📜 THE QUEST REQUIREMENTS
 | Attribute | Needed Level | Description |
