@@ -1,0 +1,51 @@
+# agents/seshat/config.yaml
+
+# Seshat Agent Configuration
+# Archivist and memory keeper of the homestead
+
+# Preferred local model - use an efficient model for embeddings and retrieval
+model: llama3.2:3b
+
+# Sampling parameters - moderate settings for memory management
+temperature: 0.4          # Low creativity for factual recall
+top_p: 0.9
+top_k: 40
+repeat_penalty: 1.1
+
+# Output limits
+max_tokens: 3072          # Allow longer outputs for memory retrieval
+
+# Allowed tools - Seshat has specific memory tools only
+tools:
+  # Future: when orchestrator supports it, enable:
+  # - vector_store_local    # ChromaDB or similar
+  # - embedding_local       # Sentence transformers
+  # - file_read_local       # Local document access
+
+# Memory and persistence
+persistent_memory: true    # Seshat maintains persistent memory by design
+memory_path: "./homestead_memory/seshat/"
+
+# Logging - extensive for audit trail
+log_level: verbose         # Detailed logging for privacy audit
+log_responses: true        # Log all memory operations
+
+# Performance hints
+priority: high             # Memory operations are time-sensitive
+gpu_layers: -1             # Full GPU for embeddings
+
+# Custom tags
+tags:
+  - seshat
+  - archivist
+  - memory
+  - knowledge-management
+  - privacy-critical
+
+# Notes
+# ------------------------------------------------------------------
+# Seshat handles sensitive data - privacy is paramount.
+# All storage requires explicit human consent.
+# Memory must be encrypted at rest.
+# Human has absolute rights to review, export, and delete.
+# NO external network access under any circumstances.

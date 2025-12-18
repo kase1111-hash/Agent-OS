@@ -1,0 +1,45 @@
+# agents/quill/config.yaml
+
+# Quill Agent Configuration
+# Refines, formats, and polishes written documents
+
+# Preferred local model - use a capable language model
+model: llama3.2:3b
+
+# Sampling parameters - balanced for natural, polished writing
+temperature: 0.6          # Moderate creativity for natural refinement
+top_p: 0.9
+top_k: 40
+repeat_penalty: 1.1
+
+# Output limits
+max_tokens: 4096          # Allow longer outputs for full document refinement
+
+# Allowed tools - Quill has no direct tool access
+tools: []
+
+# Memory and persistence
+persistent_memory: false   # Quill works on current document only
+memory_path: ""
+
+# Logging
+log_level: standard        # Standard logging for refinement work
+log_responses: true        # Log refined documents
+
+# Performance hints
+priority: normal           # Normal priority for refinement tasks
+gpu_layers: -1             # Full GPU acceleration
+
+# Custom tags
+tags:
+  - quill
+  - scribe
+  - refiner
+  - document-formatting
+  - editing
+
+# Notes
+# ------------------------------------------------------------------
+# Quill refines form, not content - meaning must be preserved.
+# All significant changes should be clearly documented.
+# No tool access ensures refinement is based on provided text only.

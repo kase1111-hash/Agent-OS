@@ -1,0 +1,46 @@
+# agents/muse/config.yaml
+
+# Muse Agent Configuration
+# Creative agent for stories, ideas, and imaginative exploration
+
+# Preferred local model - use a creative, capable model
+model: llama3.2:3b
+
+# Sampling parameters - high creativity settings
+temperature: 1.0          # High temperature for creative exploration
+top_p: 0.95               # Allow more diverse outputs
+top_k: 50
+repeat_penalty: 1.15      # Reduce repetition in creative work
+
+# Output limits
+max_tokens: 4096          # Allow longer creative outputs
+
+# Allowed tools - Muse has no direct tool access
+tools: []
+
+# Memory and persistence
+persistent_memory: false   # Muse works on current creative context only
+memory_path: ""
+
+# Logging
+log_level: standard        # Standard logging for creative work
+log_responses: true        # Log creative outputs
+
+# Performance hints
+priority: normal           # Normal priority for creative tasks
+gpu_layers: -1             # Full GPU acceleration
+
+# Custom tags
+tags:
+  - muse
+  - creative
+  - storytelling
+  - brainstorming
+  - imagination
+
+# Notes
+# ------------------------------------------------------------------
+# Muse operates with higher temperature for creative freedom.
+# All outputs are drafts requiring human review and approval.
+# Guardian reviews creative work that touches ethical boundaries.
+# No tool access ensures creativity stays within language domain.
