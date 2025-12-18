@@ -52,3 +52,7 @@ While many LLM OS explorations focus on performance, tool integration, or cloud-
 
 We dedicate this work to the public domain (CC0) in the spirit of open, principled evolution of the LLM OS idea.
 This approach:
+
+NatLangChain is an open-source project by kase1111-hash.
+The name "NatLangChain" is not a registered trademark.
+All rights to the code are governed by the LICENSE file.
