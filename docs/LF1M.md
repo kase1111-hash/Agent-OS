@@ -20,6 +20,6 @@ I’m currently looking for a **[Job Title, e.g., Full-Stack Sorcerer]** to join
 ---
 
 ### 📬 HOW TO ACCEPT THE QUEST
-If your build matches what I’m looking for, don't just lurk. Send a message to **[Your Email/LinkedIn/Twitter]** with the subject line: **"LFG: [Your Name]"** or open a "Pull Request" on my contact info.
+If your build matches what I’m looking for, don't just lurk. Send a message to **kase1111@gmail.com** with the subject line: **"LFG: [Your Name]"** or open a "Pull Request" on my contact info.
 
 > *"It's dangerous to go alone! Take this job."*
