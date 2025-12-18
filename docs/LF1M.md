@@ -12,11 +12,6 @@ I’m currently looking for a **Full-Stack Sorcerer** to join the core party and
 | **Charisma (Team)** | Lvl 40+ | Communicates well with humans, not just compilers. |
 | **Perception (QA)** | Maxed | You don't just ship bugs; you hunt them. |
 
-### 🎒 LOoT / REWARDS
-* **Gold:** Competitive market rates (no "exposure" currency here).
-* **Loot:** [Remote work / Flexible hours / High-end gear].
-* **EXP:** Direct impact on a growing codebase.
-
 ---
 
 ### 📬 HOW TO ACCEPT THE QUEST
