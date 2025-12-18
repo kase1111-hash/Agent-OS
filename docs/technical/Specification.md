@@ -182,6 +182,8 @@ Custom implementations MAY add additional intent types.
 Constitutional Document Format
 Document Structure
 Constitutional documents MUST use Markdown with YAML frontmatter:
+
+**Example: Supreme Constitution (CONSTITUTION.md)**
 yaml---
 document_type: constitution
 version: "1.0"
@@ -191,13 +193,40 @@ authority_level: "supreme"
 amendment_process: "pull_request"
 ---
 
-# Article I: Core Principles
+# Agent OS: A Constitutional Operating System for Local AI
 
-## Section 1: Constitutional Supremacy
-All agents shall operate under the constraints defined in this document...
+## Core Constitutional Principles
 
-## Section 2: Human Sovereignty
+### I. Human Sovereignty
 Ultimate authority resides with human stewards...
+
+### II. Local Custody Mandate
+System operates local-first by default...
+
+**Example: Agent-Specific Constitution (agents/guardian/constitution.md)**
+yaml---
+document_type: constitution
+version: "1.0"
+effective_date: "2025-01-15"
+scope: "guardian"
+authority_level: "agent_specific"
+amendment_process: "pull_request"
+---
+
+# Constitution of the Guardian Agent
+
+The Guardian is the homestead's permanent watchdog and safety officer...
+
+This constitution is subordinate to the core homestead CONSTITUTION.md.
+
+### Mandate
+The Guardian SHALL:
+- Review all outputs, plans, and proposed actions...
+
+### Prohibited Actions
+The Guardian MUST refuse and clearly explain the refusal if asked to:
+- Approve or overlook constitutional violations...
+
 Required Sections
 Every constitutional document MUST contain:
 
