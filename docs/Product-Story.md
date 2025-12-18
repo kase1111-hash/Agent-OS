@@ -1,7 +1,8 @@
 The Product Story (Modular, Coherent, Real)
 What this is
-
-This is a sovereign cognitive system.
+Project Codename: (Project Atlas)
+This ecosystem is developed under a temporary codename to coordinate modular components.
+The codename is not intended to ship.
 
 Not a chatbot.
 Not an agent swarm.
