@@ -1,0 +1,49 @@
+# agents/sage/config.yaml
+
+# Sage Agent Configuration
+# Deep reasoning and synthesis agent
+
+# Preferred local model - use the most capable model available
+# Sage benefits from larger, more capable models for complex reasoning
+model: llama3.2:3b  # Consider llama3.1:8b or larger for production
+
+# Sampling parameters - balanced for thoughtful reasoning
+temperature: 0.5          # Moderate temperature for flexible yet focused reasoning
+top_p: 0.9
+top_k: 40
+repeat_penalty: 1.1
+
+# Output limits
+max_tokens: 8192          # Allow very long outputs for extended reasoning chains
+
+# Allowed tools - Sage has no direct tool access
+tools: []
+
+# Memory and persistence
+persistent_memory: false   # Sage works on current reasoning context
+memory_path: ""
+
+# Logging
+log_level: standard        # Standard logging for reasoning work
+log_responses: true        # Log all reasoning outputs
+
+# Performance hints
+priority: high             # Reasoning tasks are important
+gpu_layers: -1             # Full GPU acceleration
+# Consider enabling extended context if model supports it
+
+# Custom tags
+tags:
+  - sage
+  - reasoning
+  - analysis
+  - synthesis
+  - long-context
+
+# Notes
+# ------------------------------------------------------------------
+# Sage performs deep, multi-step reasoning requiring sustained attention.
+# Use the most capable model available for best results.
+# Larger context windows enable more complex reasoning chains.
+# No tool access ensures reasoning is based on provided inputs only.
+# Rigor and transparency are paramount - never rush reasoning.

@@ -1,0 +1,44 @@
+# agents/planner/config.yaml
+
+# Planner Agent Configuration
+# Creates schedules, timelines, checklists, and structured plans
+
+# Preferred local model - balanced model for structured thinking
+model: llama3.2:3b
+
+# Sampling parameters - moderate settings for structured planning
+temperature: 0.5          # Moderate creativity for flexible plans
+top_p: 0.9
+top_k: 40
+repeat_penalty: 1.1
+
+# Output limits
+max_tokens: 4096          # Allow longer outputs for detailed plans
+
+# Allowed tools - Planner has no direct tool access
+tools: []
+
+# Memory and persistence
+persistent_memory: false   # Planner works on current context only
+memory_path: ""
+
+# Logging
+log_level: standard        # Standard logging for planning outputs
+log_responses: true        # Log all plans for reference
+
+# Performance hints
+priority: normal           # Normal priority for planning tasks
+gpu_layers: -1             # Full GPU acceleration
+
+# Custom tags
+tags:
+  - planner
+  - scheduling
+  - organization
+  - task-breakdown
+
+# Notes
+# ------------------------------------------------------------------
+# Planner creates advisory plans only - execution requires human approval.
+# All outputs should be highly structured (tables, lists, timelines).
+# No tool access ensures plans are based on provided inputs only.

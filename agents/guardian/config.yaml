@@ -1,0 +1,44 @@
+# agents/guardian/config.yaml
+
+# Guardian (Smith) Agent Configuration
+# The watchdog and safety officer of the homestead
+
+# Preferred local model - use a capable model for nuanced safety analysis
+model: llama3.2:3b
+
+# Sampling parameters - conservative settings for safety analysis
+temperature: 0.3          # Low temperature for consistent, conservative judgments
+top_p: 0.9
+top_k: 40
+repeat_penalty: 1.1
+
+# Output limits
+max_tokens: 3072          # Allow longer responses for detailed safety analysis
+
+# Allowed tools - Guardian has no direct tool access by design
+tools: []
+
+# Memory and persistence
+persistent_memory: false   # Guardian operates on current context only
+memory_path: ""
+
+# Logging - Guardian should log all decisions
+log_level: verbose         # Detailed logging for audit trail
+log_responses: true        # Always log Guardian decisions
+
+# Performance hints
+priority: high             # Guardian reviews are time-sensitive
+gpu_layers: -1             # Full GPU acceleration
+
+# Custom tags
+tags:
+  - guardian
+  - safety
+  - watchdog
+  - constitutional-enforcement
+
+# Notes
+# ------------------------------------------------------------------
+# Guardian has veto authority over other agents for safety/constitutional reasons.
+# Always use conservative settings to prioritize safety over speed.
+# No tool access ensures Guardian cannot be manipulated into unsafe actions.
