@@ -220,3 +220,13 @@ AI systems are constrained participants
 Humans retain authorship, authority, and accountability
 
 That difference is everything.
+
+---
+
+## Related Reading
+
+- [lni-manifesto.md](./lni-manifesto.md) - The philosophical foundation of Language-Native Intelligence
+- [CONSTITUTION.md](../CONSTITUTION.md) - How this philosophy is implemented through constitutional governance
+- [Product-Story.md](./Product-Story.md) - The product vision and modular ecosystem
+- [technical/architecture.md](./technical/architecture.md) - Technical architecture implementing these principles
+- [Conversational-Kernel.md](./Conversational-Kernel.md) - The natural language kernel explained

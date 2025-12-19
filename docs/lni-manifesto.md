@@ -196,8 +196,18 @@ Language-Native Intelligence is a step toward making that vision architecturally
 
 Closing Statement
 
-Language is humanity’s oldest and most powerful operating system.
+Language is humanity's oldest and most powerful operating system.
 
 Language-Native Intelligence asserts a simple truth:
 
 Any intelligence meant to work with humans must live inside the same operating system humans use to think.
+
+---
+
+## Related Reading
+
+- [Not-an-OS.md](./Not-an-OS.md) - Clarification: Agent-OS is not an AI OS, but a language-native OS
+- [Product-Story.md](./Product-Story.md) - How these principles manifest in the Agent-OS product
+- [The_Document_Revolution.md](./The_Document_Revolution.md) - Documents as executable specifications
+- [Conversational-Kernel.md](./Conversational-Kernel.md) - Technical architecture of the language-native kernel
+- [technical/whitepaper.md](./technical/whitepaper.md) - Complete technical implementation
