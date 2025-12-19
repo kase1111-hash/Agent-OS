@@ -228,3 +228,13 @@ This system is how you record that effort without surrendering control.
 The One-Line Tagline
 
 Bring AI home. Let it learn. Keep it bounded. Keep the proof.
+
+---
+
+## Related Reading
+
+- [lni-manifesto.md](./lni-manifesto.md) - The Language-Native Intelligence principles underlying this vision
+- [Not-an-OS.md](./Not-an-OS.md) - Why this is a language-native OS, not an AI OS
+- [ROADMAP.md](../ROADMAP.md) - Development timeline for the modular ecosystem
+- [Spec-to-Repo-Mapping.md](./Spec-to-Repo-Mapping.md) - How the modular components map to repositories
+- [examples/basic-homestead-setup.md](../examples/basic-homestead-setup.md) - Getting started with your own homestead

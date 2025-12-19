@@ -1,13 +1,19 @@
 # Agent-OS
 Agent OS: A Constitutional Operating System for Local AI
-Public Declaration of Prior Art & Creative Commons Release
-Date: December 15, 2025
-Version: 1.0
-Author: Kase Branham
-Repository: https://github.com/kase1111-hash/Agent-OS
-License: Creative Commons Zero v1.0 Universal (CC0 1.0) - Public Domain Dedication
 
-Declaration of Intent
+**Public Declaration of Prior Art & Creative Commons Release**
+
+- **Date:** December 15, 2025
+- **Version:** 1.0
+- **Author:** Kase Branham
+- **Repository:** https://github.com/kase1111-hash/Agent-OS
+- **License:** Creative Commons Zero v1.0 Universal (CC0 1.0) - Public Domain Dedication
+
+📚 **[Complete Documentation Index →](./docs/README.md)**
+
+---
+
+## Declaration of Intent
 I hereby declare the following architectural design, constitutional framework, and operational principles for what I call "Agent OS" to be prior art, released irrevocably into the public domain for the benefit of all humanity.
 This document establishes:
 
