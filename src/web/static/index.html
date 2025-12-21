@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent OS</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Navigation -->
+        <nav class="nav">
+            <div class="nav-brand">
+                <h1>Agent OS</h1>
+            </div>
+            <div class="nav-links">
+                <button class="nav-link active" data-view="chat">Chat</button>
+                <button class="nav-link" data-view="agents">Agents</button>
+                <button class="nav-link" data-view="constitution">Constitution</button>
+                <button class="nav-link" data-view="memory">Memory</button>
+                <button class="nav-link" data-view="system">System</button>
+            </div>
+            <div class="nav-status">
+                <span id="connection-status" class="status-indicator disconnected">Disconnected</span>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Chat View -->
+            <section id="chat-view" class="view active">
+                <div class="chat-container">
+                    <div class="chat-sidebar">
+                        <h3>Conversations</h3>
+                        <button id="new-chat-btn" class="btn btn-primary">New Chat</button>
+                        <div id="conversation-list" class="conversation-list"></div>
+                    </div>
+                    <div class="chat-main">
+                        <div id="chat-messages" class="chat-messages">
+                            <div class="welcome-message">
+                                <h2>Welcome to Agent OS</h2>
+                                <p>Start a conversation with your AI assistant.</p>
+                            </div>
+                        </div>
+                        <div class="chat-input-container">
+                            <textarea id="chat-input" placeholder="Type your message..." rows="1"></textarea>
+                            <button id="send-btn" class="btn btn-primary">Send</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Agents View -->
+            <section id="agents-view" class="view">
+                <div class="view-header">
+                    <h2>Agent Monitoring</h2>
+                    <button id="refresh-agents-btn" class="btn btn-secondary">Refresh</button>
+                </div>
+                <div class="stats-grid" id="agents-stats"></div>
+                <div class="agents-grid" id="agents-list"></div>
+            </section>
+
+            <!-- Constitution View -->
+            <section id="constitution-view" class="view">
+                <div class="view-header">
+                    <h2>Constitutional Rules</h2>
+                    <button id="add-rule-btn" class="btn btn-primary">Add Rule</button>
+                </div>
+                <div class="constitution-container">
+                    <div class="rules-sidebar">
+                        <h3>Sections</h3>
+                        <div id="sections-list" class="sections-list"></div>
+                    </div>
+                    <div class="rules-main">
+                        <div id="rules-list" class="rules-list"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Memory View -->
+            <section id="memory-view" class="view">
+                <div class="view-header">
+                    <h2>Memory Management</h2>
+                    <div class="view-actions">
+                        <input type="text" id="memory-search" placeholder="Search memories..." class="search-input">
+                        <button id="add-memory-btn" class="btn btn-primary">Add Memory</button>
+                    </div>
+                </div>
+                <div class="stats-grid" id="memory-stats"></div>
+                <div id="memory-list" class="memory-list"></div>
+            </section>
+
+            <!-- System View -->
+            <section id="system-view" class="view">
+                <div class="view-header">
+                    <h2>System Status</h2>
+                    <button id="refresh-system-btn" class="btn btn-secondary">Refresh</button>
+                </div>
+                <div class="system-container">
+                    <div class="system-info" id="system-info"></div>
+                    <div class="system-health" id="system-health"></div>
+                    <div class="system-settings">
+                        <h3>Settings</h3>
+                        <div id="settings-list" class="settings-list"></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title"></h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-body"></div>
+            <div class="modal-footer" id="modal-footer"></div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
