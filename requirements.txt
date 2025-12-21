@@ -1,0 +1,21 @@
+# Agent OS Core Dependencies
+
+# YAML parsing for constitutional frontmatter
+PyYAML>=6.0
+
+# File system watching for hot-reload
+watchdog>=3.0
+
+# Testing
+pytest>=7.0
+pytest-cov>=4.0
+
+# Type checking (optional)
+mypy>=1.0
+
+# Code formatting (optional)
+black>=23.0
+isort>=5.0
+
+# Development
+ipython>=8.0
