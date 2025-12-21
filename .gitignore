@@ -63,9 +63,9 @@ Thumbs.db
 .DS_Store
 
 # Agent OS specific
-# Local agent data and memory
+# Local agent data and memory (at project root, not src/memory/)
 data/
-memory/
+/memory/
 *.db
 *.sqlite
 *.sqlite3
