@@ -2,11 +2,14 @@
 Chat API Routes
 
 WebSocket-based chat interface for Agent OS.
+Integrates with Ollama for local LLM inference.
 """
 
 import asyncio
+import concurrent.futures
 import json
 import logging
+import os
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -17,6 +20,16 @@ from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisco
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
+
+# Ollama configuration
+OLLAMA_ENDPOINT = os.environ.get("OLLAMA_ENDPOINT", "http://localhost:11434")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "mistral:7b-instruct")
+OLLAMA_TIMEOUT = float(os.environ.get("OLLAMA_TIMEOUT", "120"))
+
+# System prompt for the AI assistant
+SYSTEM_PROMPT = """You are Agent OS, a helpful AI assistant running locally on the user's machine.
+You are powered by Ollama and respect user privacy - all conversations stay on this device.
+Be concise, helpful, and friendly. If you don't know something, say so honestly."""
 router = APIRouter()
 
 
@@ -198,10 +211,9 @@ class ConnectionManager:
         conversation_id: str,
     ) -> ChatMessage:
         """
-        Process an incoming chat message.
+        Process an incoming chat message using Ollama.
 
-        This is a placeholder that simulates agent processing.
-        In production, this would route to Whisper/Smith/agents.
+        Routes the message through the local Ollama instance for LLM inference.
         """
         # Create user message
         user_message = ChatMessage(
@@ -210,42 +222,114 @@ class ConnectionManager:
         )
         self.add_message(conversation_id, user_message)
 
-        # Simulate processing time
-        await asyncio.sleep(0.1)
-
-        # Generate response (placeholder)
-        # In production, this would invoke the agent system
-        response_content = self._generate_response(message, conversation_id)
+        # Generate response using Ollama
+        response_content, metadata = await self._generate_ollama_response(
+            message, conversation_id
+        )
 
         assistant_message = ChatMessage(
             role=MessageRole.ASSISTANT,
             content=response_content,
-            metadata={"model": "agent-os", "tokens": len(response_content.split())},
+            metadata=metadata,
         )
         self.add_message(conversation_id, assistant_message)
 
         return assistant_message
 
-    def _generate_response(self, message: str, conversation_id: str) -> str:
+    async def _generate_ollama_response(
+        self, message: str, conversation_id: str
+    ) -> tuple[str, Dict[str, Any]]:
         """
-        Generate a response to a message.
+        Generate a response using Ollama.
 
-        This is a placeholder. In production, this would:
-        1. Route through Whisper for intent classification
-        2. Pass through Smith for constitutional checking
-        3. Execute via appropriate agent(s)
-        4. Return aggregated response
+        Runs the synchronous Ollama client in a thread pool to avoid blocking.
         """
-        # Simple echo response for demonstration
+        # Build conversation history for context
         history = self.get_conversation(conversation_id)
-        turn_count = len([m for m in history if m.role == MessageRole.USER])
 
-        return (
-            f"I received your message: '{message}'\n\n"
-            f"This is turn {turn_count} in our conversation.\n\n"
-            "Note: This is a placeholder response. In production, "
-            "this would be processed by the Agent OS agent system."
-        )
+        # Convert history to Ollama message format
+        messages = []
+        for msg in history[-10:]:  # Keep last 10 messages for context
+            messages.append({
+                "role": msg.role.value,
+                "content": msg.content,
+            })
+
+        # Add the current message
+        messages.append({"role": "user", "content": message})
+
+        # Run Ollama in thread pool (since httpx client is synchronous)
+        loop = asyncio.get_event_loop()
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            try:
+                result = await loop.run_in_executor(
+                    executor,
+                    self._call_ollama,
+                    messages,
+                )
+                return result
+            except Exception as e:
+                logger.error(f"Ollama error: {e}")
+                return (
+                    f"I'm sorry, I encountered an error connecting to Ollama: {str(e)}\n\n"
+                    "Please make sure Ollama is running (`ollama serve`) and you have a model pulled "
+                    f"(`ollama pull {OLLAMA_MODEL}`).",
+                    {"model": OLLAMA_MODEL, "error": str(e)},
+                )
+
+    def _call_ollama(self, messages: List[Dict[str, str]]) -> tuple[str, Dict[str, Any]]:
+        """
+        Call Ollama API synchronously.
+
+        This runs in a thread pool to avoid blocking the async event loop.
+        """
+        try:
+            from src.agents.ollama import OllamaClient, OllamaMessage
+
+            client = OllamaClient(
+                endpoint=OLLAMA_ENDPOINT,
+                timeout=OLLAMA_TIMEOUT,
+            )
+
+            # Convert to OllamaMessage objects
+            ollama_messages = [
+                OllamaMessage(role="system", content=SYSTEM_PROMPT)
+            ]
+            for msg in messages:
+                ollama_messages.append(
+                    OllamaMessage(role=msg["role"], content=msg["content"])
+                )
+
+            # Call Ollama chat API
+            response = client.chat(
+                model=OLLAMA_MODEL,
+                messages=ollama_messages,
+                options={
+                    "temperature": 0.7,
+                    "top_p": 0.9,
+                },
+            )
+
+            client.close()
+
+            metadata = {
+                "model": OLLAMA_MODEL,
+                "tokens_generated": response.tokens_generated,
+                "tokens_per_second": round(response.tokens_per_second, 1),
+                "total_duration_ms": response.total_duration_ms,
+            }
+
+            return response.content, metadata
+
+        except ImportError as e:
+            logger.error(f"Failed to import Ollama client: {e}")
+            return (
+                "Ollama client not available. Please check the installation.",
+                {"error": str(e)},
+            )
+        except Exception as e:
+            logger.error(f"Ollama API error: {e}")
+            raise
 
 
 # Global connection manager
@@ -471,9 +555,33 @@ async def delete_conversation(
 async def get_chat_status(
     manager: ConnectionManager = Depends(get_manager),
 ) -> Dict[str, Any]:
-    """Get chat system status."""
+    """Get chat system status including Ollama connectivity."""
+    # Check Ollama status
+    ollama_status = "unknown"
+    ollama_models = []
+
+    try:
+        from src.agents.ollama import OllamaClient
+
+        client = OllamaClient(endpoint=OLLAMA_ENDPOINT, timeout=5)
+        if client.is_healthy():
+            ollama_status = "connected"
+            models = client.list_models()
+            ollama_models = [m.name for m in models]
+        else:
+            ollama_status = "disconnected"
+        client.close()
+    except Exception as e:
+        ollama_status = f"error: {str(e)}"
+
     return {
         "active_connections": len(manager.connections),
         "total_conversations": len(manager.conversations),
         "status": "operational",
+        "ollama": {
+            "endpoint": OLLAMA_ENDPOINT,
+            "model": OLLAMA_MODEL,
+            "status": ollama_status,
+            "available_models": ollama_models,
+        },
     }
