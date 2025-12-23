@@ -10,11 +10,12 @@ import concurrent.futures
 import json
 import logging
 import os
+import re
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
@@ -23,13 +24,87 @@ logger = logging.getLogger(__name__)
 
 # Ollama configuration
 OLLAMA_ENDPOINT = os.environ.get("OLLAMA_ENDPOINT", "http://localhost:11434")
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "mistral:7b-instruct")
 OLLAMA_TIMEOUT = float(os.environ.get("OLLAMA_TIMEOUT", "120"))
 
 # System prompt for the AI assistant
 SYSTEM_PROMPT = """You are Agent OS, a helpful AI assistant running locally on the user's machine.
 You are powered by Ollama and respect user privacy - all conversations stay on this device.
 Be concise, helpful, and friendly. If you don't know something, say so honestly."""
+
+
+class ModelManager:
+    """Manages the current Ollama model and available models."""
+
+    def __init__(self):
+        self.current_model = os.environ.get("OLLAMA_MODEL", "mistral")
+        self._available_models: List[str] = []
+        self._last_refresh = None
+
+    def get_current_model(self) -> str:
+        return self.current_model
+
+    def set_model(self, model_name: str) -> bool:
+        """Set the current model. Returns True if model exists."""
+        available = self.get_available_models()
+        # Check exact match or partial match
+        for m in available:
+            if m == model_name or m.startswith(model_name + ":"):
+                self.current_model = m
+                return True
+        # If not found but user specified it, try anyway
+        if model_name:
+            self.current_model = model_name
+            return True
+        return False
+
+    def get_available_models(self) -> List[str]:
+        """Get list of available models from Ollama."""
+        try:
+            from src.agents.ollama import OllamaClient
+            client = OllamaClient(endpoint=OLLAMA_ENDPOINT, timeout=5)
+            models = client.list_models()
+            client.close()
+            self._available_models = [m.name for m in models]
+            return self._available_models
+        except Exception as e:
+            logger.error(f"Failed to get models: {e}")
+            return self._available_models  # Return cached list
+
+    def find_model(self, query: str) -> Optional[str]:
+        """Find a model matching the query."""
+        query_lower = query.lower().strip()
+        available = self.get_available_models()
+
+        # Exact match
+        for m in available:
+            if m.lower() == query_lower:
+                return m
+
+        # Partial match (model name starts with query)
+        for m in available:
+            if m.lower().startswith(query_lower):
+                return m
+
+        # Fuzzy match (query is contained in model name)
+        for m in available:
+            if query_lower in m.lower():
+                return m
+
+        return None
+
+
+# Global model manager
+_model_manager: Optional[ModelManager] = None
+
+
+def get_model_manager() -> ModelManager:
+    """Get the model manager instance."""
+    global _model_manager
+    if _model_manager is None:
+        _model_manager = ModelManager()
+    return _model_manager
+
+
 router = APIRouter()
 
 
@@ -214,6 +289,7 @@ class ConnectionManager:
         Process an incoming chat message using Ollama.
 
         Routes the message through the local Ollama instance for LLM inference.
+        Handles special commands for model management via Whisper-style intent detection.
         """
         # Create user message
         user_message = ChatMessage(
@@ -222,10 +298,15 @@ class ConnectionManager:
         )
         self.add_message(conversation_id, user_message)
 
-        # Generate response using Ollama
-        response_content, metadata = await self._generate_ollama_response(
-            message, conversation_id
-        )
+        # Check for model management commands (Whisper intent detection)
+        command_response = self._handle_model_command(message)
+        if command_response:
+            response_content, metadata = command_response
+        else:
+            # Generate response using Ollama
+            response_content, metadata = await self._generate_ollama_response(
+                message, conversation_id
+            )
 
         assistant_message = ChatMessage(
             role=MessageRole.ASSISTANT,
@@ -235,6 +316,74 @@ class ConnectionManager:
         self.add_message(conversation_id, assistant_message)
 
         return assistant_message
+
+    def _handle_model_command(self, message: str) -> Optional[Tuple[str, Dict[str, Any]]]:
+        """
+        Handle model management commands via Whisper-style intent detection.
+
+        Supported commands:
+        - "list models" / "show models" / "what models"
+        - "use <model>" / "switch to <model>" / "change model to <model>"
+        - "current model" / "what model"
+        """
+        msg_lower = message.lower().strip()
+        model_manager = get_model_manager()
+
+        # List models command
+        list_patterns = [
+            r"^list\s+models?$",
+            r"^show\s+models?$",
+            r"^what\s+models?\s+(are\s+)?(available|do\s+i\s+have)",
+            r"^available\s+models?$",
+            r"^models?\s+list$",
+        ]
+        for pattern in list_patterns:
+            if re.match(pattern, msg_lower):
+                models = model_manager.get_available_models()
+                current = model_manager.get_current_model()
+                if models:
+                    model_list = "\n".join(f"  • {m}" + (" ← current" if m == current else "") for m in models)
+                    response = f"**Available Models:**\n{model_list}\n\nTo switch models, say: `use <model_name>`"
+                else:
+                    response = "No models found. Make sure Ollama is running and you have models pulled.\nTry: `ollama pull mistral`"
+                return response, {"command": "list_models", "models": models}
+
+        # Current model command
+        current_patterns = [
+            r"^(what|which)\s+(is\s+)?(the\s+)?current\s+model",
+            r"^current\s+model",
+            r"^what\s+model\s+(am\s+i|are\s+you)\s+using",
+        ]
+        for pattern in current_patterns:
+            if re.match(pattern, msg_lower):
+                current = model_manager.get_current_model()
+                return f"Currently using: **{current}**", {"command": "current_model", "model": current}
+
+        # Switch model command
+        switch_patterns = [
+            r"^(?:use|switch\s+to|change\s+(?:model\s+)?to|set\s+model\s+(?:to)?)\s+(.+)$",
+            r"^model\s+(.+)$",
+        ]
+        for pattern in switch_patterns:
+            match = re.match(pattern, msg_lower)
+            if match:
+                requested_model = match.group(1).strip()
+                found_model = model_manager.find_model(requested_model)
+
+                if found_model:
+                    model_manager.set_model(found_model)
+                    response = f"✓ Switched to model: **{found_model}**"
+                    return response, {"command": "switch_model", "model": found_model}
+                else:
+                    available = model_manager.get_available_models()
+                    if available:
+                        suggestions = ", ".join(available[:5])
+                        response = f"Model '{requested_model}' not found.\n\nAvailable models: {suggestions}"
+                    else:
+                        response = f"Model '{requested_model}' not found. No models available - is Ollama running?"
+                    return response, {"command": "switch_model", "error": "not_found"}
+
+        return None
 
     async def _generate_ollama_response(
         self, message: str, conversation_id: str
@@ -270,11 +419,12 @@ class ConnectionManager:
                 return result
             except Exception as e:
                 logger.error(f"Ollama error: {e}")
+                model = get_model_manager().get_current_model()
                 return (
                     f"I'm sorry, I encountered an error connecting to Ollama: {str(e)}\n\n"
                     "Please make sure Ollama is running (`ollama serve`) and you have a model pulled "
-                    f"(`ollama pull {OLLAMA_MODEL}`).",
-                    {"model": OLLAMA_MODEL, "error": str(e)},
+                    f"(`ollama pull {model}`).",
+                    {"model": model, "error": str(e)},
                 )
 
     def _call_ollama(self, messages: List[Dict[str, str]]) -> tuple[str, Dict[str, Any]]:
@@ -282,28 +432,36 @@ class ConnectionManager:
         Call Ollama API synchronously.
 
         This runs in a thread pool to avoid blocking the async event loop.
+        Uses /api/generate for broader compatibility with Ollama versions.
         """
         try:
-            from src.agents.ollama import OllamaClient, OllamaMessage
+            from src.agents.ollama import OllamaClient
+
+            model = get_model_manager().get_current_model()
 
             client = OllamaClient(
                 endpoint=OLLAMA_ENDPOINT,
                 timeout=OLLAMA_TIMEOUT,
             )
 
-            # Convert to OllamaMessage objects
-            ollama_messages = [
-                OllamaMessage(role="system", content=SYSTEM_PROMPT)
-            ]
+            # Build prompt from conversation history
+            prompt_parts = []
             for msg in messages:
-                ollama_messages.append(
-                    OllamaMessage(role=msg["role"], content=msg["content"])
-                )
+                role = msg["role"]
+                content = msg["content"]
+                if role == "user":
+                    prompt_parts.append(f"User: {content}")
+                elif role == "assistant":
+                    prompt_parts.append(f"Assistant: {content}")
 
-            # Call Ollama chat API
-            response = client.chat(
-                model=OLLAMA_MODEL,
-                messages=ollama_messages,
+            prompt = "\n\n".join(prompt_parts)
+            prompt += "\n\nAssistant:"
+
+            # Call Ollama generate API (more compatible than chat)
+            response = client.generate(
+                model=model,
+                prompt=prompt,
+                system=SYSTEM_PROMPT,
                 options={
                     "temperature": 0.7,
                     "top_p": 0.9,
@@ -313,13 +471,13 @@ class ConnectionManager:
             client.close()
 
             metadata = {
-                "model": OLLAMA_MODEL,
+                "model": model,
                 "tokens_generated": response.tokens_generated,
                 "tokens_per_second": round(response.tokens_per_second, 1),
                 "total_duration_ms": response.total_duration_ms,
             }
 
-            return response.content, metadata
+            return response.content.strip(), metadata
 
         except ImportError as e:
             logger.error(f"Failed to import Ollama client: {e}")
@@ -574,14 +732,69 @@ async def get_chat_status(
     except Exception as e:
         ollama_status = f"error: {str(e)}"
 
+    model_manager = get_model_manager()
     return {
         "active_connections": len(manager.connections),
         "total_conversations": len(manager.conversations),
         "status": "operational",
         "ollama": {
             "endpoint": OLLAMA_ENDPOINT,
-            "model": OLLAMA_MODEL,
+            "model": model_manager.get_current_model(),
             "status": ollama_status,
             "available_models": ollama_models,
         },
     }
+
+
+# =============================================================================
+# Model Management Endpoints
+# =============================================================================
+
+
+class ModelSwitchRequest(BaseModel):
+    """Request to switch models."""
+    model: str
+
+
+@router.get("/models")
+async def list_models() -> Dict[str, Any]:
+    """List available Ollama models."""
+    model_manager = get_model_manager()
+    models = model_manager.get_available_models()
+    current = model_manager.get_current_model()
+
+    return {
+        "current_model": current,
+        "available_models": models,
+    }
+
+
+@router.get("/models/current")
+async def get_current_model() -> Dict[str, str]:
+    """Get the currently active model."""
+    model_manager = get_model_manager()
+    return {"model": model_manager.get_current_model()}
+
+
+@router.post("/models/switch")
+async def switch_model(request: ModelSwitchRequest) -> Dict[str, Any]:
+    """Switch to a different model."""
+    model_manager = get_model_manager()
+    found_model = model_manager.find_model(request.model)
+
+    if found_model:
+        model_manager.set_model(found_model)
+        return {
+            "status": "success",
+            "model": found_model,
+            "message": f"Switched to {found_model}",
+        }
+    else:
+        available = model_manager.get_available_models()
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": f"Model '{request.model}' not found",
+                "available_models": available,
+            },
+        )
