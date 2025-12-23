@@ -34,15 +34,10 @@ def collect_data_files():
     """Collect data files, only including directories that exist."""
     datas = []
 
-    # Web static files
-    static_dir = os.path.join(PROJECT_ROOT, 'src', 'web', 'static')
-    if os.path.exists(static_dir):
-        datas.append((static_dir, 'src/web/static'))
-
-    # Web templates (if they exist)
-    templates_dir = os.path.join(PROJECT_ROOT, 'src', 'web', 'templates')
-    if os.path.exists(templates_dir):
-        datas.append((templates_dir, 'src/web/templates'))
+    # Include the entire src directory as a package
+    src_dir = os.path.join(PROJECT_ROOT, 'src')
+    if os.path.exists(src_dir):
+        datas.append((src_dir, 'src'))
 
     # Config directory (if it exists)
     config_dir = os.path.join(PROJECT_ROOT, 'config')
@@ -52,9 +47,13 @@ def collect_data_files():
     return datas
 
 
+# Use the entry point script instead of app.py directly
+# This handles relative imports properly
+ENTRY_POINT = os.path.join(SPEC_DIR, 'entry_point.py')
+
 # Collect all source files
 a = Analysis(
-    [os.path.join(PROJECT_ROOT, 'src', 'web', 'app.py')],
+    [ENTRY_POINT],
     pathex=[PROJECT_ROOT],
     binaries=[],
     datas=collect_data_files(),
@@ -91,6 +90,7 @@ a = Analysis(
         # Web modules
         'src.web',
         'src.web.app',
+        'src.web.config',
         'src.web.routes',
         'src.web.routes.chat',
         'src.web.routes.agents',
