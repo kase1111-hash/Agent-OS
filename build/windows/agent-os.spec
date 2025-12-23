@@ -29,18 +29,35 @@ sys.path.insert(0, PROJECT_ROOT)
 
 block_cipher = None
 
+
+def collect_data_files():
+    """Collect data files, only including directories that exist."""
+    datas = []
+
+    # Web static files
+    static_dir = os.path.join(PROJECT_ROOT, 'src', 'web', 'static')
+    if os.path.exists(static_dir):
+        datas.append((static_dir, 'src/web/static'))
+
+    # Web templates (if they exist)
+    templates_dir = os.path.join(PROJECT_ROOT, 'src', 'web', 'templates')
+    if os.path.exists(templates_dir):
+        datas.append((templates_dir, 'src/web/templates'))
+
+    # Config directory (if it exists)
+    config_dir = os.path.join(PROJECT_ROOT, 'config')
+    if os.path.exists(config_dir):
+        datas.append((config_dir, 'config'))
+
+    return datas
+
+
 # Collect all source files
 a = Analysis(
     [os.path.join(PROJECT_ROOT, 'src', 'web', 'app.py')],
     pathex=[PROJECT_ROOT],
     binaries=[],
-    datas=[
-        # Include web templates and static files
-        (os.path.join(PROJECT_ROOT, 'src', 'web', 'templates'), 'src/web/templates'),
-        (os.path.join(PROJECT_ROOT, 'src', 'web', 'static'), 'src/web/static'),
-        # Include default constitution files if they exist
-        (os.path.join(PROJECT_ROOT, 'config'), 'config'),
-    ],
+    datas=collect_data_files(),
     hiddenimports=[
         # Core modules
         'src',
