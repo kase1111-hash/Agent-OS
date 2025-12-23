@@ -282,28 +282,34 @@ class ConnectionManager:
         Call Ollama API synchronously.
 
         This runs in a thread pool to avoid blocking the async event loop.
+        Uses /api/generate for broader compatibility with Ollama versions.
         """
         try:
-            from src.agents.ollama import OllamaClient, OllamaMessage
+            from src.agents.ollama import OllamaClient
 
             client = OllamaClient(
                 endpoint=OLLAMA_ENDPOINT,
                 timeout=OLLAMA_TIMEOUT,
             )
 
-            # Convert to OllamaMessage objects
-            ollama_messages = [
-                OllamaMessage(role="system", content=SYSTEM_PROMPT)
-            ]
+            # Build prompt from conversation history
+            prompt_parts = []
             for msg in messages:
-                ollama_messages.append(
-                    OllamaMessage(role=msg["role"], content=msg["content"])
-                )
+                role = msg["role"]
+                content = msg["content"]
+                if role == "user":
+                    prompt_parts.append(f"User: {content}")
+                elif role == "assistant":
+                    prompt_parts.append(f"Assistant: {content}")
 
-            # Call Ollama chat API
-            response = client.chat(
+            prompt = "\n\n".join(prompt_parts)
+            prompt += "\n\nAssistant:"
+
+            # Call Ollama generate API (more compatible than chat)
+            response = client.generate(
                 model=OLLAMA_MODEL,
-                messages=ollama_messages,
+                prompt=prompt,
+                system=SYSTEM_PROMPT,
                 options={
                     "temperature": 0.7,
                     "top_p": 0.9,
@@ -319,7 +325,7 @@ class ConnectionManager:
                 "total_duration_ms": response.total_duration_ms,
             }
 
-            return response.content, metadata
+            return response.content.strip(), metadata
 
         except ImportError as e:
             logger.error(f"Failed to import Ollama client: {e}")
