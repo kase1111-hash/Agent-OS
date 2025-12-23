@@ -1,0 +1,13 @@
+# Build dependencies for Agent OS distributable packages
+
+# PyInstaller for creating standalone executables
+pyinstaller>=6.0
+
+# UPX compression support (optional, install separately)
+# Download from: https://github.com/upx/upx/releases
+
+# For code signing on Windows (optional)
+# signtool is part of Windows SDK
+
+# For MSI creation (optional)
+# WiX Toolset: https://wixtoolset.org/

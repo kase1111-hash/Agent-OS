@@ -1,0 +1,107 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-os"
+version = "0.1.0"
+description = "Constitutional Operating System for Local AI"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Agent OS Community"}
+]
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+keywords = ["ai", "agents", "llm", "constitutional-ai", "local-ai"]
+
+dependencies = [
+    "PyYAML>=6.0",
+    "watchdog>=3.0",
+    "pydantic>=2.0",
+    "httpx>=0.24.0",
+    "fastapi>=0.100.0",
+    "uvicorn[standard]>=0.23.0",
+    "jinja2>=3.0",
+    "python-multipart>=0.0.6",
+    "websockets>=11.0",
+]
+
+[project.optional-dependencies]
+redis = ["redis>=4.0"]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "mypy>=1.0",
+    "black>=23.0",
+    "isort>=5.0",
+    "ipython>=8.0",
+]
+build = [
+    "pyinstaller>=6.0",
+    "nsis>=3.0; sys_platform == 'win32'",
+]
+
+[project.scripts]
+agent-os = "src.web.app:main"
+agent-os-install = "src.installer.cli:main"
+agent-os-ceremony = "src.ceremony.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/kase1111-hash/Agent-OS"
+Documentation = "https://agent-os.dev/docs"
+Repository = "https://github.com/kase1111-hash/Agent-OS"
+Issues = "https://github.com/kase1111-hash/Agent-OS/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.yaml", "*.yml", "*.json", "*.html", "*.css", "*.js"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | _build
+    | buck-out
+    | build
+    | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+known_first_party = ["src"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"

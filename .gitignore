@@ -4,7 +4,6 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
 develop-eggs/
 dist/
 downloads/
@@ -21,9 +20,17 @@ wheels/
 *.egg
 MANIFEST
 *.manifest
-*.spec
 pip-log.txt
 pip-delete-this-directory.txt
+
+# Build outputs (but not build configuration)
+build/pyinstaller/
+build/**/version_info.txt
+!build/
+!build/**/*.py
+!build/**/*.spec
+!build/**/*.txt
+!build/**/*.md
 
 # Virtual environments
 venv/
