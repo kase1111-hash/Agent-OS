@@ -197,3 +197,12 @@ def run_server(
         port=port or config.port,
         reload=reload,
     )
+
+
+def main() -> None:
+    """Main entry point for the Agent OS web interface."""
+    run_server()
+
+
+if __name__ == "__main__":
+    main()
