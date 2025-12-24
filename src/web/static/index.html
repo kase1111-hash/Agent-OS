@@ -10,18 +10,18 @@
     <div id="app">
         <!-- Navigation -->
         <nav class="nav">
-            <div class="nav-brand">
+            <div class="nav-brand" data-tooltip="Autonomous AI Agent Operating System" data-tooltip-position="bottom">
                 <h1>Agent OS</h1>
             </div>
             <div class="nav-links">
-                <button class="nav-link active" data-view="chat">Chat</button>
-                <button class="nav-link" data-view="agents">Agents</button>
-                <button class="nav-link" data-view="constitution">Constitution</button>
-                <button class="nav-link" data-view="memory">Memory</button>
-                <button class="nav-link" data-view="system">System</button>
+                <button class="nav-link active" data-view="chat" data-tooltip="Converse with AI agents" data-tooltip-position="bottom">Chat</button>
+                <button class="nav-link" data-view="agents" data-tooltip="Monitor and manage agents" data-tooltip-position="bottom">Agents</button>
+                <button class="nav-link" data-view="constitution" data-tooltip="View and edit system rules" data-tooltip-position="bottom">Constitution</button>
+                <button class="nav-link" data-view="memory" data-tooltip="Browse and manage memories" data-tooltip-position="bottom">Memory</button>
+                <button class="nav-link" data-view="system" data-tooltip="System status and settings" data-tooltip-position="bottom">System</button>
             </div>
             <div class="nav-status">
-                <span id="connection-status" class="status-indicator disconnected">Disconnected</span>
+                <span id="connection-status" class="status-indicator disconnected" data-tooltip="WebSocket connection status" data-tooltip-position="bottom">Disconnected</span>
             </div>
         </nav>
 
@@ -32,7 +32,7 @@
                 <div class="chat-container">
                     <div class="chat-sidebar">
                         <h3>Conversations</h3>
-                        <button id="new-chat-btn" class="btn btn-primary">New Chat</button>
+                        <button id="new-chat-btn" class="btn btn-primary" data-tooltip="Start a new conversation" data-tooltip-position="right">New Chat</button>
                         <div id="conversation-list" class="conversation-list"></div>
                     </div>
                     <div class="chat-main">
@@ -43,8 +43,8 @@
                             </div>
                         </div>
                         <div class="chat-input-container">
-                            <textarea id="chat-input" placeholder="Type your message..." rows="1"></textarea>
-                            <button id="send-btn" class="btn btn-primary">Send</button>
+                            <textarea id="chat-input" placeholder="Type your message..." rows="1" data-tooltip="Press Enter to send, Shift+Enter for new line"></textarea>
+                            <button id="send-btn" class="btn btn-primary" data-tooltip="Send message (Enter)">Send</button>
                         </div>
                     </div>
                 </div>
@@ -54,7 +54,7 @@
             <section id="agents-view" class="view">
                 <div class="view-header">
                     <h2>Agent Monitoring</h2>
-                    <button id="refresh-agents-btn" class="btn btn-secondary">Refresh</button>
+                    <button id="refresh-agents-btn" class="btn btn-secondary" data-tooltip="Reload agent status">Refresh</button>
                 </div>
                 <div class="stats-grid" id="agents-stats"></div>
                 <div class="agents-grid" id="agents-list"></div>
@@ -64,7 +64,7 @@
             <section id="constitution-view" class="view">
                 <div class="view-header">
                     <h2>Constitutional Rules</h2>
-                    <button id="add-rule-btn" class="btn btn-primary">Add Rule</button>
+                    <button id="add-rule-btn" class="btn btn-primary" data-tooltip="Create a new constitutional rule">Add Rule</button>
                 </div>
                 <div class="constitution-container">
                     <div class="rules-sidebar">
@@ -82,8 +82,8 @@
                 <div class="view-header">
                     <h2>Memory Management</h2>
                     <div class="view-actions">
-                        <input type="text" id="memory-search" placeholder="Search memories..." class="search-input">
-                        <button id="add-memory-btn" class="btn btn-primary">Add Memory</button>
+                        <input type="text" id="memory-search" placeholder="Search memories..." class="search-input" data-tooltip="Filter memories by content or tags">
+                        <button id="add-memory-btn" class="btn btn-primary" data-tooltip="Store a new memory entry">Add Memory</button>
                     </div>
                 </div>
                 <div class="stats-grid" id="memory-stats"></div>
@@ -94,7 +94,7 @@
             <section id="system-view" class="view">
                 <div class="view-header">
                     <h2>System Status</h2>
-                    <button id="refresh-system-btn" class="btn btn-secondary">Refresh</button>
+                    <button id="refresh-system-btn" class="btn btn-secondary" data-tooltip="Reload system information">Refresh</button>
                 </div>
                 <div class="system-container">
                     <div class="system-info" id="system-info"></div>
@@ -113,7 +113,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3 id="modal-title"></h3>
-                <button class="modal-close">&times;</button>
+                <button class="modal-close" data-tooltip="Close dialog (Esc)" data-tooltip-position="left">&times;</button>
             </div>
             <div class="modal-body" id="modal-body"></div>
             <div class="modal-footer" id="modal-footer"></div>
