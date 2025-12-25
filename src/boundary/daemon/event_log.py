@@ -1,8 +1,11 @@
 """
-Boundary Daemon Immutable Event Log
+Smith Daemon Immutable Event Log
 
 Append-only, cryptographically chained event log for audit purposes.
 Cannot be modified or deleted once written.
+
+This is part of Agent Smith's system-level enforcement mechanism within Agent-OS,
+distinct from the external boundary-daemon project.
 """
 
 import hashlib

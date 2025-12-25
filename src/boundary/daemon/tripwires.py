@@ -1,8 +1,11 @@
 """
-Boundary Daemon Tripwire System
+Smith Daemon Tripwire System
 
 Tripwires are security triggers that activate on specific conditions.
 Once triggered, they cannot be reset without human intervention.
+
+This is part of Agent Smith's system-level enforcement mechanism within Agent-OS,
+distinct from the external boundary-daemon project.
 """
 
 import hashlib

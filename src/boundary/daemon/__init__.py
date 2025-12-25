@@ -1,21 +1,26 @@
 """
-Boundary Daemon - Hard Trust Enforcement Layer
+Smith Daemon - Agent Smith's System-Level Enforcement Layer
 
-The Boundary Daemon is a standalone security enforcement layer that monitors
-system state and enforces security policies through tripwires and enforcement actions.
+The Smith Daemon is Agent Smith's system-level security enforcement layer that
+monitors system state and enforces security policies through tripwires and
+enforcement actions. This complements Smith's request-level validation (S1-S12 checks).
+
+Note: This is distinct from the external boundary-daemon project
+(https://github.com/kase1111-hash/boundary-daemon-). This module is
+Agent Smith's internal enforcement mechanism within Agent-OS.
 
 Key Components:
 - StateMonitor: Monitors network, hardware, and process state
 - TripwireSystem: Security triggers that activate on violations
-- PolicyEngine: Manages boundary modes (Lockdown/Restricted/Trusted)
-- EnforcementLayer: Executes halt/suspend/isolate actions
+- PolicyEngine: Manages security modes (Lockdown/Restricted/Trusted/Emergency)
+- EnforcementLayer: Executes halt/suspend/isolate/lockdown actions
 - ImmutableEventLog: Append-only audit log with hash chain
 
 Usage:
-    from src.boundary.daemon import BoundaryDaemon, create_boundary_daemon
+    from src.boundary.daemon import SmithDaemon, create_smith_daemon
 
     # Create and start daemon
-    daemon = create_boundary_daemon(log_path=Path("/var/log/boundary.log"))
+    daemon = create_smith_daemon(log_path=Path("/var/log/smith.log"))
     daemon.start()
 
     # Check current mode
@@ -28,6 +33,9 @@ Usage:
 
     # Stop daemon
     daemon.stop()
+
+    # Backwards compatible aliases also available:
+    # BoundaryDaemon, create_boundary_daemon
 """
 
 from .state_monitor import (
@@ -78,13 +86,22 @@ from .event_log import (
 )
 
 from .boundary_daemon import (
+    # Primary exports (new naming)
+    SmithDaemon,
+    SmithDaemonConfig,
+    create_smith_daemon,
+    # Backwards compatibility aliases
     BoundaryDaemon,
     BoundaryConfig,
     create_boundary_daemon,
 )
 
 __all__ = [
-    # Main daemon
+    # Main daemon (new naming)
+    "SmithDaemon",
+    "SmithDaemonConfig",
+    "create_smith_daemon",
+    # Backwards compatibility
     "BoundaryDaemon",
     "BoundaryConfig",
     "create_boundary_daemon",

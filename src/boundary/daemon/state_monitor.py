@@ -1,8 +1,12 @@
 """
-Boundary Daemon State Monitor
+Smith Daemon State Monitor
 
 Monitors system state including network, hardware, and process activity.
-Detects anomalies and security-relevant changes for the boundary enforcement layer.
+Detects anomalies and security-relevant changes for Agent Smith's
+system-level enforcement layer.
+
+This is part of Agent Smith's internal enforcement mechanism within Agent-OS,
+distinct from the external boundary-daemon project.
 """
 
 import os
@@ -90,9 +94,10 @@ class NetworkConnection:
 
 class StateMonitor:
     """
-    System state monitor for the Boundary Daemon.
+    System state monitor for the Smith Daemon.
 
-    Continuously monitors:
+    Part of Agent Smith's system-level security enforcement, this component
+    continuously monitors:
     - Network connectivity and connections
     - Running processes
     - Hardware state changes

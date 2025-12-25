@@ -1,8 +1,14 @@
 """
-Boundary Daemon - Main Daemon Implementation
+Smith Daemon - Main Daemon Implementation
 
-Ties together all boundary daemon components into a unified
-security enforcement layer.
+This module provides Agent Smith's system-level security enforcement layer.
+It ties together all Smith daemon components into a unified security
+enforcement system that monitors system state, enforces policies through
+tripwires, and takes enforcement actions when violations are detected.
+
+Note: This is distinct from the external boundary-daemon project
+(https://github.com/kase1111-hash/boundary-daemon-). This module is
+Agent Smith's internal enforcement mechanism within Agent-OS.
 """
 
 import logging
@@ -50,8 +56,8 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class BoundaryConfig:
-    """Configuration for the Boundary Daemon."""
+class SmithDaemonConfig:
+    """Configuration for the Smith Daemon (Agent Smith's system-level enforcer)."""
     initial_mode: BoundaryMode = BoundaryMode.RESTRICTED
     log_path: Optional[Path] = None
     state_poll_interval: float = 1.0
@@ -62,26 +68,36 @@ class BoundaryConfig:
     socket_path: Optional[Path] = None  # For local API
 
 
-class BoundaryDaemon:
+# Backwards compatibility alias
+BoundaryConfig = SmithDaemonConfig
+
+
+class SmithDaemon:
     """
-    Main Boundary Daemon implementation.
+    Agent Smith's system-level enforcement daemon.
+
+    This is the "hard" security layer that operates at the system level,
+    complementing Smith's request-level validation (S1-S12 checks).
 
     Provides:
-    - System state monitoring
+    - System state monitoring (network, processes, hardware)
     - Tripwire-based security triggers
-    - Policy-based access control
+    - Policy-based access control (Lockdown/Restricted/Trusted modes)
     - Enforcement actions (halt/suspend/lockdown)
-    - Immutable audit logging
+    - Immutable audit logging with hash chain
+
+    Note: This is Agent Smith's internal enforcement mechanism,
+    distinct from the external boundary-daemon project.
     """
 
-    def __init__(self, config: Optional[BoundaryConfig] = None):
+    def __init__(self, config: Optional[SmithDaemonConfig] = None):
         """
-        Initialize Boundary Daemon.
+        Initialize Smith Daemon.
 
         Args:
             config: Daemon configuration
         """
-        self.config = config or BoundaryConfig()
+        self.config = config or SmithDaemonConfig()
         self._running = False
         self._started_at: Optional[datetime] = None
 
@@ -116,7 +132,7 @@ class BoundaryDaemon:
 
         # Log initialization
         self._event_log.log_event(
-            "daemon_init",
+            "smith_daemon_init",
             mode=self.config.initial_mode.name,
             config=str(self.config),
         )
@@ -138,9 +154,9 @@ class BoundaryDaemon:
         return state.is_secure() and not self._tripwires.is_triggered()
 
     def start(self) -> None:
-        """Start the boundary daemon."""
+        """Start the Smith daemon."""
         if self._running:
-            logger.warning("Boundary daemon already running")
+            logger.warning("Smith daemon already running")
             return
 
         self._running = True
@@ -150,11 +166,11 @@ class BoundaryDaemon:
         self._state_monitor.start()
         self._tripwires.start()
 
-        self._event_log.log_event("daemon_started", mode=self.mode.name)
-        logger.info(f"Boundary daemon started in {self.mode.name} mode")
+        self._event_log.log_event("smith_daemon_started", mode=self.mode.name)
+        logger.info(f"Smith daemon started in {self.mode.name} mode")
 
     def stop(self) -> None:
-        """Stop the boundary daemon."""
+        """Stop the Smith daemon."""
         if not self._running:
             return
 
@@ -164,8 +180,8 @@ class BoundaryDaemon:
         self._state_monitor.stop()
         self._tripwires.stop()
 
-        self._event_log.log_event("daemon_stopped")
-        logger.info("Boundary daemon stopped")
+        self._event_log.log_event("smith_daemon_stopped")
+        logger.info("Smith daemon stopped")
 
     def request_permission(
         self,
@@ -408,14 +424,14 @@ class BoundaryDaemon:
         )
 
 
-def create_boundary_daemon(
+def create_smith_daemon(
     initial_mode: BoundaryMode = BoundaryMode.RESTRICTED,
     log_path: Optional[Path] = None,
     network_allowed: bool = False,
     **kwargs,
-) -> BoundaryDaemon:
+) -> SmithDaemon:
     """
-    Factory function to create a Boundary Daemon.
+    Factory function to create a Smith Daemon.
 
     Args:
         initial_mode: Starting boundary mode
@@ -424,13 +440,18 @@ def create_boundary_daemon(
         **kwargs: Additional configuration options
 
     Returns:
-        Configured BoundaryDaemon instance
+        Configured SmithDaemon instance
     """
-    config = BoundaryConfig(
+    config = SmithDaemonConfig(
         initial_mode=initial_mode,
         log_path=log_path,
         network_allowed=network_allowed,
         **kwargs,
     )
 
-    return BoundaryDaemon(config)
+    return SmithDaemon(config)
+
+
+# Backwards compatibility aliases
+BoundaryDaemon = SmithDaemon
+create_boundary_daemon = create_smith_daemon
