@@ -116,11 +116,12 @@ def create_app(config: Optional[WebConfig] = None) -> Any:
     app.state.app_state = _app_state
 
     # Include routers
-    from .routes import agents, chat, constitution, memory, system
+    from .routes import agents, chat, constitution, contracts, memory, system
 
     app.include_router(chat.router, prefix="/api/chat", tags=["Chat"])
     app.include_router(agents.router, prefix="/api/agents", tags=["Agents"])
     app.include_router(constitution.router, prefix="/api/constitution", tags=["Constitution"])
+    app.include_router(contracts.router, prefix="/api/contracts", tags=["Contracts"])
     app.include_router(memory.router, prefix="/api/memory", tags=["Memory"])
     app.include_router(system.router, prefix="/api/system", tags=["System"])
 
