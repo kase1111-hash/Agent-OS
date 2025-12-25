@@ -8,7 +8,9 @@ import logging
 import os
 import platform
 import sys
+import time
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
@@ -16,6 +18,25 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Try to import real components for health checks
+try:
+    from src.agents.loader import create_loader
+    AGENTS_AVAILABLE = True
+except ImportError:
+    AGENTS_AVAILABLE = False
+
+try:
+    from src.core.constitution import create_kernel
+    CONSTITUTION_AVAILABLE = True
+except ImportError:
+    CONSTITUTION_AVAILABLE = False
+
+try:
+    from src.agents.seshat import create_seshat_agent
+    MEMORY_AVAILABLE = True
+except ImportError:
+    MEMORY_AVAILABLE = False
 
 
 # =============================================================================
@@ -197,44 +218,127 @@ async def get_system_status() -> SystemStatus:
 async def get_component_health() -> List[ComponentHealth]:
     """Get detailed health status of all components."""
     now = datetime.utcnow()
+    components = []
 
-    components = [
-        ComponentHealth(
-            name="api",
-            status="up",
-            latency_ms=2.5,
-            last_check=now,
-            details={"version": "1.0.0", "requests_served": 1542},
-        ),
-        ComponentHealth(
-            name="websocket",
-            status="up",
-            latency_ms=1.2,
-            last_check=now,
-            details={"active_connections": 3, "messages_processed": 856},
-        ),
-        ComponentHealth(
+    # API health (always up if we're responding)
+    components.append(ComponentHealth(
+        name="api",
+        status="up",
+        latency_ms=1.0,
+        last_check=now,
+        details={"version": "1.0.0", "framework": "FastAPI"},
+    ))
+
+    # WebSocket health
+    components.append(ComponentHealth(
+        name="websocket",
+        status="up",
+        latency_ms=1.0,
+        last_check=now,
+        details={"protocol": "WebSocket", "available": True},
+    ))
+
+    # Agents health - try real check
+    if AGENTS_AVAILABLE:
+        try:
+            start = time.time()
+            loader = create_loader(Path.cwd())
+            agents = loader.registry.get_all()
+            latency = (time.time() - start) * 1000
+            active_count = sum(1 for a in agents if a.is_active)
+            components.append(ComponentHealth(
+                name="agents",
+                status="up",
+                latency_ms=round(latency, 2),
+                last_check=now,
+                details={
+                    "registered_agents": len(agents),
+                    "active_agents": active_count,
+                    "using_real_registry": True,
+                },
+            ))
+        except Exception as e:
+            components.append(ComponentHealth(
+                name="agents",
+                status="degraded",
+                latency_ms=0,
+                last_check=now,
+                details={"error": str(e), "using_real_registry": False},
+            ))
+    else:
+        components.append(ComponentHealth(
             name="agents",
             status="up",
-            latency_ms=45.3,
+            latency_ms=1.0,
             last_check=now,
-            details={"active_agents": 4, "total_requests": 2500},
-        ),
-        ComponentHealth(
+            details={"using_real_registry": False, "mode": "mock"},
+        ))
+
+    # Memory health - try real check
+    if MEMORY_AVAILABLE:
+        try:
+            start = time.time()
+            seshat = create_seshat_agent(use_mock=True)
+            latency = (time.time() - start) * 1000
+            components.append(ComponentHealth(
+                name="memory",
+                status="up",
+                latency_ms=round(latency, 2),
+                last_check=now,
+                details={"using_seshat": True, "backend": "in-memory"},
+            ))
+        except Exception as e:
+            components.append(ComponentHealth(
+                name="memory",
+                status="degraded",
+                latency_ms=0,
+                last_check=now,
+                details={"error": str(e), "using_seshat": False},
+            ))
+    else:
+        components.append(ComponentHealth(
             name="memory",
             status="up",
-            latency_ms=5.8,
+            latency_ms=1.0,
             last_check=now,
-            details={"entries_stored": 5, "size_bytes": 2048},
-        ),
-        ComponentHealth(
+            details={"using_seshat": False, "mode": "mock"},
+        ))
+
+    # Constitution health - try real check
+    if CONSTITUTION_AVAILABLE:
+        try:
+            start = time.time()
+            kernel = create_kernel(project_root=Path.cwd())
+            result = kernel.initialize()
+            latency = (time.time() - start) * 1000
+            rules_count = len(kernel._registry.get_all_rules()) if result.is_valid else 0
+            components.append(ComponentHealth(
+                name="constitution",
+                status="up" if result.is_valid else "degraded",
+                latency_ms=round(latency, 2),
+                last_check=now,
+                details={
+                    "using_real_kernel": True,
+                    "rules_loaded": rules_count,
+                    "is_valid": result.is_valid,
+                },
+            ))
+        except Exception as e:
+            components.append(ComponentHealth(
+                name="constitution",
+                status="degraded",
+                latency_ms=0,
+                last_check=now,
+                details={"error": str(e), "using_real_kernel": False},
+            ))
+    else:
+        components.append(ComponentHealth(
             name="constitution",
             status="up",
-            latency_ms=3.1,
+            latency_ms=1.0,
             last_check=now,
-            details={"rules_loaded": 7, "validations_performed": 1542},
-        ),
-    ]
+            details={"using_real_kernel": False, "mode": "mock"},
+        ))
 
     return components
 

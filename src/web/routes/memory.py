@@ -15,6 +15,15 @@ from pydantic import BaseModel, Field
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+# Try to import real Seshat memory agent
+try:
+    from src.agents.seshat import create_seshat_agent, SeshatAgent
+    from src.agents.seshat.retrieval import ContextType
+    REAL_MEMORY_AVAILABLE = True
+except ImportError:
+    REAL_MEMORY_AVAILABLE = False
+    logger.warning("Real Seshat memory agent not available, using mock data")
+
 
 # =============================================================================
 # Models
@@ -86,20 +95,55 @@ class MemoryStats(BaseModel):
 
 
 # =============================================================================
-# Mock Memory Store
+# Memory Store (Real + Mock)
 # =============================================================================
 
 
 class MemoryStore:
     """
-    Mock memory store for the web interface.
+    Memory store that integrates with the real Seshat memory agent.
 
-    In production, this would integrate with the actual MemoryVault.
+    Falls back to mock data if Seshat isn't available.
     """
 
     def __init__(self):
         self._entries: Dict[str, MemoryEntry] = {}
-        self._initialize_mock_data()
+        self._seshat: Optional[Any] = None
+        self._use_real_memory = False
+
+        # Try to initialize real Seshat memory agent
+        if REAL_MEMORY_AVAILABLE:
+            try:
+                self._seshat = create_seshat_agent(use_mock=True)  # Use mock embeddings for now
+                self._seshat.initialize({})
+                self._use_real_memory = True
+                logger.info("Connected to real Seshat memory agent")
+            except Exception as e:
+                logger.warning(f"Failed to initialize Seshat: {e}")
+                self._initialize_mock_data()
+        else:
+            self._initialize_mock_data()
+
+    def _context_type_to_memory_type(self, context_type) -> MemoryType:
+        """Convert Seshat ContextType to API MemoryType."""
+        type_map = {
+            "KNOWLEDGE": MemoryType.LONG_TERM,
+            "CONTEXT": MemoryType.WORKING,
+            "INTERACTION": MemoryType.EPHEMERAL,
+        }
+        return type_map.get(context_type.name if hasattr(context_type, 'name') else str(context_type), MemoryType.WORKING)
+
+    def _memory_type_to_context_type(self, memory_type: MemoryType):
+        """Convert API MemoryType to Seshat ContextType."""
+        if not REAL_MEMORY_AVAILABLE:
+            return None
+        type_map = {
+            MemoryType.LONG_TERM: ContextType.KNOWLEDGE,
+            MemoryType.SEMANTIC: ContextType.KNOWLEDGE,
+            MemoryType.WORKING: ContextType.CONTEXT,
+            MemoryType.EPHEMERAL: ContextType.INTERACTION,
+        }
+        return type_map.get(memory_type, ContextType.CONTEXT)
 
     def _initialize_mock_data(self):
         """Initialize with some mock memories."""

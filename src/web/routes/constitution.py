@@ -7,6 +7,7 @@ Provides endpoints for viewing and editing the constitution.
 import logging
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
@@ -14,6 +15,15 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Try to import real constitutional kernel
+try:
+    from src.core.constitution import ConstitutionalKernel, create_kernel
+    from src.core.models import Rule as CoreRule, RuleType as CoreRuleType
+    REAL_CONSTITUTION_AVAILABLE = True
+except ImportError:
+    REAL_CONSTITUTION_AVAILABLE = False
+    logger.warning("Real constitutional kernel not available, using mock data")
 
 
 # =============================================================================
@@ -111,21 +121,124 @@ class ValidationResult(BaseModel):
 
 
 # =============================================================================
-# Mock Constitution Store
+# Constitution Store (Real + Mock)
 # =============================================================================
 
 
 class ConstitutionStore:
     """
-    Mock constitution store for the web interface.
+    Constitution store that integrates with the real ConstitutionalKernel.
 
-    In production, this would integrate with the actual ConstitutionRegistry.
+    Falls back to mock data if real kernel isn't available.
     """
 
     def __init__(self):
         self._rules: Dict[str, Rule] = {}
         self._sections: Dict[str, ConstitutionSection] = {}
-        self._initialize_default_rules()
+        self._kernel: Optional[Any] = None
+        self._use_real_constitution = False
+
+        # Try to initialize real constitutional kernel
+        if REAL_CONSTITUTION_AVAILABLE:
+            try:
+                self._kernel = create_kernel(
+                    project_root=Path.cwd(),
+                    enable_hot_reload=True
+                )
+                result = self._kernel.initialize()
+                if result.is_valid:
+                    self._use_real_constitution = True
+                    self._load_real_rules()
+                    logger.info("Connected to real constitutional kernel")
+                else:
+                    logger.warning(f"Constitutional kernel validation failed: {result.errors}")
+                    self._initialize_default_rules()
+            except Exception as e:
+                logger.warning(f"Failed to initialize constitutional kernel: {e}")
+                self._initialize_default_rules()
+        else:
+            self._initialize_default_rules()
+
+    def _load_real_rules(self):
+        """Load rules from the real constitutional kernel."""
+        try:
+            # Get all rules from the kernel's registry
+            all_rules = self._kernel._registry.get_all_rules()
+
+            # Group rules by section
+            section_rules: Dict[str, List[Rule]] = {}
+
+            for core_rule in all_rules:
+                rule = self._convert_core_rule(core_rule)
+                self._rules[rule.id] = rule
+
+                # Determine section from section path
+                section_id = core_rule.section.lower().replace(" ", "_") if core_rule.section else "general"
+                if section_id not in section_rules:
+                    section_rules[section_id] = []
+                section_rules[section_id].append(rule)
+
+            # Create sections
+            order = 0
+            for section_id, rules in section_rules.items():
+                self._sections[section_id] = ConstitutionSection(
+                    id=section_id,
+                    title=section_id.replace("_", " ").title(),
+                    description=f"Rules for {section_id.replace('_', ' ')}",
+                    rules=rules,
+                    order=order,
+                )
+                order += 1
+
+            logger.info(f"Loaded {len(self._rules)} rules from constitutional kernel")
+
+        except Exception as e:
+            logger.error(f"Error loading real rules: {e}")
+            self._initialize_default_rules()
+
+    def _convert_core_rule(self, core_rule) -> Rule:
+        """Convert a core Rule to API Rule model."""
+        # Map core rule types to API rule types
+        type_map = {
+            "PRINCIPLE": RuleType.MANDATE,
+            "MANDATE": RuleType.MANDATE,
+            "PROHIBITION": RuleType.PROHIBITION,
+            "PERMISSION": RuleType.PERMISSION,
+            "ESCALATION": RuleType.ESCALATION,
+            "DIRECTIVE": RuleType.MANDATE,
+        }
+
+        # Map authority levels
+        authority_map = {
+            100: RuleAuthority.SUPREME,
+            80: RuleAuthority.CONSTITUTIONAL,
+            60: RuleAuthority.STATUTORY,
+            40: RuleAuthority.AGENT,
+        }
+
+        rule_type_name = core_rule.rule_type.name if hasattr(core_rule.rule_type, 'name') else str(core_rule.rule_type)
+        rule_type = type_map.get(rule_type_name, RuleType.MANDATE)
+
+        authority_level = core_rule.authority_level.value if hasattr(core_rule.authority_level, 'value') else 60
+        authority = authority_map.get(authority_level, RuleAuthority.STATUTORY)
+
+        return Rule(
+            id=core_rule.id,
+            content=core_rule.content,
+            rule_type=rule_type,
+            authority=authority,
+            keywords=list(core_rule.keywords) if core_rule.keywords else [],
+            agent_scope=core_rule.scope if core_rule.scope != "all_agents" else None,
+            is_immutable=core_rule.is_immutable,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+            metadata={
+                "section": core_rule.section,
+                "section_path": core_rule.section_path,
+                "source_file": str(core_rule.source_file) if core_rule.source_file else None,
+                "line_number": core_rule.line_number,
+            }
+        )
 
     def _initialize_default_rules(self):
         """Initialize with default constitutional rules."""
