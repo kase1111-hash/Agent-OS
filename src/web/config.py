@@ -11,6 +11,23 @@ from typing import List, Optional
 
 
 @dataclass
+class VoiceConfig:
+    """Configuration for voice (STT/TTS) features."""
+
+    # STT settings
+    stt_enabled: bool = True
+    stt_engine: str = "auto"  # auto, whisper, whisper_api, mock
+    stt_model: str = "base"  # tiny, base, small, medium, large
+    stt_language: str = "en"
+
+    # TTS settings
+    tts_enabled: bool = True
+    tts_engine: str = "auto"  # auto, piper, espeak, mock
+    tts_voice: str = "en_US-lessac-medium"
+    tts_speed: float = 1.0
+
+
+@dataclass
 class WebConfig:
     """Configuration for the web interface."""
 
@@ -39,15 +56,30 @@ class WebConfig:
     # Session
     session_timeout: int = 3600  # seconds
 
+    # Voice settings
+    voice: VoiceConfig = field(default_factory=VoiceConfig)
+
     @classmethod
     def from_env(cls) -> "WebConfig":
         """Create configuration from environment variables."""
+        voice_config = VoiceConfig(
+            stt_enabled=os.getenv("AGENT_OS_STT_ENABLED", "true").lower() in ("1", "true", "yes"),
+            stt_engine=os.getenv("AGENT_OS_STT_ENGINE", "auto"),
+            stt_model=os.getenv("AGENT_OS_STT_MODEL", "base"),
+            stt_language=os.getenv("AGENT_OS_STT_LANGUAGE", "en"),
+            tts_enabled=os.getenv("AGENT_OS_TTS_ENABLED", "true").lower() in ("1", "true", "yes"),
+            tts_engine=os.getenv("AGENT_OS_TTS_ENGINE", "auto"),
+            tts_voice=os.getenv("AGENT_OS_TTS_VOICE", "en_US-lessac-medium"),
+            tts_speed=float(os.getenv("AGENT_OS_TTS_SPEED", "1.0")),
+        )
+
         return cls(
             host=os.getenv("AGENT_OS_WEB_HOST", "127.0.0.1"),
             port=int(os.getenv("AGENT_OS_WEB_PORT", "8080")),
             debug=os.getenv("AGENT_OS_WEB_DEBUG", "").lower() in ("1", "true", "yes"),
             api_key=os.getenv("AGENT_OS_API_KEY"),
             require_auth=os.getenv("AGENT_OS_REQUIRE_AUTH", "").lower() in ("1", "true", "yes"),
+            voice=voice_config,
         )
 
 

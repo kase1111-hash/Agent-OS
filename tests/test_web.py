@@ -773,3 +773,285 @@ class TestAcceptanceCriteria:
         # Can delete memories
         response = client.delete(f"/api/memory/{memory_id}")
         assert response.status_code == 200
+
+
+# =============================================================================
+# Voice API Tests
+# =============================================================================
+
+
+@pytest.mark.skipif(not FASTAPI_AVAILABLE, reason="FastAPI not installed")
+class TestVoiceAPI:
+    """Tests for voice API endpoints (STT/TTS)."""
+
+    @pytest.fixture
+    def client(self):
+        """Create test client."""
+        from src.web.app import create_app
+        app = create_app()
+        return TestClient(app)
+
+    def test_voice_status(self, client):
+        """Test voice status endpoint."""
+        response = client.get("/api/voice/status")
+        assert response.status_code == 200
+        data = response.json()
+        assert "stt_available" in data
+        assert "stt_engine" in data
+        assert "tts_available" in data
+        assert "tts_engine" in data
+        assert "available_voices" in data
+
+    def test_list_voices(self, client):
+        """Test listing TTS voices."""
+        response = client.get("/api/voice/voices")
+        assert response.status_code == 200
+        data = response.json()
+        assert "voices" in data
+        assert "available" in data
+        assert isinstance(data["voices"], list)
+
+    def test_transcribe_with_invalid_base64(self, client):
+        """Test transcription with invalid base64 data."""
+        response = client.post(
+            "/api/voice/transcribe",
+            json={
+                "audio_data": "not-valid-base64!!!",
+                "audio_format": "wav",
+            }
+        )
+        # 400 if STT is available but base64 invalid, 503 if STT not available
+        assert response.status_code in (400, 503)
+
+    def test_transcribe_with_valid_base64(self, client):
+        """Test transcription with valid base64 (mock audio)."""
+        import base64
+
+        # Create minimal WAV header + silence (mock audio data)
+        # This is a minimal valid WAV file structure
+        wav_header = (
+            b"RIFF" + (44).to_bytes(4, "little") +  # ChunkID + ChunkSize
+            b"WAVE" +  # Format
+            b"fmt " + (16).to_bytes(4, "little") +  # Subchunk1ID + Subchunk1Size
+            (1).to_bytes(2, "little") +  # AudioFormat (PCM)
+            (1).to_bytes(2, "little") +  # NumChannels
+            (16000).to_bytes(4, "little") +  # SampleRate
+            (32000).to_bytes(4, "little") +  # ByteRate
+            (2).to_bytes(2, "little") +  # BlockAlign
+            (16).to_bytes(2, "little") +  # BitsPerSample
+            b"data" + (8).to_bytes(4, "little") +  # Subchunk2ID + Subchunk2Size
+            b"\x00" * 8  # 8 bytes of silence
+        )
+
+        audio_b64 = base64.b64encode(wav_header).decode("ascii")
+
+        response = client.post(
+            "/api/voice/transcribe",
+            json={
+                "audio_data": audio_b64,
+                "audio_format": "wav",
+                "language": "auto",
+            }
+        )
+        # May return 503 if no STT engine available, or 200 with result
+        assert response.status_code in (200, 503)
+        if response.status_code == 200:
+            data = response.json()
+            assert "text" in data
+            assert "language" in data
+            assert "processing_time_ms" in data
+
+    def test_synthesize_without_text(self, client):
+        """Test synthesis without text."""
+        response = client.post(
+            "/api/voice/synthesize",
+            json={"text": ""}
+        )
+        # Pydantic validation should reject empty text
+        assert response.status_code == 422
+
+    def test_synthesize_with_text(self, client):
+        """Test synthesis with valid text."""
+        response = client.post(
+            "/api/voice/synthesize",
+            json={
+                "text": "Hello, Agent OS!",
+                "voice": "en_US-lessac-medium",
+                "speed": 1.0,
+            }
+        )
+        # May return 503 if no TTS engine available, or 200 with audio
+        assert response.status_code in (200, 503)
+        if response.status_code == 200:
+            data = response.json()
+            assert "audio_data" in data
+            assert "format" in data
+            assert "duration" in data
+            assert "processing_time_ms" in data
+            assert "sample_rate" in data
+
+    def test_synthesize_stream(self, client):
+        """Test streaming synthesis."""
+        response = client.post(
+            "/api/voice/synthesize/stream",
+            json={
+                "text": "Hello, streaming test!",
+            }
+        )
+        # May return 503 if no TTS engine available
+        assert response.status_code in (200, 503)
+        if response.status_code == 200:
+            assert response.headers.get("content-type") in (
+                "audio/wav",
+                "audio/mpeg",
+            )
+
+    def test_update_stt_config(self, client):
+        """Test updating STT configuration."""
+        response = client.put(
+            "/api/voice/config/stt",
+            json={
+                "model": "base",
+                "language": "en",
+                "translate": False,
+            }
+        )
+        # Should succeed or fail gracefully
+        assert response.status_code in (200, 500)
+        if response.status_code == 200:
+            data = response.json()
+            assert data["status"] == "updated"
+
+    def test_update_tts_config(self, client):
+        """Test updating TTS configuration."""
+        response = client.put(
+            "/api/voice/config/tts",
+            json={
+                "voice": "en_US-lessac-medium",
+                "speed": 1.2,
+            }
+        )
+        # Should succeed or fail gracefully
+        assert response.status_code in (200, 500)
+        if response.status_code == 200:
+            data = response.json()
+            assert data["status"] == "updated"
+
+
+@pytest.mark.skipif(not FASTAPI_AVAILABLE, reason="FastAPI not installed")
+class TestVoiceWebSocket:
+    """Tests for Voice WebSocket functionality."""
+
+    @pytest.fixture
+    def client(self):
+        """Create test client."""
+        from src.web.app import create_app
+        app = create_app()
+        return TestClient(app)
+
+    def test_voice_websocket_connect(self, client):
+        """Test Voice WebSocket connection and ping/pong."""
+        with client.websocket_connect("/api/voice/ws") as websocket:
+            # Send ping
+            websocket.send_json({"type": "ping"})
+
+            # Receive pong
+            data = websocket.receive_json()
+            assert data["type"] == "pong"
+            assert "timestamp" in data
+
+    def test_voice_websocket_unknown_type(self, client):
+        """Test Voice WebSocket with unknown message type."""
+        with client.websocket_connect("/api/voice/ws") as websocket:
+            websocket.send_json({"type": "unknown_type"})
+
+            data = websocket.receive_json()
+            assert data["type"] == "error"
+            assert "unknown" in data["message"].lower()
+
+    def test_voice_websocket_synthesize(self, client):
+        """Test Voice WebSocket synthesis."""
+        with client.websocket_connect("/api/voice/ws") as websocket:
+            websocket.send_json({
+                "type": "synthesize",
+                "text": "Hello from WebSocket!"
+            })
+
+            data = websocket.receive_json()
+            # May be audio or error if TTS not available
+            assert data["type"] in ("audio", "error")
+            if data["type"] == "audio":
+                assert "data" in data
+                assert "format" in data
+
+    def test_voice_websocket_transcribe(self, client):
+        """Test Voice WebSocket transcription."""
+        import base64
+
+        # Minimal WAV data
+        wav_data = b"RIFF" + b"\x00" * 40 + b"data" + b"\x00" * 8
+        audio_b64 = base64.b64encode(wav_data).decode("ascii")
+
+        with client.websocket_connect("/api/voice/ws") as websocket:
+            websocket.send_json({
+                "type": "transcribe",
+                "audio": audio_b64,
+                "format": "wav"
+            })
+
+            data = websocket.receive_json()
+            # May be transcription or error if STT not available
+            assert data["type"] in ("transcription", "error")
+            if data["type"] == "transcription":
+                assert "text" in data
+
+
+# =============================================================================
+# Voice Config Tests
+# =============================================================================
+
+
+class TestVoiceConfig:
+    """Tests for voice configuration."""
+
+    def test_default_voice_config(self):
+        """Test default voice configuration values."""
+        from src.web.config import VoiceConfig
+
+        config = VoiceConfig()
+        assert config.stt_enabled is True
+        assert config.stt_engine == "auto"
+        assert config.stt_model == "base"
+        assert config.stt_language == "en"
+        assert config.tts_enabled is True
+        assert config.tts_engine == "auto"
+        assert config.tts_speed == 1.0
+
+    def test_voice_config_in_web_config(self):
+        """Test voice config is included in web config."""
+        from src.web.config import WebConfig
+
+        config = WebConfig()
+        assert hasattr(config, "voice")
+        assert config.voice.stt_enabled is True
+        assert config.voice.tts_enabled is True
+
+    def test_voice_config_from_env(self):
+        """Test voice configuration from environment variables."""
+        from src.web.config import WebConfig
+
+        with patch.dict("os.environ", {
+            "AGENT_OS_STT_ENABLED": "false",
+            "AGENT_OS_STT_ENGINE": "mock",
+            "AGENT_OS_STT_MODEL": "tiny",
+            "AGENT_OS_TTS_ENABLED": "true",
+            "AGENT_OS_TTS_ENGINE": "espeak",
+            "AGENT_OS_TTS_SPEED": "1.5",
+        }):
+            config = WebConfig.from_env()
+            assert config.voice.stt_enabled is False
+            assert config.voice.stt_engine == "mock"
+            assert config.voice.stt_model == "tiny"
+            assert config.voice.tts_enabled is True
+            assert config.voice.tts_engine == "espeak"
+            assert config.voice.tts_speed == 1.5

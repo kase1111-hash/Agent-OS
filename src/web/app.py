@@ -116,7 +116,7 @@ def create_app(config: Optional[WebConfig] = None) -> Any:
     app.state.app_state = _app_state
 
     # Include routers
-    from .routes import agents, chat, constitution, contracts, memory, system
+    from .routes import agents, chat, constitution, contracts, memory, system, voice
 
     app.include_router(chat.router, prefix="/api/chat", tags=["Chat"])
     app.include_router(agents.router, prefix="/api/agents", tags=["Agents"])
@@ -124,6 +124,7 @@ def create_app(config: Optional[WebConfig] = None) -> Any:
     app.include_router(contracts.router, prefix="/api/contracts", tags=["Contracts"])
     app.include_router(memory.router, prefix="/api/memory", tags=["Memory"])
     app.include_router(system.router, prefix="/api/system", tags=["System"])
+    app.include_router(voice.router, prefix="/api/voice", tags=["Voice"])
 
     # Root endpoint
     @app.get("/")
@@ -154,6 +155,7 @@ def create_app(config: Optional[WebConfig] = None) -> Any:
             "components": {
                 "api": "up",
                 "websocket": "up",
+                "voice": "up",
             },
         }
 
