@@ -361,9 +361,14 @@ class AgentOS {
 
     renderSections(sections) {
         const container = document.getElementById('sections-list');
-        container.innerHTML = sections.map(section => `
-            <div class="section-item" onclick="app.filterRulesBySection('${section.id}')">
+        container.innerHTML = `
+            <div class="section-item active" data-section="all" onclick="app.loadConstitution()">
+                All Rules
+            </div>
+        ` + sections.map(section => `
+            <div class="section-item" data-section="${section.id}" onclick="app.filterRulesBySection('${section.id}')">
                 ${section.title}
+                <span class="section-count">${section.rules ? section.rules.length : 0}</span>
             </div>
         `).join('');
     }
@@ -391,15 +396,25 @@ class AgentOS {
         `).join('');
     }
 
-    filterRulesBySection(sectionId) {
+    async filterRulesBySection(sectionId) {
         // Highlight selected section
         document.querySelectorAll('.section-item').forEach(item => {
             item.classList.remove('active');
+            if (item.dataset.section === sectionId) {
+                item.classList.add('active');
+            }
         });
-        event.target.classList.add('active');
 
-        // Filter rules (reload all and filter client-side for now)
-        this.loadConstitution();
+        // Reload and filter rules by section
+        try {
+            const sections = await fetch('/api/constitution/sections').then(r => r.json());
+            const section = sections.find(s => s.id === sectionId);
+            if (section && section.rules) {
+                this.renderRules(section.rules);
+            }
+        } catch (error) {
+            console.error('Failed to filter rules:', error);
+        }
     }
 
     async showAddRuleModal() {
@@ -634,6 +649,87 @@ class AgentOS {
             this.loadMemory();
         } catch (error) {
             this.showError('Failed to delete memory');
+        }
+    }
+
+    async showAddMemoryModal() {
+        this.showModal('Add New Memory', `
+            <div class="form-group">
+                <label>Memory Content *</label>
+                <textarea id="memory-content" placeholder="Enter the memory content..." rows="4"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Memory Type</label>
+                <select id="memory-type">
+                    <option value="working">Working - Short-term operational memory</option>
+                    <option value="long_term">Long Term - Persistent memory</option>
+                    <option value="semantic">Semantic - Factual knowledge</option>
+                    <option value="ephemeral">Ephemeral - Temporary, auto-deleted</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Tags (comma-separated)</label>
+                <input type="text" id="memory-tags" placeholder="tag1, tag2, tag3">
+            </div>
+            <div class="form-group">
+                <label>Retention (days, optional)</label>
+                <input type="number" id="memory-retention" placeholder="Leave empty for default">
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="memory-consent" checked>
+                    I consent to storing this memory
+                </label>
+                <small style="color: var(--text-muted);">Required for memory storage per constitutional requirements.</small>
+            </div>
+        `, `
+            <button class="btn btn-secondary" onclick="app.hideModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="app.confirmAddMemory()">Store Memory</button>
+        `);
+    }
+
+    async confirmAddMemory() {
+        const content = document.getElementById('memory-content').value.trim();
+        const memoryType = document.getElementById('memory-type').value;
+        const tagsInput = document.getElementById('memory-tags').value;
+        const retentionInput = document.getElementById('memory-retention').value;
+        const consent = document.getElementById('memory-consent').checked;
+
+        if (!content) {
+            this.showError('Memory content is required');
+            return;
+        }
+
+        if (!consent) {
+            this.showError('Consent is required to store memory');
+            return;
+        }
+
+        const tags = tagsInput.split(',').map(t => t.trim()).filter(t => t);
+        const retention = retentionInput ? parseInt(retentionInput) : null;
+
+        try {
+            const response = await fetch('/api/memory/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    content: content,
+                    memory_type: memoryType,
+                    tags: tags,
+                    consent_given: consent,
+                    retention_days: retention
+                })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Failed to store memory');
+            }
+
+            this.hideModal();
+            this.loadMemory();
+        } catch (error) {
+            this.showError(error.message || 'Failed to store memory');
         }
     }
 
@@ -1096,6 +1192,9 @@ document.getElementById('refresh-system-btn')?.addEventListener('click', () => a
 
 // Constitution button
 document.getElementById('add-rule-btn')?.addEventListener('click', () => app.showAddRuleModal());
+
+// Memory button
+document.getElementById('add-memory-btn')?.addEventListener('click', () => app.showAddMemoryModal());
 
 // Contracts button
 document.getElementById('create-contract-btn')?.addEventListener('click', () => app.showCreateContractModal());
