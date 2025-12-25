@@ -44,6 +44,12 @@ from .store import (
     LearningScope,
     ContractQuery,
     create_contract_store,
+    # Templates (learning-contracts spec)
+    ContractTemplate,
+    CONTRACT_TEMPLATES,
+    get_template,
+    list_templates,
+    create_contract_from_template,
 )
 
 # Validator
@@ -119,6 +125,12 @@ __all__ = [
     "LearningScope",
     "ContractQuery",
     "create_contract_store",
+    # Templates (learning-contracts spec)
+    "ContractTemplate",
+    "CONTRACT_TEMPLATES",
+    "get_template",
+    "list_templates",
+    "create_contract_from_template",
     # Validator
     "ContractValidator",
     "ValidationResult",

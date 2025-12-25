@@ -504,6 +504,259 @@ class LearningContractsEngine:
             except Exception as e:
                 logger.error(f"Decision callback error: {e}")
 
+    # =========================================================================
+    # Four Enforcement Hooks (learning-contracts spec)
+    # These are the mandatory check points for contract compliance.
+    # =========================================================================
+
+    def check_before_memory_creation(
+        self,
+        user_id: str,
+        content: str,
+        domain: str = "",
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> EnforcementResult:
+        """
+        Hook 1: Check contract compliance before memory creation.
+
+        This hook MUST be called before any memory/data storage operation.
+        It validates that:
+        - A valid contract exists for the user/domain
+        - The contract allows storage (not OBSERVATION or PROHIBITED)
+        - The domain is not prohibited
+
+        Args:
+            user_id: User creating the memory
+            content: Content to be stored
+            domain: Domain of the content
+            metadata: Additional metadata
+
+        Returns:
+            EnforcementResult with decision
+        """
+        result = self.check_learning(
+            user_id=user_id,
+            content=content,
+            domain=domain,
+            requires_raw_storage=True,
+        )
+
+        # Additional check: contract must allow storage
+        if result.allowed and result.contract:
+            if not result.contract.allows_raw_storage():
+                return EnforcementResult(
+                    decision=EnforcementDecision.DENY,
+                    allowed=False,
+                    contract=result.contract,
+                    reason="Contract does not allow memory storage (OBSERVATION type)",
+                    details={"hook": "before_memory_creation"},
+                )
+
+        return result
+
+    def check_before_abstraction(
+        self,
+        user_id: str,
+        content: str,
+        domain: str = "",
+        target_level: Optional[AbstractionLevel] = None,
+    ) -> EnforcementResult:
+        """
+        Hook 2: Check contract compliance before abstraction/generalization.
+
+        This hook MUST be called before deriving patterns or generalizations.
+        It validates that:
+        - A valid contract exists
+        - The contract allows generalization (PROCEDURAL, STRATEGIC, or higher)
+        - For EPISODIC contracts, cross-context abstraction is blocked
+
+        Args:
+            user_id: User requesting abstraction
+            content: Content to abstract
+            domain: Domain of the content
+            target_level: Desired abstraction level
+
+        Returns:
+            EnforcementResult with decision
+        """
+        result = self.check_learning(
+            user_id=user_id,
+            content=content,
+            domain=domain,
+        )
+
+        if result.allowed and result.contract:
+            if not result.contract.allows_generalization():
+                return EnforcementResult(
+                    decision=EnforcementDecision.DENY,
+                    allowed=False,
+                    contract=result.contract,
+                    reason="Contract does not allow generalization/abstraction",
+                    details={
+                        "hook": "before_abstraction",
+                        "contract_type": result.contract.contract_type.name,
+                    },
+                )
+
+            # If abstraction is allowed, perform it
+            if self.config.enable_abstraction and target_level:
+                abstraction = self._abstraction_guard.abstract(
+                    content=content,
+                    level=target_level,
+                )
+                result.abstracted_content = abstraction.content
+                result.abstraction_level = target_level
+                result.requires_abstraction = True
+
+        return result
+
+    def check_before_recall(
+        self,
+        user_id: str,
+        query: str,
+        source_domain: str = "",
+        target_context: str = "",
+    ) -> EnforcementResult:
+        """
+        Hook 3: Check contract compliance before memory recall.
+
+        This hook MUST be called before retrieving stored memories.
+        It validates that:
+        - A valid contract exists for the user
+        - Cross-context recall is allowed if target differs from source
+        - For EPISODIC contracts, only same-context recall is allowed
+
+        Args:
+            user_id: User requesting recall
+            query: Recall query
+            source_domain: Original domain of memories
+            target_context: Context where recall is being used
+
+        Returns:
+            EnforcementResult with decision
+        """
+        contract = self._store.get_valid_contract(
+            user_id=user_id,
+            domain=source_domain,
+        )
+
+        if not contract:
+            return EnforcementResult(
+                decision=EnforcementDecision.DENY_NO_CONTRACT,
+                allowed=False,
+                reason="No valid contract for memory recall",
+                details={"hook": "before_recall"},
+            )
+
+        # Check cross-context recall
+        if source_domain and target_context and source_domain != target_context:
+            if not contract.allows_cross_context():
+                return EnforcementResult(
+                    decision=EnforcementDecision.DENY,
+                    allowed=False,
+                    contract=contract,
+                    reason="Contract does not allow cross-context recall",
+                    details={
+                        "hook": "before_recall",
+                        "source_domain": source_domain,
+                        "target_context": target_context,
+                        "contract_type": contract.contract_type.name,
+                    },
+                )
+
+        return EnforcementResult(
+            decision=EnforcementDecision.ALLOW,
+            allowed=True,
+            contract=contract,
+            reason="Recall allowed",
+            details={"hook": "before_recall"},
+        )
+
+    def check_before_export(
+        self,
+        user_id: str,
+        content: str,
+        export_format: str = "",
+        destination: str = "",
+    ) -> EnforcementResult:
+        """
+        Hook 4: Check contract compliance before data export.
+
+        This hook MUST be called before exporting any learned data.
+        It validates that:
+        - A valid contract exists
+        - The contract allows export (explicit consent required)
+        - Prohibited domains are never exported
+
+        Args:
+            user_id: User requesting export
+            content: Content to export
+            export_format: Format of export (json, csv, etc.)
+            destination: Where data is being exported
+
+        Returns:
+            EnforcementResult with decision
+        """
+        # Always check domains first for export
+        if self.config.enable_domain_checking:
+            domain_result = self._domain_checker.check(content)
+            if domain_result.is_prohibited:
+                return EnforcementResult(
+                    decision=EnforcementDecision.DENY_DOMAIN,
+                    allowed=False,
+                    reason="Cannot export content from prohibited domains",
+                    details={
+                        "hook": "before_export",
+                        "prohibited_domains": [d.name for d in domain_result.matching_domains],
+                    },
+                )
+
+        # Check for valid contract
+        contract = self._store.get_valid_contract(user_id=user_id)
+
+        if not contract:
+            return EnforcementResult(
+                decision=EnforcementDecision.DENY_NO_CONTRACT,
+                allowed=False,
+                reason="No valid contract for data export",
+                details={"hook": "before_export"},
+            )
+
+        # OBSERVATION and PROHIBITED contracts never allow export
+        if contract.contract_type in [ContractType.OBSERVATION, ContractType.PROHIBITED]:
+            return EnforcementResult(
+                decision=EnforcementDecision.DENY,
+                allowed=False,
+                contract=contract,
+                reason="Contract type does not allow data export",
+                details={
+                    "hook": "before_export",
+                    "contract_type": contract.contract_type.name,
+                },
+            )
+
+        # Export requires explicit consent in metadata
+        if contract.metadata.get("export_allowed") is not True:
+            return EnforcementResult(
+                decision=EnforcementDecision.ESCALATE,
+                allowed=False,
+                contract=contract,
+                reason="Export requires explicit consent approval",
+                details={
+                    "hook": "before_export",
+                    "export_format": export_format,
+                    "destination": destination,
+                },
+            )
+
+        return EnforcementResult(
+            decision=EnforcementDecision.ALLOW,
+            allowed=True,
+            contract=contract,
+            reason="Export allowed",
+            details={"hook": "before_export"},
+        )
+
 
 def create_learning_contracts_engine(
     db_path: Optional[Path] = None,
