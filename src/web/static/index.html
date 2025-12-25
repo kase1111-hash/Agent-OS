@@ -18,6 +18,7 @@
                 <button class="nav-link" data-view="agents" data-tooltip="Monitor and manage agents" data-tooltip-position="bottom">Agents</button>
                 <button class="nav-link" data-view="constitution" data-tooltip="View and edit system rules" data-tooltip-position="bottom">Constitution</button>
                 <button class="nav-link" data-view="memory" data-tooltip="Browse and manage memories" data-tooltip-position="bottom">Memory</button>
+                <button class="nav-link" data-view="contracts" data-tooltip="Manage learning consent contracts" data-tooltip-position="bottom">Contracts</button>
                 <button class="nav-link" data-view="system" data-tooltip="System status and settings" data-tooltip-position="bottom">System</button>
             </div>
             <div class="nav-status">
@@ -102,6 +103,34 @@
                     <div class="system-settings">
                         <h3>Settings</h3>
                         <div id="settings-list" class="settings-list"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Contracts View -->
+            <section id="contracts-view" class="view">
+                <div class="view-header">
+                    <h2>Learning Contracts</h2>
+                    <div class="view-actions">
+                        <button id="create-contract-btn" class="btn btn-primary" data-tooltip="Create a new learning consent contract">New Contract</button>
+                    </div>
+                </div>
+                <div class="contracts-container">
+                    <!-- Templates Panel -->
+                    <div class="contracts-sidebar">
+                        <h3>Quick Templates</h3>
+                        <div id="templates-list" class="templates-list"></div>
+                    </div>
+                    <!-- Active Contracts -->
+                    <div class="contracts-main">
+                        <div class="contracts-tabs">
+                            <button class="contracts-tab active" data-status="active">Active</button>
+                            <button class="contracts-tab" data-status="pending">Pending</button>
+                            <button class="contracts-tab" data-status="expired">Expired</button>
+                            <button class="contracts-tab" data-status="revoked">Revoked</button>
+                        </div>
+                        <div class="stats-grid" id="contracts-stats"></div>
+                        <div id="contracts-list" class="contracts-list"></div>
                     </div>
                 </div>
             </section>

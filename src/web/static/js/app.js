@@ -53,6 +53,9 @@ class AgentOS {
             case 'memory':
                 this.loadMemory();
                 break;
+            case 'contracts':
+                this.loadContracts();
+                break;
             case 'system':
                 this.loadSystem();
                 break;
@@ -441,6 +444,291 @@ class AgentOS {
         }
     }
 
+    // Contracts
+    async loadContracts() {
+        try {
+            const [contracts, templates, stats] = await Promise.all([
+                fetch('/api/contracts/').then(r => r.json()),
+                fetch('/api/contracts/templates').then(r => r.json()),
+                fetch('/api/contracts/stats').then(r => r.json())
+            ]);
+
+            this.renderContractsStats(stats);
+            this.renderTemplates(templates);
+            this.renderContracts(contracts);
+            this.setupContractsTabs();
+        } catch (error) {
+            console.error('Failed to load contracts:', error);
+        }
+    }
+
+    renderContractsStats(stats) {
+        const container = document.getElementById('contracts-stats');
+        container.innerHTML = `
+            <div class="stat-card">
+                <div class="stat-value">${stats.total_contracts}</div>
+                <div class="stat-label">Total Contracts</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">${stats.active_contracts}</div>
+                <div class="stat-label">Active</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">${stats.expired_contracts}</div>
+                <div class="stat-label">Expired</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">${stats.revoked_contracts}</div>
+                <div class="stat-label">Revoked</div>
+            </div>
+        `;
+    }
+
+    renderTemplates(templates) {
+        const container = document.getElementById('templates-list');
+        container.innerHTML = templates.map(template => `
+            <div class="template-card" onclick="app.createFromTemplate('${template.id}')">
+                <div class="template-name">${template.name}</div>
+                <div class="template-type ${template.contract_type.toLowerCase()}">${template.contract_type}</div>
+                <div class="template-description">${template.description}</div>
+            </div>
+        `).join('');
+    }
+
+    renderContracts(contracts) {
+        const container = document.getElementById('contracts-list');
+
+        if (contracts.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <p>No contracts found</p>
+                    <p style="color: var(--text-muted);">Create a contract using the templates on the left</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = contracts.map(contract => `
+            <div class="contract-card ${contract.status.toLowerCase()}">
+                <div class="contract-header">
+                    <span class="contract-type ${contract.contract_type.toLowerCase()}">${contract.contract_type}</span>
+                    <span class="contract-status ${contract.status.toLowerCase()}">${contract.status}</span>
+                </div>
+                <div class="contract-domains">
+                    ${contract.domains.map(d => `<span class="domain-tag">${d}</span>`).join('')}
+                </div>
+                <div class="contract-meta">
+                    <span>Created: ${new Date(contract.created_at).toLocaleDateString()}</span>
+                    ${contract.expires_at
+                        ? `<span>Expires: ${new Date(contract.expires_at).toLocaleDateString()}</span>`
+                        : '<span>No expiration</span>'
+                    }
+                </div>
+                <div class="contract-actions">
+                    <button class="btn btn-secondary" onclick="app.viewContract('${contract.id}')">View</button>
+                    ${contract.status === 'ACTIVE'
+                        ? `<button class="btn btn-danger" onclick="app.revokeContract('${contract.id}')">Revoke</button>`
+                        : ''
+                    }
+                </div>
+            </div>
+        `).join('');
+    }
+
+    setupContractsTabs() {
+        document.querySelectorAll('.contracts-tab').forEach(tab => {
+            tab.addEventListener('click', async (e) => {
+                // Update active tab
+                document.querySelectorAll('.contracts-tab').forEach(t => t.classList.remove('active'));
+                e.target.classList.add('active');
+
+                // Filter contracts
+                const status = e.target.dataset.status.toUpperCase();
+                try {
+                    const contracts = await fetch(`/api/contracts/?status=${status}`).then(r => r.json());
+                    this.renderContracts(contracts);
+                } catch (error) {
+                    console.error('Failed to filter contracts:', error);
+                }
+            });
+        });
+    }
+
+    async createFromTemplate(templateId) {
+        try {
+            const template = await fetch(`/api/contracts/templates/${templateId}`).then(r => r.json());
+
+            this.showModal('Create Contract from Template', `
+                <div class="template-preview">
+                    <h4>${template.name}</h4>
+                    <p>${template.description}</p>
+                    <div class="template-info">
+                        <div class="info-row">
+                            <label>Contract Type:</label>
+                            <span class="contract-type ${template.contract_type.toLowerCase()}">${template.contract_type}</span>
+                        </div>
+                        <div class="info-row">
+                            <label>Recommended for:</label>
+                            <span>${template.recommended_for}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Domains (comma-separated)</label>
+                    <input type="text" id="contract-domains" value="${template.default_domains.join(', ')}" placeholder="coding, development">
+                </div>
+                <div class="form-group">
+                    <label>Duration (days, leave empty for no expiration)</label>
+                    <input type="number" id="contract-duration" value="${template.default_duration_days || ''}" placeholder="365">
+                </div>
+            `, `
+                <button class="btn btn-secondary" onclick="app.hideModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="app.confirmCreateFromTemplate('${templateId}')">Create Contract</button>
+            `);
+        } catch (error) {
+            this.showError('Failed to load template');
+        }
+    }
+
+    async confirmCreateFromTemplate(templateId) {
+        const domainsInput = document.getElementById('contract-domains');
+        const durationInput = document.getElementById('contract-duration');
+
+        const domains = domainsInput.value.split(',').map(d => d.trim()).filter(d => d);
+        const duration = durationInput.value ? parseInt(durationInput.value) : null;
+
+        try {
+            await fetch('/api/contracts/from-template', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    template_id: templateId,
+                    domains: domains,
+                    duration_days: duration
+                })
+            });
+            this.hideModal();
+            this.loadContracts();
+        } catch (error) {
+            this.showError('Failed to create contract');
+        }
+    }
+
+    async showCreateContractModal() {
+        try {
+            const types = await fetch('/api/contracts/types').then(r => r.json());
+
+            this.showModal('Create New Contract', `
+                <div class="form-group">
+                    <label>Contract Type</label>
+                    <select id="contract-type">
+                        ${types.map(t => `
+                            <option value="${t.name}" title="${t.description}">${t.name} - ${t.description}</option>
+                        `).join('')}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Domains (comma-separated)</label>
+                    <input type="text" id="contract-domains" placeholder="coding, development, work">
+                </div>
+                <div class="form-group">
+                    <label>Duration (days, leave empty for no expiration)</label>
+                    <input type="number" id="contract-duration" placeholder="365">
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea id="contract-description" placeholder="Describe the purpose of this contract..."></textarea>
+                </div>
+            `, `
+                <button class="btn btn-secondary" onclick="app.hideModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="app.confirmCreateContract()">Create Contract</button>
+            `);
+        } catch (error) {
+            this.showError('Failed to load contract types');
+        }
+    }
+
+    async confirmCreateContract() {
+        const type = document.getElementById('contract-type').value;
+        const domainsInput = document.getElementById('contract-domains');
+        const durationInput = document.getElementById('contract-duration');
+        const descInput = document.getElementById('contract-description');
+
+        const domains = domainsInput.value.split(',').map(d => d.trim()).filter(d => d);
+        const duration = durationInput.value ? parseInt(durationInput.value) : null;
+
+        try {
+            await fetch('/api/contracts/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contract_type: type,
+                    domains: domains,
+                    duration_days: duration,
+                    description: descInput.value
+                })
+            });
+            this.hideModal();
+            this.loadContracts();
+        } catch (error) {
+            this.showError('Failed to create contract');
+        }
+    }
+
+    async viewContract(contractId) {
+        try {
+            const contract = await fetch(`/api/contracts/${contractId}`).then(r => r.json());
+
+            this.showModal('Contract Details', `
+                <div class="contract-details">
+                    <div class="form-group">
+                        <label>Contract ID</label>
+                        <input type="text" value="${contract.id}" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Type</label>
+                        <span class="contract-type ${contract.contract_type.toLowerCase()}">${contract.contract_type}</span>
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <span class="contract-status ${contract.status.toLowerCase()}">${contract.status}</span>
+                    </div>
+                    <div class="form-group">
+                        <label>Domains</label>
+                        <div>${contract.domains.map(d => `<span class="domain-tag">${d}</span>`).join(' ')}</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea readonly>${contract.description || 'No description'}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Created</label>
+                        <input type="text" value="${new Date(contract.created_at).toLocaleString()}" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Expires</label>
+                        <input type="text" value="${contract.expires_at ? new Date(contract.expires_at).toLocaleString() : 'Never'}" readonly>
+                    </div>
+                </div>
+            `);
+        } catch (error) {
+            this.showError('Failed to load contract details');
+        }
+    }
+
+    async revokeContract(contractId) {
+        if (!confirm('Are you sure you want to revoke this contract? This action cannot be undone.')) {
+            return;
+        }
+
+        try {
+            await fetch(`/api/contracts/${contractId}/revoke`, { method: 'POST' });
+            this.loadContracts();
+        } catch (error) {
+            this.showError('Failed to revoke contract');
+        }
+    }
+
     // System
     async loadSystem() {
         try {
@@ -612,6 +900,9 @@ const app = new AgentOS();
 // Setup refresh buttons
 document.getElementById('refresh-agents-btn')?.addEventListener('click', () => app.loadAgents());
 document.getElementById('refresh-system-btn')?.addEventListener('click', () => app.loadSystem());
+
+// Contracts button
+document.getElementById('create-contract-btn')?.addEventListener('click', () => app.showCreateContractModal());
 
 // Memory search
 document.getElementById('memory-search')?.addEventListener('input', async (e) => {

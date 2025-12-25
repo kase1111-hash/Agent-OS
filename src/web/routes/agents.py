@@ -7,6 +7,7 @@ Provides endpoints for monitoring and managing agents.
 import logging
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -14,6 +15,15 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Try to import real agent registry
+try:
+    from src.agents.loader import AgentRegistry, AgentLoader, create_loader
+    from src.agents.interface import AgentState
+    REAL_AGENTS_AVAILABLE = True
+except ImportError:
+    REAL_AGENTS_AVAILABLE = False
+    logger.warning("Real agent registry not available, using mock data")
 
 
 # =============================================================================
@@ -101,14 +111,40 @@ class UpdateAgentRequest(BaseModel):
 
 class AgentStore:
     """
-    Mock agent store for the web interface.
+    Agent store that integrates with the real AgentRegistry.
 
-    In production, this would integrate with the actual AgentRegistry.
+    Falls back to mock data if real agents aren't available.
     """
 
     def __init__(self):
-        # Initialize with some mock agents
-        self._agents: Dict[str, AgentInfo] = {
+        self._registry: Optional[Any] = None
+        self._loader: Optional[Any] = None
+        self._mock_agents: Dict[str, AgentInfo] = {}
+        self._logs: List[AgentLogEntry] = []
+        self._use_real_agents = False
+
+        # Try to initialize real agent registry
+        if REAL_AGENTS_AVAILABLE:
+            try:
+                self._loader = create_loader(Path.cwd())
+                self._registry = self._loader.registry
+                # Try to discover agents from common locations
+                agents_dir = Path.cwd() / "agents"
+                if agents_dir.exists():
+                    self._loader.discover_agents(agents_dir)
+                self._use_real_agents = True
+                logger.info("Connected to real agent registry")
+            except Exception as e:
+                logger.warning(f"Failed to initialize real agent registry: {e}")
+                self._use_real_agents = False
+
+        # Initialize mock agents as fallback
+        if not self._use_real_agents:
+            self._init_mock_agents()
+
+    def _init_mock_agents(self):
+        """Initialize mock agents for demonstration."""
+        self._mock_agents = {
             "whisper": AgentInfo(
                 name="whisper",
                 description="Intent classification and request routing",
@@ -147,6 +183,24 @@ class AgentStore:
                 ),
                 created_at=datetime.utcnow(),
             ),
+            "seshat": AgentInfo(
+                name="seshat",
+                description="Memory management and semantic retrieval",
+                status=AgentStatus.IDLE,
+                capabilities=[
+                    AgentCapability(name="memory_storage", description="Store and retrieve memories"),
+                    AgentCapability(name="semantic_search", description="Search memories by meaning"),
+                ],
+                supported_intents=["memory.*", "recall.*"],
+                metrics=AgentMetrics(
+                    requests_total=423,
+                    requests_success=420,
+                    requests_failed=3,
+                    average_response_time_ms=65.2,
+                    uptime_seconds=86400,
+                ),
+                created_at=datetime.utcnow(),
+            ),
             "muse": AgentInfo(
                 name="muse",
                 description="Creative content generation",
@@ -165,39 +219,117 @@ class AgentStore:
                 ),
                 created_at=datetime.utcnow(),
             ),
-            "oracle": AgentInfo(
-                name="oracle",
-                description="Knowledge retrieval and factual queries",
+            "sage": AgentInfo(
+                name="sage",
+                description="Deep reasoning and analysis",
                 status=AgentStatus.IDLE,
                 capabilities=[
-                    AgentCapability(name="knowledge_retrieval", description="Retrieve information"),
-                    AgentCapability(name="fact_checking", description="Verify facts"),
+                    AgentCapability(name="reasoning", description="Complex logical reasoning"),
+                    AgentCapability(name="analysis", description="In-depth analysis"),
                 ],
-                supported_intents=["query.*", "factual.*"],
+                supported_intents=["reason.*", "analyze.*"],
                 metrics=AgentMetrics(
-                    requests_total=856,
-                    requests_success=840,
-                    requests_failed=16,
-                    average_response_time_ms=890.3,
+                    requests_total=156,
+                    requests_success=152,
+                    requests_failed=4,
+                    average_response_time_ms=2100.8,
+                    uptime_seconds=86400,
+                ),
+                created_at=datetime.utcnow(),
+            ),
+            "quill": AgentInfo(
+                name="quill",
+                description="Document formatting and output generation",
+                status=AgentStatus.IDLE,
+                capabilities=[
+                    AgentCapability(name="formatting", description="Format documents"),
+                    AgentCapability(name="export", description="Export to various formats"),
+                ],
+                supported_intents=["format.*", "export.*"],
+                metrics=AgentMetrics(
+                    requests_total=89,
+                    requests_success=88,
+                    requests_failed=1,
+                    average_response_time_ms=320.4,
                     uptime_seconds=86400,
                 ),
                 created_at=datetime.utcnow(),
             ),
         }
-        self._logs: List[AgentLogEntry] = []
+
+    def _convert_real_agent(self, registered) -> AgentInfo:
+        """Convert a RegisteredAgent to AgentInfo."""
+        caps = registered.capabilities
+        metrics = registered.instance.metrics
+
+        # Map AgentState to AgentStatus
+        state_map = {
+            "UNINITIALIZED": AgentStatus.UNINITIALIZED,
+            "READY": AgentStatus.IDLE,
+            "PROCESSING": AgentStatus.PROCESSING,
+            "ERROR": AgentStatus.ERROR,
+            "STOPPED": AgentStatus.DISABLED,
+        }
+        status = state_map.get(registered.state.name, AgentStatus.IDLE)
+        if registered.is_active and status == AgentStatus.IDLE:
+            status = AgentStatus.ACTIVE
+
+        return AgentInfo(
+            name=registered.name,
+            description=caps.description if caps else "",
+            status=status,
+            capabilities=[
+                AgentCapability(name=c.value, description=c.value)
+                for c in (caps.capabilities if caps else [])
+            ],
+            supported_intents=list(caps.supported_intents) if caps else [],
+            metrics=AgentMetrics(
+                requests_total=metrics.requests_processed,
+                requests_success=metrics.requests_succeeded,
+                requests_failed=metrics.requests_failed,
+                average_response_time_ms=metrics.average_response_time_ms,
+                uptime_seconds=metrics.uptime_seconds,
+                last_request_at=metrics.last_request_time,
+            ),
+            created_at=registered.registered_at,
+            config=registered.config.model_dump() if hasattr(registered.config, 'model_dump') else {},
+        )
 
     def get_all(self) -> List[AgentInfo]:
         """Get all agents."""
-        return list(self._agents.values())
+        if self._use_real_agents and self._registry:
+            try:
+                registered_agents = self._registry.get_all()
+                return [self._convert_real_agent(a) for a in registered_agents]
+            except Exception as e:
+                logger.error(f"Error getting real agents: {e}")
+        return list(self._mock_agents.values())
 
     def get(self, name: str) -> Optional[AgentInfo]:
         """Get an agent by name."""
-        return self._agents.get(name)
+        if self._use_real_agents and self._registry:
+            try:
+                registered = self._registry.get(name)
+                if registered:
+                    return self._convert_real_agent(registered)
+            except Exception as e:
+                logger.error(f"Error getting agent {name}: {e}")
+        return self._mock_agents.get(name)
 
     def update_status(self, name: str, status: AgentStatus) -> bool:
         """Update an agent's status."""
-        if name in self._agents:
-            self._agents[name].status = status
+        if self._use_real_agents and self._registry:
+            try:
+                if status == AgentStatus.ACTIVE:
+                    return self._registry.start_agent(name)
+                elif status == AgentStatus.DISABLED:
+                    return self._registry.stop_agent(name)
+            except Exception as e:
+                logger.error(f"Error updating agent status: {e}")
+
+        # Fallback to mock
+        if name in self._mock_agents:
+            self._mock_agents[name].status = status
             return True
         return False
 
@@ -224,6 +356,11 @@ class AgentStore:
             logs = [l for l in logs if l.level == level]
 
         return logs[-limit:]
+
+    @property
+    def is_using_real_agents(self) -> bool:
+        """Check if using real agent registry."""
+        return self._use_real_agents
 
 
 # Global store instance

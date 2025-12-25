@@ -32,13 +32,53 @@ class ContractStatus(Enum):
 
 
 class ContractType(Enum):
-    """Type of learning contract."""
-    FULL_CONSENT = auto()         # Allow all learning in scope
-    LIMITED_CONSENT = auto()       # Allow learning with restrictions
-    ABSTRACTION_ONLY = auto()      # Only abstract patterns, no raw data
-    NO_LEARNING = auto()           # No learning allowed (explicit denial)
-    TEMPORARY = auto()             # Time-limited consent
-    SESSION_ONLY = auto()          # Session-scoped consent
+    """
+    Type of learning contract.
+
+    Aligned with learning-contracts specification:
+    https://github.com/kase1111-hash/learning-contracts
+    """
+    # Core contract types from learning-contracts spec
+    OBSERVATION = auto()    # Permits watching signals only; forbids storage/generalization
+    EPISODIC = auto()       # Allows storing specific instances without cross-context application
+    PROCEDURAL = auto()     # Enables deriving reusable heuristics within defined scopes
+    STRATEGIC = auto()      # Permits long-term pattern inference (high-trust only)
+    PROHIBITED = auto()     # Explicitly blocks learning in sensitive domains
+
+    # Legacy types (mapped for backwards compatibility)
+    FULL_CONSENT = auto()         # -> Maps to STRATEGIC
+    LIMITED_CONSENT = auto()      # -> Maps to PROCEDURAL
+    ABSTRACTION_ONLY = auto()     # -> Maps to EPISODIC
+    NO_LEARNING = auto()          # -> Maps to PROHIBITED
+    TEMPORARY = auto()            # Time-limited (any type)
+    SESSION_ONLY = auto()         # Session-scoped (any type)
+
+    @classmethod
+    def from_legacy(cls, legacy_type: "ContractType") -> "ContractType":
+        """Map legacy contract types to learning-contracts types."""
+        mapping = {
+            cls.FULL_CONSENT: cls.STRATEGIC,
+            cls.LIMITED_CONSENT: cls.PROCEDURAL,
+            cls.ABSTRACTION_ONLY: cls.EPISODIC,
+            cls.NO_LEARNING: cls.PROHIBITED,
+        }
+        return mapping.get(legacy_type, legacy_type)
+
+    def allows_storage(self) -> bool:
+        """Check if this contract type allows any storage."""
+        return self not in [self.OBSERVATION, self.PROHIBITED, self.NO_LEARNING]
+
+    def allows_generalization(self) -> bool:
+        """Check if this contract type allows generalization/abstraction."""
+        return self in [self.PROCEDURAL, self.STRATEGIC, self.LIMITED_CONSENT, self.FULL_CONSENT]
+
+    def allows_cross_context(self) -> bool:
+        """Check if this contract type allows cross-context application."""
+        return self in [self.PROCEDURAL, self.STRATEGIC, self.FULL_CONSENT]
+
+    def allows_long_term_patterns(self) -> bool:
+        """Check if this contract type allows long-term pattern inference."""
+        return self in [self.STRATEGIC, self.FULL_CONSENT]
 
 
 class LearningScope(Enum):
@@ -148,12 +188,28 @@ class LearningContract:
         if not self.is_valid():
             return False
 
-        return self.contract_type in [
-            ContractType.FULL_CONSENT,
-            ContractType.LIMITED_CONSENT,
-            ContractType.TEMPORARY,
-            ContractType.SESSION_ONLY,
-        ]
+        return self.contract_type.allows_storage()
+
+    def allows_generalization(self) -> bool:
+        """Check if generalization/abstraction is allowed."""
+        if not self.is_valid():
+            return False
+
+        return self.contract_type.allows_generalization()
+
+    def allows_cross_context(self) -> bool:
+        """Check if cross-context application is allowed."""
+        if not self.is_valid():
+            return False
+
+        return self.contract_type.allows_cross_context()
+
+    def allows_long_term_patterns(self) -> bool:
+        """Check if long-term pattern inference is allowed."""
+        if not self.is_valid():
+            return False
+
+        return self.contract_type.allows_long_term_patterns()
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
@@ -831,3 +887,445 @@ def create_contract_store(
     if not store.initialize():
         raise RuntimeError("Failed to initialize contract store")
     return store
+
+
+# =============================================================================
+# Pre-built Contract Templates
+# Aligned with learning-contracts specification
+# =============================================================================
+
+
+@dataclass
+class ContractTemplate:
+    """
+    Pre-built contract template for common use cases.
+
+    Templates from learning-contracts spec:
+    https://github.com/kase1111-hash/learning-contracts
+    """
+    name: str
+    description: str
+    contract_type: ContractType
+    scope: ContractScope
+    default_duration: Optional[timedelta] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    def create_contract(
+        self,
+        store: ContractStore,
+        user_id: str,
+        duration: Optional[timedelta] = None,
+        auto_activate: bool = True,
+    ) -> LearningContract:
+        """Create a contract from this template."""
+        return store.create_contract(
+            user_id=user_id,
+            contract_type=self.contract_type,
+            scope=self.scope,
+            duration=duration or self.default_duration,
+            description=self.description,
+            metadata={**self.metadata, "template": self.name},
+            auto_activate=auto_activate,
+        )
+
+
+# Seven pre-built templates from learning-contracts specification
+CONTRACT_TEMPLATES: Dict[str, ContractTemplate] = {
+    # 1. Coding Template
+    "coding": ContractTemplate(
+        name="coding",
+        description="Learning contract for coding assistance. Allows learning coding patterns, "
+                   "preferences, and project context. Enables procedural heuristics for better suggestions.",
+        contract_type=ContractType.PROCEDURAL,
+        scope=ContractScope(
+            scope_type=LearningScope.DOMAIN_SPECIFIC,
+            domains={"coding", "programming", "development", "debugging"},
+            content_types={"code", "technical", "documentation"},
+            excluded_domains={"credentials", "secrets", "api_keys"},
+        ),
+        metadata={"category": "technical", "trust_level": "medium"},
+    ),
+
+    # 2. Gaming Template
+    "gaming": ContractTemplate(
+        name="gaming",
+        description="Learning contract for gaming sessions. Allows episodic memory of game states "
+                   "and preferences without cross-session generalization.",
+        contract_type=ContractType.EPISODIC,
+        scope=ContractScope(
+            scope_type=LearningScope.DOMAIN_SPECIFIC,
+            domains={"gaming", "games", "entertainment"},
+            content_types={"game_state", "preferences", "achievements"},
+        ),
+        default_duration=timedelta(hours=24),  # Session-based
+        metadata={"category": "entertainment", "trust_level": "low"},
+    ),
+
+    # 3. Journaling Template
+    "journaling": ContractTemplate(
+        name="journaling",
+        description="Learning contract for personal journaling. Allows long-term memory of "
+                   "personal notes and reflections with high privacy protection.",
+        contract_type=ContractType.EPISODIC,
+        scope=ContractScope(
+            scope_type=LearningScope.DOMAIN_SPECIFIC,
+            domains={"personal", "journal", "diary", "notes"},
+            content_types={"personal", "reflections", "goals"},
+            excluded_domains={"medical", "financial", "legal"},
+        ),
+        metadata={"category": "personal", "trust_level": "high", "privacy": "strict"},
+    ),
+
+    # 4. Work Projects Template
+    "work_projects": ContractTemplate(
+        name="work_projects",
+        description="Learning contract for work-related projects. Enables procedural learning "
+                   "of workflows and project patterns within defined work domains.",
+        contract_type=ContractType.PROCEDURAL,
+        scope=ContractScope(
+            scope_type=LearningScope.TASK_SPECIFIC,
+            tasks={"project_management", "documentation", "analysis", "reporting"},
+            domains={"work", "professional", "business"},
+            excluded_domains={"hr", "confidential", "proprietary"},
+        ),
+        metadata={"category": "professional", "trust_level": "medium"},
+    ),
+
+    # 5. Restricted Domains Template
+    "restricted": ContractTemplate(
+        name="restricted",
+        description="Explicitly prohibits learning in sensitive domains. Use this to block "
+                   "learning for medical, financial, legal, or other restricted areas.",
+        contract_type=ContractType.PROHIBITED,
+        scope=ContractScope(
+            scope_type=LearningScope.DOMAIN_SPECIFIC,
+            domains={"medical", "financial", "legal", "credentials", "passwords", "secrets"},
+        ),
+        metadata={"category": "restricted", "trust_level": "none", "immutable": True},
+    ),
+
+    # 6. Study Template
+    "study": ContractTemplate(
+        name="study",
+        description="Learning contract for educational content. Allows procedural learning "
+                   "of study material with cross-context application for better retention.",
+        contract_type=ContractType.PROCEDURAL,
+        scope=ContractScope(
+            scope_type=LearningScope.DOMAIN_SPECIFIC,
+            domains={"education", "study", "learning", "courses", "tutorials"},
+            content_types={"educational", "reference", "examples"},
+        ),
+        metadata={"category": "education", "trust_level": "medium"},
+    ),
+
+    # 7. Strategy Template
+    "strategy": ContractTemplate(
+        name="strategy",
+        description="High-trust strategic learning contract. Enables long-term pattern inference "
+                   "and cross-context application. Use only for trusted, long-term relationships.",
+        contract_type=ContractType.STRATEGIC,
+        scope=ContractScope(
+            scope_type=LearningScope.ALL,
+            excluded_domains={"credentials", "passwords", "secrets", "medical", "financial"},
+        ),
+        metadata={"category": "strategic", "trust_level": "high", "requires_explicit_consent": True},
+    ),
+}
+
+
+def get_template(name: str) -> Optional[ContractTemplate]:
+    """Get a contract template by name."""
+    return CONTRACT_TEMPLATES.get(name.lower())
+
+
+def list_templates() -> List[str]:
+    """List all available template names."""
+    return list(CONTRACT_TEMPLATES.keys())
+
+
+def create_contract_from_template(
+    store: ContractStore,
+    template_name: str,
+    user_id: str,
+    duration: Optional[timedelta] = None,
+    auto_activate: bool = True,
+) -> Optional[LearningContract]:
+    """
+    Create a contract from a pre-built template.
+
+    Args:
+        store: Contract store to use
+        template_name: Name of the template (coding, gaming, etc.)
+        user_id: User creating the contract
+        duration: Optional override for default duration
+        auto_activate: Whether to automatically activate
+
+    Returns:
+        Created LearningContract or None if template not found
+    """
+    template = get_template(template_name)
+    if not template:
+        logger.warning(f"Unknown contract template: {template_name}")
+        return None
+
+    return template.create_contract(
+        store=store,
+        user_id=user_id,
+        duration=duration,
+        auto_activate=auto_activate,
+    )
+
+
+# =============================================================================
+# Default Agent-OS Contracts
+# Pre-configured contracts for typical Agent-OS usage
+# =============================================================================
+
+
+def create_default_agent_os_contracts(
+    store: ContractStore,
+    user_id: str = "default",
+) -> List[LearningContract]:
+    """
+    Create default learning contracts for Agent-OS.
+
+    These contracts provide sensible defaults for an Agent-OS installation:
+    - Code assistance with pattern learning
+    - Memory management with Seshat agent
+    - Constitutional compliance (observation only)
+    - Security domains prohibited
+    - General chat with episodic memory
+
+    Args:
+        store: Contract store to use
+        user_id: User ID for the contracts
+
+    Returns:
+        List of created contracts
+    """
+    contracts = []
+    now = datetime.utcnow()
+
+    # 1. Code Assistance Contract (PROCEDURAL)
+    # Allows the system to learn coding patterns and preferences
+    code_contract = store.create_contract(
+        user_id=user_id,
+        contract_type=ContractType.PROCEDURAL,
+        scope=ContractScope(
+            scope_type=LearningScope.DOMAIN_SPECIFIC,
+            domains={"coding", "programming", "development", "debugging", "refactoring"},
+            agents={"muse", "sage", "quill"},
+            content_types={"code", "technical", "documentation", "error_messages"},
+            excluded_domains={"credentials", "api_keys", "secrets", "passwords", "tokens"},
+        ),
+        duration=timedelta(days=365),
+        description="Enables Agent-OS to learn your coding patterns, style preferences, and "
+                   "project conventions for better code assistance.",
+        metadata={
+            "category": "technical",
+            "trust_level": "medium",
+            "created_by": "agent_os_defaults",
+            "allows_pattern_inference": True,
+        },
+        auto_activate=True,
+    )
+    if code_contract:
+        contracts.append(code_contract)
+        logger.info(f"Created default code assistance contract: {code_contract.contract_id}")
+
+    # 2. Memory Management Contract (EPISODIC)
+    # Allows Seshat agent to store and retrieve memories
+    memory_contract = store.create_contract(
+        user_id=user_id,
+        contract_type=ContractType.EPISODIC,
+        scope=ContractScope(
+            scope_type=LearningScope.AGENT_SPECIFIC,
+            agents={"seshat"},
+            domains={"memory", "recall", "context", "conversation"},
+            excluded_domains={"medical", "financial", "legal", "credentials"},
+        ),
+        duration=None,  # No expiration
+        description="Allows the Seshat memory agent to store conversation context and "
+                   "recall relevant information without cross-context generalization.",
+        metadata={
+            "category": "memory",
+            "trust_level": "medium",
+            "created_by": "agent_os_defaults",
+            "agent": "seshat",
+            "storage_type": "episodic",
+        },
+        auto_activate=True,
+    )
+    if memory_contract:
+        contracts.append(memory_contract)
+        logger.info(f"Created default memory management contract: {memory_contract.contract_id}")
+
+    # 3. Constitutional Compliance Contract (OBSERVATION)
+    # Smith agent observes for constitutional violations but doesn't learn
+    constitution_contract = store.create_contract(
+        user_id=user_id,
+        contract_type=ContractType.OBSERVATION,
+        scope=ContractScope(
+            scope_type=LearningScope.AGENT_SPECIFIC,
+            agents={"smith"},
+            domains={"constitution", "safety", "compliance", "ethics"},
+        ),
+        duration=None,
+        description="Allows the Smith constitutional agent to observe interactions for "
+                   "safety compliance without storing or learning from content.",
+        metadata={
+            "category": "safety",
+            "trust_level": "high",
+            "created_by": "agent_os_defaults",
+            "agent": "smith",
+            "observation_only": True,
+        },
+        auto_activate=True,
+    )
+    if constitution_contract:
+        contracts.append(constitution_contract)
+        logger.info(f"Created default constitutional compliance contract: {constitution_contract.contract_id}")
+
+    # 4. Security Prohibition Contract (PROHIBITED)
+    # Explicitly blocks learning from sensitive security domains
+    security_contract = store.create_contract(
+        user_id=user_id,
+        contract_type=ContractType.PROHIBITED,
+        scope=ContractScope(
+            scope_type=LearningScope.DOMAIN_SPECIFIC,
+            domains={
+                "credentials", "passwords", "api_keys", "secrets", "tokens",
+                "private_keys", "ssh_keys", "certificates", "auth_tokens",
+                "encryption_keys", "wallet_seeds", "recovery_phrases",
+            },
+        ),
+        duration=None,
+        description="Explicitly prohibits Agent-OS from learning or storing any "
+                   "credentials, API keys, passwords, or other security-sensitive data.",
+        metadata={
+            "category": "security",
+            "trust_level": "none",
+            "created_by": "agent_os_defaults",
+            "immutable": True,
+            "priority": "critical",
+        },
+        auto_activate=True,
+    )
+    if security_contract:
+        contracts.append(security_contract)
+        logger.info(f"Created default security prohibition contract: {security_contract.contract_id}")
+
+    # 5. Intent Classification Contract (PROCEDURAL)
+    # Allows Whisper agent to learn intent patterns
+    intent_contract = store.create_contract(
+        user_id=user_id,
+        contract_type=ContractType.PROCEDURAL,
+        scope=ContractScope(
+            scope_type=LearningScope.AGENT_SPECIFIC,
+            agents={"whisper"},
+            domains={"intent", "routing", "classification", "commands"},
+            content_types={"user_intent", "command_patterns", "routing_decisions"},
+            excluded_domains={"credentials", "personal", "medical", "financial"},
+        ),
+        duration=timedelta(days=180),
+        description="Enables the Whisper agent to learn user intent patterns for "
+                   "improved request classification and agent routing.",
+        metadata={
+            "category": "routing",
+            "trust_level": "medium",
+            "created_by": "agent_os_defaults",
+            "agent": "whisper",
+        },
+        auto_activate=True,
+    )
+    if intent_contract:
+        contracts.append(intent_contract)
+        logger.info(f"Created default intent classification contract: {intent_contract.contract_id}")
+
+    # 6. Personal Data Protection Contract (PROHIBITED)
+    # Blocks learning from sensitive personal domains
+    personal_contract = store.create_contract(
+        user_id=user_id,
+        contract_type=ContractType.PROHIBITED,
+        scope=ContractScope(
+            scope_type=LearningScope.DOMAIN_SPECIFIC,
+            domains={
+                "medical", "health", "diagnosis", "treatment",
+                "financial", "banking", "investment", "tax",
+                "legal", "litigation", "contracts_legal",
+                "biometric", "genetic", "dna",
+            },
+        ),
+        duration=None,
+        description="Prohibits Agent-OS from learning personal health, financial, "
+                   "legal, or biometric information to protect user privacy.",
+        metadata={
+            "category": "privacy",
+            "trust_level": "none",
+            "created_by": "agent_os_defaults",
+            "gdpr_compliant": True,
+            "hipaa_compliant": True,
+        },
+        auto_activate=True,
+    )
+    if personal_contract:
+        contracts.append(personal_contract)
+        logger.info(f"Created default personal data protection contract: {personal_contract.contract_id}")
+
+    # 7. General Assistance Contract (EPISODIC)
+    # Allows basic conversational memory without deep learning
+    general_contract = store.create_contract(
+        user_id=user_id,
+        contract_type=ContractType.EPISODIC,
+        scope=ContractScope(
+            scope_type=LearningScope.DOMAIN_SPECIFIC,
+            domains={"general", "chat", "assistance", "help", "questions"},
+            excluded_domains={
+                "credentials", "medical", "financial", "legal",
+                "passwords", "secrets", "personal_identifiable",
+            },
+        ),
+        duration=timedelta(days=30),
+        description="Allows Agent-OS to remember conversation context for general "
+                   "assistance without cross-session learning.",
+        metadata={
+            "category": "general",
+            "trust_level": "low",
+            "created_by": "agent_os_defaults",
+            "session_memory": True,
+        },
+        auto_activate=True,
+    )
+    if general_contract:
+        contracts.append(general_contract)
+        logger.info(f"Created default general assistance contract: {general_contract.contract_id}")
+
+    logger.info(f"Created {len(contracts)} default Agent-OS contracts for user '{user_id}'")
+    return contracts
+
+
+def ensure_default_contracts(
+    store: ContractStore,
+    user_id: str = "default",
+) -> bool:
+    """
+    Ensure default contracts exist for a user.
+
+    Only creates contracts if the user has none.
+
+    Args:
+        store: Contract store to use
+        user_id: User ID to check
+
+    Returns:
+        True if defaults were created, False if user already has contracts
+    """
+    query = ContractQuery(user_id=user_id, active_only=True)
+    existing = store.query(query)
+
+    if existing:
+        logger.debug(f"User '{user_id}' already has {len(existing)} active contracts")
+        return False
+
+    create_default_agent_os_contracts(store, user_id)
+    return True
