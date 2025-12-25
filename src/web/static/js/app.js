@@ -361,9 +361,14 @@ class AgentOS {
 
     renderSections(sections) {
         const container = document.getElementById('sections-list');
-        container.innerHTML = sections.map(section => `
-            <div class="section-item" onclick="app.filterRulesBySection('${section.id}')">
+        container.innerHTML = `
+            <div class="section-item active" data-section="all" onclick="app.loadConstitution()">
+                All Rules
+            </div>
+        ` + sections.map(section => `
+            <div class="section-item" data-section="${section.id}" onclick="app.filterRulesBySection('${section.id}')">
                 ${section.title}
+                <span class="section-count">${section.rules ? section.rules.length : 0}</span>
             </div>
         `).join('');
     }
@@ -375,13 +380,216 @@ class AgentOS {
                 <div class="rule-header">
                     <span class="rule-id">${rule.id}</span>
                     <span class="rule-type">${rule.rule_type}</span>
+                    <span class="rule-authority">${rule.authority}</span>
                 </div>
                 <div class="rule-content">${this.escapeHtml(rule.content)}</div>
                 <div class="rule-keywords">
                     ${rule.keywords.map(k => `<span class="keyword">${k}</span>`).join('')}
                 </div>
+                <div class="rule-actions">
+                    ${!rule.is_immutable ? `
+                        <button class="btn btn-secondary btn-small" onclick="app.editRule('${rule.id}')">Edit</button>
+                        <button class="btn btn-danger btn-small" onclick="app.deleteRule('${rule.id}')">Delete</button>
+                    ` : '<span style="color: var(--text-muted); font-size: 0.8rem;">Immutable</span>'}
+                </div>
             </div>
         `).join('');
+    }
+
+    async filterRulesBySection(sectionId) {
+        // Highlight selected section
+        document.querySelectorAll('.section-item').forEach(item => {
+            item.classList.remove('active');
+            if (item.dataset.section === sectionId) {
+                item.classList.add('active');
+            }
+        });
+
+        // Reload and filter rules by section
+        try {
+            const sections = await fetch('/api/constitution/sections').then(r => r.json());
+            const section = sections.find(s => s.id === sectionId);
+            if (section && section.rules) {
+                this.renderRules(section.rules);
+            }
+        } catch (error) {
+            console.error('Failed to filter rules:', error);
+        }
+    }
+
+    async showAddRuleModal() {
+        this.showModal('Add New Rule', `
+            <div class="form-group">
+                <label>Rule Content *</label>
+                <textarea id="rule-content" placeholder="Enter the rule text..." rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Rule Type *</label>
+                <select id="rule-type">
+                    <option value="prohibition">Prohibition - Things that MUST NOT be done</option>
+                    <option value="permission">Permission - Things that MAY be done</option>
+                    <option value="mandate">Mandate - Things that MUST be done</option>
+                    <option value="escalation">Escalation - Things requiring confirmation</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Authority Level</label>
+                <select id="rule-authority">
+                    <option value="statutory">Statutory - User-defined rules</option>
+                    <option value="agent">Agent - Agent-specific rules</option>
+                </select>
+                <small style="color: var(--text-muted);">Note: Supreme and Constitutional rules can only be set during the ceremony process.</small>
+            </div>
+            <div class="form-group">
+                <label>Keywords (comma-separated)</label>
+                <input type="text" id="rule-keywords" placeholder="keyword1, keyword2, keyword3">
+            </div>
+            <div class="form-group">
+                <label>Agent Scope (optional)</label>
+                <select id="rule-agent-scope">
+                    <option value="">All agents</option>
+                    <option value="whisper">Whisper (Orchestrator)</option>
+                    <option value="smith">Smith (Guardian)</option>
+                    <option value="seshat">Seshat (Memory)</option>
+                    <option value="sage">Sage (Reasoner)</option>
+                    <option value="quill">Quill (Writer)</option>
+                    <option value="muse">Muse (Creative)</option>
+                </select>
+            </div>
+        `, `
+            <button class="btn btn-secondary" onclick="app.hideModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="app.confirmAddRule()">Add Rule</button>
+        `);
+    }
+
+    async confirmAddRule() {
+        const content = document.getElementById('rule-content').value.trim();
+        const ruleType = document.getElementById('rule-type').value;
+        const authority = document.getElementById('rule-authority').value;
+        const keywordsInput = document.getElementById('rule-keywords').value;
+        const agentScope = document.getElementById('rule-agent-scope').value;
+
+        if (!content) {
+            this.showError('Rule content is required');
+            return;
+        }
+
+        const keywords = keywordsInput.split(',').map(k => k.trim()).filter(k => k);
+
+        try {
+            const response = await fetch('/api/constitution/rules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    content: content,
+                    rule_type: ruleType,
+                    authority: authority,
+                    keywords: keywords,
+                    agent_scope: agentScope || null
+                })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Failed to create rule');
+            }
+
+            this.hideModal();
+            this.loadConstitution();
+        } catch (error) {
+            this.showError(error.message || 'Failed to add rule');
+        }
+    }
+
+    async editRule(ruleId) {
+        try {
+            const rule = await fetch(`/api/constitution/rules/${ruleId}`).then(r => r.json());
+
+            this.showModal('Edit Rule', `
+                <div class="form-group">
+                    <label>Rule ID</label>
+                    <input type="text" value="${rule.id}" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Rule Content *</label>
+                    <textarea id="edit-rule-content" rows="3">${this.escapeHtml(rule.content)}</textarea>
+                </div>
+                <div class="form-group">
+                    <label>Rule Type *</label>
+                    <select id="edit-rule-type">
+                        <option value="prohibition" ${rule.rule_type === 'prohibition' ? 'selected' : ''}>Prohibition</option>
+                        <option value="permission" ${rule.rule_type === 'permission' ? 'selected' : ''}>Permission</option>
+                        <option value="mandate" ${rule.rule_type === 'mandate' ? 'selected' : ''}>Mandate</option>
+                        <option value="escalation" ${rule.rule_type === 'escalation' ? 'selected' : ''}>Escalation</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Keywords (comma-separated)</label>
+                    <input type="text" id="edit-rule-keywords" value="${rule.keywords.join(', ')}">
+                </div>
+            `, `
+                <button class="btn btn-secondary" onclick="app.hideModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="app.confirmEditRule('${ruleId}')">Save Changes</button>
+            `);
+        } catch (error) {
+            this.showError('Failed to load rule');
+        }
+    }
+
+    async confirmEditRule(ruleId) {
+        const content = document.getElementById('edit-rule-content').value.trim();
+        const ruleType = document.getElementById('edit-rule-type').value;
+        const keywordsInput = document.getElementById('edit-rule-keywords').value;
+
+        if (!content) {
+            this.showError('Rule content is required');
+            return;
+        }
+
+        const keywords = keywordsInput.split(',').map(k => k.trim()).filter(k => k);
+
+        try {
+            const response = await fetch(`/api/constitution/rules/${ruleId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    content: content,
+                    rule_type: ruleType,
+                    keywords: keywords
+                })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Failed to update rule');
+            }
+
+            this.hideModal();
+            this.loadConstitution();
+        } catch (error) {
+            this.showError(error.message || 'Failed to update rule');
+        }
+    }
+
+    async deleteRule(ruleId) {
+        if (!confirm('Are you sure you want to delete this rule?')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/constitution/rules/${ruleId}`, {
+                method: 'DELETE'
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Failed to delete rule');
+            }
+
+            this.loadConstitution();
+        } catch (error) {
+            this.showError(error.message || 'Failed to delete rule');
+        }
     }
 
     // Memory
@@ -441,6 +649,87 @@ class AgentOS {
             this.loadMemory();
         } catch (error) {
             this.showError('Failed to delete memory');
+        }
+    }
+
+    async showAddMemoryModal() {
+        this.showModal('Add New Memory', `
+            <div class="form-group">
+                <label>Memory Content *</label>
+                <textarea id="memory-content" placeholder="Enter the memory content..." rows="4"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Memory Type</label>
+                <select id="memory-type">
+                    <option value="working">Working - Short-term operational memory</option>
+                    <option value="long_term">Long Term - Persistent memory</option>
+                    <option value="semantic">Semantic - Factual knowledge</option>
+                    <option value="ephemeral">Ephemeral - Temporary, auto-deleted</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Tags (comma-separated)</label>
+                <input type="text" id="memory-tags" placeholder="tag1, tag2, tag3">
+            </div>
+            <div class="form-group">
+                <label>Retention (days, optional)</label>
+                <input type="number" id="memory-retention" placeholder="Leave empty for default">
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="memory-consent" checked>
+                    I consent to storing this memory
+                </label>
+                <small style="color: var(--text-muted);">Required for memory storage per constitutional requirements.</small>
+            </div>
+        `, `
+            <button class="btn btn-secondary" onclick="app.hideModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="app.confirmAddMemory()">Store Memory</button>
+        `);
+    }
+
+    async confirmAddMemory() {
+        const content = document.getElementById('memory-content').value.trim();
+        const memoryType = document.getElementById('memory-type').value;
+        const tagsInput = document.getElementById('memory-tags').value;
+        const retentionInput = document.getElementById('memory-retention').value;
+        const consent = document.getElementById('memory-consent').checked;
+
+        if (!content) {
+            this.showError('Memory content is required');
+            return;
+        }
+
+        if (!consent) {
+            this.showError('Consent is required to store memory');
+            return;
+        }
+
+        const tags = tagsInput.split(',').map(t => t.trim()).filter(t => t);
+        const retention = retentionInput ? parseInt(retentionInput) : null;
+
+        try {
+            const response = await fetch('/api/memory/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    content: content,
+                    memory_type: memoryType,
+                    tags: tags,
+                    consent_given: consent,
+                    retention_days: retention
+                })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Failed to store memory');
+            }
+
+            this.hideModal();
+            this.loadMemory();
+        } catch (error) {
+            this.showError(error.message || 'Failed to store memory');
         }
     }
 
@@ -900,6 +1189,12 @@ const app = new AgentOS();
 // Setup refresh buttons
 document.getElementById('refresh-agents-btn')?.addEventListener('click', () => app.loadAgents());
 document.getElementById('refresh-system-btn')?.addEventListener('click', () => app.loadSystem());
+
+// Constitution button
+document.getElementById('add-rule-btn')?.addEventListener('click', () => app.showAddRuleModal());
+
+// Memory button
+document.getElementById('add-memory-btn')?.addEventListener('click', () => app.showAddMemoryModal());
 
 // Contracts button
 document.getElementById('create-contract-btn')?.addEventListener('click', () => app.showCreateContractModal());

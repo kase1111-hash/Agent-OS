@@ -1,8 +1,11 @@
 """
-Boundary Daemon Enforcement Layer
+Smith Daemon Enforcement Layer
 
 Executes enforcement actions when policy violations or tripwires are triggered.
-Actions include: halt, suspend, isolate, alert.
+Actions include: halt, suspend, isolate, alert, lockdown, shutdown.
+
+This is part of Agent Smith's system-level enforcement mechanism within Agent-OS,
+distinct from the external boundary-daemon project.
 """
 
 import os

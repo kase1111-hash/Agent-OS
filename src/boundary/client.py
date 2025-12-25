@@ -1,9 +1,12 @@
 """
-Boundary Client - Agent-OS Integration
+Smith Client - Agent-OS Integration
 
-Client for communicating with the Boundary Daemon.
+Client for communicating with the Smith Daemon (Agent Smith's system-level enforcer).
 All Agent-OS components that need to perform security-sensitive operations
 must request permission through this client.
+
+This is part of Agent Smith's internal enforcement mechanism within Agent-OS,
+distinct from the external boundary-daemon project.
 """
 
 import logging
@@ -15,12 +18,12 @@ from typing import Any, Callable, Dict, List, Optional
 from pathlib import Path
 
 from .daemon import (
-    BoundaryDaemon,
-    BoundaryConfig,
+    SmithDaemon,
+    SmithDaemonConfig,
     BoundaryMode,
     RequestType,
     Decision,
-    create_boundary_daemon,
+    create_smith_daemon,
 )
 
 
@@ -28,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 class ConnectionState(Enum):
-    """Connection state to boundary daemon."""
+    """Connection state to Smith daemon."""
     DISCONNECTED = "disconnected"
     CONNECTED = "connected"
     EMBEDDED = "embedded"  # Daemon running in-process
@@ -36,8 +39,8 @@ class ConnectionState(Enum):
 
 
 @dataclass
-class BoundaryClientConfig:
-    """Configuration for the boundary client."""
+class SmithClientConfig:
+    """Configuration for the Smith client."""
     embedded: bool = True  # Run daemon in-process
     socket_path: Optional[Path] = None  # For external daemon
     log_path: Optional[Path] = None
@@ -46,6 +49,10 @@ class BoundaryClientConfig:
     fail_closed: bool = True  # Deny if daemon unavailable
     cache_decisions: bool = True
     cache_ttl_seconds: float = 1.0
+
+
+# Backwards compatibility alias
+BoundaryClientConfig = SmithClientConfig
 
 
 @dataclass
@@ -58,9 +65,9 @@ class CachedDecision:
     target: str
 
 
-class BoundaryClient:
+class SmithClient:
     """
-    Client for the Boundary Daemon.
+    Client for Agent Smith's system-level enforcement daemon.
 
     Provides a simple interface for Agent-OS components to request
     permission for security-sensitive operations.
@@ -73,15 +80,15 @@ class BoundaryClient:
     is unavailable, operations are denied.
     """
 
-    def __init__(self, config: Optional[BoundaryClientConfig] = None):
+    def __init__(self, config: Optional[SmithClientConfig] = None):
         """
-        Initialize boundary client.
+        Initialize Smith client.
 
         Args:
             config: Client configuration
         """
-        self.config = config or BoundaryClientConfig()
-        self._daemon: Optional[BoundaryDaemon] = None
+        self.config = config or SmithClientConfig()
+        self._daemon: Optional[SmithDaemon] = None
         self._state = ConnectionState.DISCONNECTED
         self._lock = threading.Lock()
         self._decision_cache: Dict[str, CachedDecision] = {}
@@ -113,7 +120,7 @@ class BoundaryClient:
 
     def connect(self) -> bool:
         """
-        Connect to the boundary daemon.
+        Connect to the Smith daemon.
 
         Returns:
             True if connection successful
@@ -161,14 +168,14 @@ class BoundaryClient:
             True if operation is allowed
 
         Example:
-            client = create_boundary_client()
+            client = create_smith_client()
 
             # Check before network access
             if client.request_permission("network_access", "agent:researcher"):
                 # Perform network operation
                 response = requests.get(url)
             else:
-                raise PermissionError("Network access denied by boundary")
+                raise PermissionError("Network access denied by Smith")
         """
         self._request_count += 1
 
@@ -181,7 +188,7 @@ class BoundaryClient:
         # Check daemon
         if not self.is_connected:
             if not self.connect():
-                logger.warning("Cannot connect to boundary daemon")
+                logger.warning("Cannot connect to Smith daemon")
                 if self.config.fail_closed:
                     self._denied_count += 1
                     return False
@@ -205,7 +212,7 @@ class BoundaryClient:
             return allowed
 
         except Exception as e:
-            logger.error(f"Boundary permission check failed: {e}")
+            logger.error(f"Smith permission check failed: {e}")
             if self.config.fail_closed:
                 self._denied_count += 1
                 return False
@@ -301,7 +308,7 @@ class BoundaryClient:
         return False
 
     def get_status(self) -> Dict[str, Any]:
-        """Get boundary status."""
+        """Get Smith daemon status."""
         status = {
             "client_state": self._state.value,
             "request_count": self._request_count,
@@ -337,21 +344,21 @@ class BoundaryClient:
     def _init_embedded(self) -> bool:
         """Initialize embedded daemon."""
         try:
-            daemon_config = BoundaryConfig(
+            daemon_config = SmithDaemonConfig(
                 initial_mode=self.config.initial_mode,
                 log_path=self.config.log_path,
                 network_allowed=self.config.network_allowed,
             )
 
-            self._daemon = BoundaryDaemon(daemon_config)
+            self._daemon = SmithDaemon(daemon_config)
             self._daemon.start()
             self._state = ConnectionState.EMBEDDED
 
-            logger.info("Embedded boundary daemon started")
+            logger.info("Embedded Smith daemon started")
             return True
 
         except Exception as e:
-            logger.error(f"Failed to start embedded daemon: {e}")
+            logger.error(f"Failed to start embedded Smith daemon: {e}")
             self._state = ConnectionState.FAILED
             return False
 
@@ -403,14 +410,18 @@ class BoundaryClient:
                 del self._decision_cache[key]
 
 
-def create_boundary_client(
+# Backwards compatibility alias
+BoundaryClient = SmithClient
+
+
+def create_smith_client(
     embedded: bool = True,
     initial_mode: BoundaryMode = BoundaryMode.RESTRICTED,
     fail_closed: bool = True,
     **kwargs,
-) -> BoundaryClient:
+) -> SmithClient:
     """
-    Factory function to create a boundary client.
+    Factory function to create a Smith client.
 
     Args:
         embedded: Run daemon in-process
@@ -419,16 +430,20 @@ def create_boundary_client(
         **kwargs: Additional configuration
 
     Returns:
-        Configured BoundaryClient instance
+        Configured SmithClient instance
     """
-    config = BoundaryClientConfig(
+    config = SmithClientConfig(
         embedded=embedded,
         initial_mode=initial_mode,
         fail_closed=fail_closed,
         **kwargs,
     )
 
-    return BoundaryClient(config)
+    return SmithClient(config)
+
+
+# Backwards compatibility alias
+create_boundary_client = create_smith_client
 
 
 # Convenience function for quick permission checks
@@ -436,7 +451,7 @@ def require_permission(
     request_type: str,
     source: str,
     target: str = "",
-    client: Optional[BoundaryClient] = None,
+    client: Optional[SmithClient] = None,
 ) -> bool:
     """
     Quick permission check using default client.
@@ -451,6 +466,6 @@ def require_permission(
         True if allowed
     """
     if client is None:
-        client = create_boundary_client()
+        client = create_smith_client()
 
     return client.request_permission(request_type, source, target)

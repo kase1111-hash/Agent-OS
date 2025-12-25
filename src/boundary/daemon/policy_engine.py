@@ -1,8 +1,11 @@
 """
-Boundary Daemon Policy Engine
+Smith Daemon Policy Engine
 
-Manages boundary modes and enforces security policies based on system state.
-Modes: Lockdown, Restricted, Trusted
+Manages security modes and enforces policies based on system state.
+Modes: Lockdown, Restricted, Trusted, Emergency
+
+This is part of Agent Smith's system-level enforcement mechanism within Agent-OS,
+distinct from the external boundary-daemon project.
 """
 
 import logging
