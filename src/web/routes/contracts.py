@@ -30,6 +30,7 @@ try:
         get_template,
         list_templates,
         create_contract_from_template,
+        ensure_default_contracts,
     )
     REAL_CONTRACTS_AVAILABLE = True
 except ImportError as e:
@@ -151,8 +152,10 @@ class ContractsStore:
         if REAL_CONTRACTS_AVAILABLE:
             try:
                 self._real_store = create_contract_store()
+                # Ensure default Agent-OS contracts exist
+                ensure_default_contracts(self._real_store, user_id="default")
                 self._use_real_contracts = True
-                logger.info("Connected to real contracts store")
+                logger.info("Connected to real contracts store with default contracts")
             except Exception as e:
                 logger.warning(f"Failed to initialize real contracts store: {e}")
                 self._use_real_contracts = False
@@ -162,17 +165,17 @@ class ContractsStore:
             self._init_mock_data()
 
     def _init_mock_data(self):
-        """Initialize mock contracts and templates."""
+        """Initialize mock contracts and templates matching real Agent-OS defaults."""
         now = datetime.utcnow()
 
-        # Mock templates
+        # Mock templates matching CONTRACT_TEMPLATES from store.py
         self._mock_templates = {
             "coding": ContractTemplateModel(
                 id="coding",
                 name="Coding Assistant",
                 description="Learn from code patterns, style preferences, and project structures",
                 contract_type="PROCEDURAL",
-                default_domains=["coding", "development", "programming"],
+                default_domains=["coding", "programming", "development", "debugging"],
                 default_duration_days=365,
                 recommended_for="Developers wanting personalized coding assistance",
             ),
@@ -181,16 +184,16 @@ class ContractsStore:
                 name="Personal Journal",
                 description="Remember personal reflections with highest privacy",
                 contract_type="EPISODIC",
-                default_domains=["personal", "journal", "reflection"],
+                default_domains=["personal", "journal", "diary", "notes"],
                 default_duration_days=None,
                 recommended_for="Private journaling and self-reflection",
             ),
-            "work": ContractTemplateModel(
-                id="work",
+            "work_projects": ContractTemplateModel(
+                id="work_projects",
                 name="Work Projects",
                 description="Learn project patterns while respecting confidentiality",
                 contract_type="PROCEDURAL",
-                default_domains=["work", "projects", "business"],
+                default_domains=["work", "professional", "business"],
                 default_duration_days=180,
                 recommended_for="Professional project management",
             ),
@@ -198,81 +201,125 @@ class ContractsStore:
                 id="gaming",
                 name="Gaming Assistant",
                 description="Remember game preferences and strategies",
-                contract_type="STRATEGIC",
-                default_domains=["gaming", "entertainment"],
-                default_duration_days=365,
-                recommended_for="Gamers wanting personalized recommendations",
+                contract_type="EPISODIC",
+                default_domains=["gaming", "games", "entertainment"],
+                default_duration_days=1,
+                recommended_for="Gamers wanting session-based memory",
             ),
             "study": ContractTemplateModel(
                 id="study",
                 name="Study Assistant",
                 description="Learn study patterns and help with retention",
                 contract_type="PROCEDURAL",
-                default_domains=["education", "study", "learning"],
+                default_domains=["education", "study", "learning", "courses"],
                 default_duration_days=180,
                 recommended_for="Students wanting learning assistance",
             ),
             "restricted": ContractTemplateModel(
                 id="restricted",
-                name="No Learning",
-                description="Completely block learning for sensitive domains",
+                name="Restricted Domains",
+                description="Block learning for sensitive domains (medical, financial, legal)",
                 contract_type="PROHIBITED",
-                default_domains=["sensitive", "private"],
+                default_domains=["medical", "financial", "legal", "credentials"],
                 default_duration_days=None,
-                recommended_for="Highly sensitive topics",
+                recommended_for="GDPR/HIPAA compliant privacy protection",
             ),
-            "observation": ContractTemplateModel(
-                id="observation",
-                name="Watch Only",
-                description="Allow observation without storage or generalization",
-                contract_type="OBSERVATION",
+            "strategy": ContractTemplateModel(
+                id="strategy",
+                name="Strategic Learning",
+                description="High-trust long-term pattern learning across contexts",
+                contract_type="STRATEGIC",
                 default_domains=["general"],
-                default_duration_days=30,
-                recommended_for="Temporary exploration with minimal data retention",
+                default_duration_days=365,
+                recommended_for="Trusted long-term AI relationships",
             ),
         }
 
-        # Mock contracts
+        # Mock contracts matching default Agent-OS contracts
         self._mock_contracts = {
-            "contract-001": ContractModel(
-                id="contract-001",
+            # 1. Code Assistance Contract
+            "aos-code-001": ContractModel(
+                id="aos-code-001",
                 user_id="default",
                 contract_type="PROCEDURAL",
                 status="ACTIVE",
-                domains=["coding", "development"],
+                domains=["coding", "programming", "development", "debugging", "refactoring"],
                 created_at=now - timedelta(days=30),
                 expires_at=now + timedelta(days=335),
-                description="Active coding assistant contract",
+                description="Enables Agent-OS to learn your coding patterns, style preferences, and project conventions for better code assistance.",
+                metadata={"category": "technical", "trust_level": "medium", "created_by": "agent_os_defaults"},
             ),
-            "contract-002": ContractModel(
-                id="contract-002",
+            # 2. Memory Management Contract (Seshat)
+            "aos-memory-002": ContractModel(
+                id="aos-memory-002",
                 user_id="default",
                 contract_type="EPISODIC",
                 status="ACTIVE",
-                domains=["personal", "journal"],
-                created_at=now - timedelta(days=60),
+                domains=["memory", "recall", "context", "conversation"],
+                created_at=now - timedelta(days=30),
                 expires_at=None,
-                description="Personal journaling contract",
+                description="Allows the Seshat memory agent to store conversation context and recall relevant information without cross-context generalization.",
+                metadata={"category": "memory", "agent": "seshat", "created_by": "agent_os_defaults"},
             ),
-            "contract-003": ContractModel(
-                id="contract-003",
+            # 3. Constitutional Compliance Contract (Smith)
+            "aos-smith-003": ContractModel(
+                id="aos-smith-003",
+                user_id="default",
+                contract_type="OBSERVATION",
+                status="ACTIVE",
+                domains=["constitution", "safety", "compliance", "ethics"],
+                created_at=now - timedelta(days=30),
+                expires_at=None,
+                description="Allows the Smith constitutional agent to observe interactions for safety compliance without storing or learning from content.",
+                metadata={"category": "safety", "agent": "smith", "observation_only": True},
+            ),
+            # 4. Security Prohibition Contract
+            "aos-security-004": ContractModel(
+                id="aos-security-004",
                 user_id="default",
                 contract_type="PROHIBITED",
                 status="ACTIVE",
-                domains=["medical", "health"],
-                created_at=now - timedelta(days=15),
+                domains=["credentials", "passwords", "api_keys", "secrets", "tokens", "private_keys"],
+                created_at=now - timedelta(days=30),
                 expires_at=None,
-                description="Block learning from medical discussions",
+                description="Explicitly prohibits Agent-OS from learning or storing any credentials, API keys, passwords, or other security-sensitive data.",
+                metadata={"category": "security", "immutable": True, "priority": "critical"},
             ),
-            "contract-004": ContractModel(
-                id="contract-004",
+            # 5. Intent Classification Contract (Whisper)
+            "aos-whisper-005": ContractModel(
+                id="aos-whisper-005",
                 user_id="default",
                 contract_type="PROCEDURAL",
-                status="EXPIRED",
-                domains=["work", "projects"],
-                created_at=now - timedelta(days=200),
-                expires_at=now - timedelta(days=20),
-                description="Expired work contract",
+                status="ACTIVE",
+                domains=["intent", "routing", "classification", "commands"],
+                created_at=now - timedelta(days=30),
+                expires_at=now + timedelta(days=150),
+                description="Enables the Whisper agent to learn user intent patterns for improved request classification and agent routing.",
+                metadata={"category": "routing", "agent": "whisper", "created_by": "agent_os_defaults"},
+            ),
+            # 6. Personal Data Protection Contract
+            "aos-privacy-006": ContractModel(
+                id="aos-privacy-006",
+                user_id="default",
+                contract_type="PROHIBITED",
+                status="ACTIVE",
+                domains=["medical", "health", "financial", "banking", "legal", "biometric"],
+                created_at=now - timedelta(days=30),
+                expires_at=None,
+                description="Prohibits Agent-OS from learning personal health, financial, legal, or biometric information to protect user privacy.",
+                metadata={"category": "privacy", "gdpr_compliant": True, "hipaa_compliant": True},
+            ),
+            # 7. General Assistance Contract
+            "aos-general-007": ContractModel(
+                id="aos-general-007",
+                user_id="default",
+                contract_type="EPISODIC",
+                status="ACTIVE",
+                domains=["general", "chat", "assistance", "help", "questions"],
+                created_at=now - timedelta(days=30),
+                expires_at=now + timedelta(days=0),  # Expires today for demo
+                description="Allows Agent-OS to remember conversation context for general assistance without cross-session learning.",
+                metadata={"category": "general", "session_memory": True},
             ),
         }
 

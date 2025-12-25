@@ -1074,3 +1074,258 @@ def create_contract_from_template(
         duration=duration,
         auto_activate=auto_activate,
     )
+
+
+# =============================================================================
+# Default Agent-OS Contracts
+# Pre-configured contracts for typical Agent-OS usage
+# =============================================================================
+
+
+def create_default_agent_os_contracts(
+    store: ContractStore,
+    user_id: str = "default",
+) -> List[LearningContract]:
+    """
+    Create default learning contracts for Agent-OS.
+
+    These contracts provide sensible defaults for an Agent-OS installation:
+    - Code assistance with pattern learning
+    - Memory management with Seshat agent
+    - Constitutional compliance (observation only)
+    - Security domains prohibited
+    - General chat with episodic memory
+
+    Args:
+        store: Contract store to use
+        user_id: User ID for the contracts
+
+    Returns:
+        List of created contracts
+    """
+    contracts = []
+    now = datetime.utcnow()
+
+    # 1. Code Assistance Contract (PROCEDURAL)
+    # Allows the system to learn coding patterns and preferences
+    code_contract = store.create_contract(
+        user_id=user_id,
+        contract_type=ContractType.PROCEDURAL,
+        scope=ContractScope(
+            scope_type=LearningScope.DOMAIN_SPECIFIC,
+            domains={"coding", "programming", "development", "debugging", "refactoring"},
+            agents={"muse", "sage", "quill"},
+            content_types={"code", "technical", "documentation", "error_messages"},
+            excluded_domains={"credentials", "api_keys", "secrets", "passwords", "tokens"},
+        ),
+        duration=timedelta(days=365),
+        description="Enables Agent-OS to learn your coding patterns, style preferences, and "
+                   "project conventions for better code assistance.",
+        metadata={
+            "category": "technical",
+            "trust_level": "medium",
+            "created_by": "agent_os_defaults",
+            "allows_pattern_inference": True,
+        },
+        auto_activate=True,
+    )
+    if code_contract:
+        contracts.append(code_contract)
+        logger.info(f"Created default code assistance contract: {code_contract.contract_id}")
+
+    # 2. Memory Management Contract (EPISODIC)
+    # Allows Seshat agent to store and retrieve memories
+    memory_contract = store.create_contract(
+        user_id=user_id,
+        contract_type=ContractType.EPISODIC,
+        scope=ContractScope(
+            scope_type=LearningScope.AGENT_SPECIFIC,
+            agents={"seshat"},
+            domains={"memory", "recall", "context", "conversation"},
+            excluded_domains={"medical", "financial", "legal", "credentials"},
+        ),
+        duration=None,  # No expiration
+        description="Allows the Seshat memory agent to store conversation context and "
+                   "recall relevant information without cross-context generalization.",
+        metadata={
+            "category": "memory",
+            "trust_level": "medium",
+            "created_by": "agent_os_defaults",
+            "agent": "seshat",
+            "storage_type": "episodic",
+        },
+        auto_activate=True,
+    )
+    if memory_contract:
+        contracts.append(memory_contract)
+        logger.info(f"Created default memory management contract: {memory_contract.contract_id}")
+
+    # 3. Constitutional Compliance Contract (OBSERVATION)
+    # Smith agent observes for constitutional violations but doesn't learn
+    constitution_contract = store.create_contract(
+        user_id=user_id,
+        contract_type=ContractType.OBSERVATION,
+        scope=ContractScope(
+            scope_type=LearningScope.AGENT_SPECIFIC,
+            agents={"smith"},
+            domains={"constitution", "safety", "compliance", "ethics"},
+        ),
+        duration=None,
+        description="Allows the Smith constitutional agent to observe interactions for "
+                   "safety compliance without storing or learning from content.",
+        metadata={
+            "category": "safety",
+            "trust_level": "high",
+            "created_by": "agent_os_defaults",
+            "agent": "smith",
+            "observation_only": True,
+        },
+        auto_activate=True,
+    )
+    if constitution_contract:
+        contracts.append(constitution_contract)
+        logger.info(f"Created default constitutional compliance contract: {constitution_contract.contract_id}")
+
+    # 4. Security Prohibition Contract (PROHIBITED)
+    # Explicitly blocks learning from sensitive security domains
+    security_contract = store.create_contract(
+        user_id=user_id,
+        contract_type=ContractType.PROHIBITED,
+        scope=ContractScope(
+            scope_type=LearningScope.DOMAIN_SPECIFIC,
+            domains={
+                "credentials", "passwords", "api_keys", "secrets", "tokens",
+                "private_keys", "ssh_keys", "certificates", "auth_tokens",
+                "encryption_keys", "wallet_seeds", "recovery_phrases",
+            },
+        ),
+        duration=None,
+        description="Explicitly prohibits Agent-OS from learning or storing any "
+                   "credentials, API keys, passwords, or other security-sensitive data.",
+        metadata={
+            "category": "security",
+            "trust_level": "none",
+            "created_by": "agent_os_defaults",
+            "immutable": True,
+            "priority": "critical",
+        },
+        auto_activate=True,
+    )
+    if security_contract:
+        contracts.append(security_contract)
+        logger.info(f"Created default security prohibition contract: {security_contract.contract_id}")
+
+    # 5. Intent Classification Contract (PROCEDURAL)
+    # Allows Whisper agent to learn intent patterns
+    intent_contract = store.create_contract(
+        user_id=user_id,
+        contract_type=ContractType.PROCEDURAL,
+        scope=ContractScope(
+            scope_type=LearningScope.AGENT_SPECIFIC,
+            agents={"whisper"},
+            domains={"intent", "routing", "classification", "commands"},
+            content_types={"user_intent", "command_patterns", "routing_decisions"},
+            excluded_domains={"credentials", "personal", "medical", "financial"},
+        ),
+        duration=timedelta(days=180),
+        description="Enables the Whisper agent to learn user intent patterns for "
+                   "improved request classification and agent routing.",
+        metadata={
+            "category": "routing",
+            "trust_level": "medium",
+            "created_by": "agent_os_defaults",
+            "agent": "whisper",
+        },
+        auto_activate=True,
+    )
+    if intent_contract:
+        contracts.append(intent_contract)
+        logger.info(f"Created default intent classification contract: {intent_contract.contract_id}")
+
+    # 6. Personal Data Protection Contract (PROHIBITED)
+    # Blocks learning from sensitive personal domains
+    personal_contract = store.create_contract(
+        user_id=user_id,
+        contract_type=ContractType.PROHIBITED,
+        scope=ContractScope(
+            scope_type=LearningScope.DOMAIN_SPECIFIC,
+            domains={
+                "medical", "health", "diagnosis", "treatment",
+                "financial", "banking", "investment", "tax",
+                "legal", "litigation", "contracts_legal",
+                "biometric", "genetic", "dna",
+            },
+        ),
+        duration=None,
+        description="Prohibits Agent-OS from learning personal health, financial, "
+                   "legal, or biometric information to protect user privacy.",
+        metadata={
+            "category": "privacy",
+            "trust_level": "none",
+            "created_by": "agent_os_defaults",
+            "gdpr_compliant": True,
+            "hipaa_compliant": True,
+        },
+        auto_activate=True,
+    )
+    if personal_contract:
+        contracts.append(personal_contract)
+        logger.info(f"Created default personal data protection contract: {personal_contract.contract_id}")
+
+    # 7. General Assistance Contract (EPISODIC)
+    # Allows basic conversational memory without deep learning
+    general_contract = store.create_contract(
+        user_id=user_id,
+        contract_type=ContractType.EPISODIC,
+        scope=ContractScope(
+            scope_type=LearningScope.DOMAIN_SPECIFIC,
+            domains={"general", "chat", "assistance", "help", "questions"},
+            excluded_domains={
+                "credentials", "medical", "financial", "legal",
+                "passwords", "secrets", "personal_identifiable",
+            },
+        ),
+        duration=timedelta(days=30),
+        description="Allows Agent-OS to remember conversation context for general "
+                   "assistance without cross-session learning.",
+        metadata={
+            "category": "general",
+            "trust_level": "low",
+            "created_by": "agent_os_defaults",
+            "session_memory": True,
+        },
+        auto_activate=True,
+    )
+    if general_contract:
+        contracts.append(general_contract)
+        logger.info(f"Created default general assistance contract: {general_contract.contract_id}")
+
+    logger.info(f"Created {len(contracts)} default Agent-OS contracts for user '{user_id}'")
+    return contracts
+
+
+def ensure_default_contracts(
+    store: ContractStore,
+    user_id: str = "default",
+) -> bool:
+    """
+    Ensure default contracts exist for a user.
+
+    Only creates contracts if the user has none.
+
+    Args:
+        store: Contract store to use
+        user_id: User ID to check
+
+    Returns:
+        True if defaults were created, False if user already has contracts
+    """
+    query = ContractQuery(user_id=user_id, active_only=True)
+    existing = store.query(query)
+
+    if existing:
+        logger.debug(f"User '{user_id}' already has {len(existing)} active contracts")
+        return False
+
+    create_default_agent_os_contracts(store, user_id)
+    return True

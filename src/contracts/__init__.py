@@ -50,6 +50,9 @@ from .store import (
     get_template,
     list_templates,
     create_contract_from_template,
+    # Default Agent-OS contracts
+    create_default_agent_os_contracts,
+    ensure_default_contracts,
 )
 
 # Validator
@@ -131,6 +134,9 @@ __all__ = [
     "get_template",
     "list_templates",
     "create_contract_from_template",
+    # Default Agent-OS contracts
+    "create_default_agent_os_contracts",
+    "ensure_default_contracts",
     # Validator
     "ContractValidator",
     "ValidationResult",
