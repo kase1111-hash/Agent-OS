@@ -8,6 +8,8 @@ class AgentOS {
         this.ws = null;
         this.conversationId = null;
         this.currentView = 'chat';
+        this.currentUser = null;
+        this.isAuthenticated = false;
         this.init();
     }
 
@@ -15,8 +17,453 @@ class AgentOS {
         this.setupNavigation();
         this.setupChat();
         this.setupModal();
-        this.connectWebSocket();
-        this.loadInitialData();
+        this.checkAuthStatus().then(() => {
+            this.connectWebSocket();
+            this.loadInitialData();
+        });
+        this.setupClickOutside();
+    }
+
+    // =========================================================================
+    // Authentication
+    // =========================================================================
+
+    async checkAuthStatus() {
+        try {
+            const response = await fetch('/api/auth/status');
+            const data = await response.json();
+
+            if (data.authenticated && data.user) {
+                this.setAuthenticatedUser(data.user);
+            } else {
+                this.setUnauthenticated();
+            }
+        } catch (error) {
+            console.error('Failed to check auth status:', error);
+            this.setUnauthenticated();
+        }
+    }
+
+    setAuthenticatedUser(user) {
+        this.currentUser = user;
+        this.isAuthenticated = true;
+
+        // Update UI
+        document.getElementById('auth-buttons').style.display = 'none';
+        document.getElementById('user-menu').style.display = 'flex';
+
+        // Set user info
+        const displayName = user.display_name || user.username;
+        document.getElementById('user-display-name').textContent = displayName;
+        document.getElementById('user-avatar').textContent = displayName.charAt(0).toUpperCase();
+        document.getElementById('dropdown-username').textContent = user.username;
+        document.getElementById('dropdown-role').textContent = user.role;
+    }
+
+    setUnauthenticated() {
+        this.currentUser = null;
+        this.isAuthenticated = false;
+
+        // Update UI
+        document.getElementById('auth-buttons').style.display = 'flex';
+        document.getElementById('user-menu').style.display = 'none';
+    }
+
+    toggleUserDropdown() {
+        const dropdown = document.getElementById('user-dropdown');
+        dropdown.classList.toggle('active');
+    }
+
+    setupClickOutside() {
+        document.addEventListener('click', (e) => {
+            const userMenu = document.getElementById('user-menu');
+            const dropdown = document.getElementById('user-dropdown');
+
+            if (userMenu && dropdown && !userMenu.contains(e.target)) {
+                dropdown.classList.remove('active');
+            }
+        });
+    }
+
+    showLoginModal() {
+        this.showModal('Sign In', `
+            <form id="login-form" onsubmit="app.handleLogin(event)">
+                <div class="form-group">
+                    <label for="login-username">Username or Email</label>
+                    <input type="text" id="login-username" placeholder="Enter your username or email" required autofocus>
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" placeholder="Enter your password" required>
+                </div>
+                <div class="form-group form-checkbox">
+                    <label>
+                        <input type="checkbox" id="login-remember">
+                        Remember me for 30 days
+                    </label>
+                </div>
+                <div id="login-error" class="form-error" style="display: none;"></div>
+            </form>
+        `, `
+            <button class="btn btn-secondary" onclick="app.hideModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="app.handleLogin(event)">Sign In</button>
+        `);
+    }
+
+    showRegisterModal() {
+        this.showModal('Create Account', `
+            <form id="register-form" onsubmit="app.handleRegister(event)">
+                <div class="form-group">
+                    <label for="register-username">Username *</label>
+                    <input type="text" id="register-username" placeholder="Choose a username (3+ characters)" required minlength="3" maxlength="50" autofocus>
+                </div>
+                <div class="form-group">
+                    <label for="register-email">Email (optional)</label>
+                    <input type="email" id="register-email" placeholder="Enter your email address">
+                </div>
+                <div class="form-group">
+                    <label for="register-display-name">Display Name (optional)</label>
+                    <input type="text" id="register-display-name" placeholder="How should we call you?">
+                </div>
+                <div class="form-group">
+                    <label for="register-password">Password *</label>
+                    <input type="password" id="register-password" placeholder="Choose a password (6+ characters)" required minlength="6">
+                </div>
+                <div class="form-group">
+                    <label for="register-password-confirm">Confirm Password *</label>
+                    <input type="password" id="register-password-confirm" placeholder="Confirm your password" required>
+                </div>
+                <div id="register-error" class="form-error" style="display: none;"></div>
+            </form>
+        `, `
+            <button class="btn btn-secondary" onclick="app.hideModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="app.handleRegister(event)">Create Account</button>
+        `);
+    }
+
+    async handleLogin(event) {
+        if (event) event.preventDefault();
+
+        const username = document.getElementById('login-username').value.trim();
+        const password = document.getElementById('login-password').value;
+        const rememberMe = document.getElementById('login-remember').checked;
+        const errorDiv = document.getElementById('login-error');
+
+        if (!username || !password) {
+            this.showFormError(errorDiv, 'Please enter both username and password');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username: username,
+                    password: password,
+                    remember_me: rememberMe
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                this.setAuthenticatedUser(data.user);
+                this.hideModal();
+                this.showNotification('Welcome back, ' + (data.user.display_name || data.user.username) + '!', 'success');
+            } else {
+                this.showFormError(errorDiv, data.detail || 'Login failed');
+            }
+        } catch (error) {
+            console.error('Login error:', error);
+            this.showFormError(errorDiv, 'Login failed. Please try again.');
+        }
+    }
+
+    async handleRegister(event) {
+        if (event) event.preventDefault();
+
+        const username = document.getElementById('register-username').value.trim();
+        const email = document.getElementById('register-email').value.trim();
+        const displayName = document.getElementById('register-display-name').value.trim();
+        const password = document.getElementById('register-password').value;
+        const passwordConfirm = document.getElementById('register-password-confirm').value;
+        const errorDiv = document.getElementById('register-error');
+
+        // Validation
+        if (!username || username.length < 3) {
+            this.showFormError(errorDiv, 'Username must be at least 3 characters');
+            return;
+        }
+
+        if (!password || password.length < 6) {
+            this.showFormError(errorDiv, 'Password must be at least 6 characters');
+            return;
+        }
+
+        if (password !== passwordConfirm) {
+            this.showFormError(errorDiv, 'Passwords do not match');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username: username,
+                    password: password,
+                    email: email || null,
+                    display_name: displayName || null
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                this.setAuthenticatedUser(data.user);
+                this.hideModal();
+                this.showNotification('Account created! Welcome, ' + (data.user.display_name || data.user.username) + '!', 'success');
+            } else {
+                this.showFormError(errorDiv, data.detail || 'Registration failed');
+            }
+        } catch (error) {
+            console.error('Registration error:', error);
+            this.showFormError(errorDiv, 'Registration failed. Please try again.');
+        }
+    }
+
+    async logout() {
+        try {
+            await fetch('/api/auth/logout', { method: 'POST' });
+        } catch (error) {
+            console.error('Logout error:', error);
+        }
+
+        this.setUnauthenticated();
+        document.getElementById('user-dropdown').classList.remove('active');
+        this.showNotification('You have been signed out', 'info');
+    }
+
+    showProfileModal() {
+        if (!this.currentUser) return;
+
+        document.getElementById('user-dropdown').classList.remove('active');
+
+        this.showModal('Edit Profile', `
+            <form id="profile-form" onsubmit="app.handleProfileUpdate(event)">
+                <div class="form-group">
+                    <label for="profile-username">Username</label>
+                    <input type="text" id="profile-username" value="${this.escapeHtml(this.currentUser.username)}" readonly disabled>
+                    <small style="color: var(--text-muted);">Username cannot be changed</small>
+                </div>
+                <div class="form-group">
+                    <label for="profile-display-name">Display Name</label>
+                    <input type="text" id="profile-display-name" value="${this.escapeHtml(this.currentUser.display_name || '')}" placeholder="Enter your display name">
+                </div>
+                <div class="form-group">
+                    <label for="profile-email">Email</label>
+                    <input type="email" id="profile-email" value="${this.escapeHtml(this.currentUser.email || '')}" placeholder="Enter your email address">
+                </div>
+                <div id="profile-error" class="form-error" style="display: none;"></div>
+            </form>
+        `, `
+            <button class="btn btn-secondary" onclick="app.hideModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="app.handleProfileUpdate(event)">Save Changes</button>
+        `);
+    }
+
+    async handleProfileUpdate(event) {
+        if (event) event.preventDefault();
+
+        const displayName = document.getElementById('profile-display-name').value.trim();
+        const email = document.getElementById('profile-email').value.trim();
+        const errorDiv = document.getElementById('profile-error');
+
+        try {
+            const response = await fetch('/api/auth/profile', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    display_name: displayName || null,
+                    email: email || null
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                if (data.user) {
+                    this.setAuthenticatedUser(data.user);
+                }
+                this.hideModal();
+                this.showNotification('Profile updated successfully', 'success');
+            } else {
+                this.showFormError(errorDiv, data.detail || 'Update failed');
+            }
+        } catch (error) {
+            console.error('Profile update error:', error);
+            this.showFormError(errorDiv, 'Update failed. Please try again.');
+        }
+    }
+
+    showChangePasswordModal() {
+        document.getElementById('user-dropdown').classList.remove('active');
+
+        this.showModal('Change Password', `
+            <form id="password-form" onsubmit="app.handlePasswordChange(event)">
+                <div class="form-group">
+                    <label for="current-password">Current Password *</label>
+                    <input type="password" id="current-password" placeholder="Enter your current password" required>
+                </div>
+                <div class="form-group">
+                    <label for="new-password">New Password *</label>
+                    <input type="password" id="new-password" placeholder="Enter your new password (6+ characters)" required minlength="6">
+                </div>
+                <div class="form-group">
+                    <label for="confirm-new-password">Confirm New Password *</label>
+                    <input type="password" id="confirm-new-password" placeholder="Confirm your new password" required>
+                </div>
+                <div id="password-error" class="form-error" style="display: none;"></div>
+            </form>
+        `, `
+            <button class="btn btn-secondary" onclick="app.hideModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="app.handlePasswordChange(event)">Change Password</button>
+        `);
+    }
+
+    async handlePasswordChange(event) {
+        if (event) event.preventDefault();
+
+        const currentPassword = document.getElementById('current-password').value;
+        const newPassword = document.getElementById('new-password').value;
+        const confirmNewPassword = document.getElementById('confirm-new-password').value;
+        const errorDiv = document.getElementById('password-error');
+
+        if (newPassword.length < 6) {
+            this.showFormError(errorDiv, 'New password must be at least 6 characters');
+            return;
+        }
+
+        if (newPassword !== confirmNewPassword) {
+            this.showFormError(errorDiv, 'New passwords do not match');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/auth/change-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    current_password: currentPassword,
+                    new_password: newPassword
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                this.hideModal();
+                this.showNotification('Password changed successfully', 'success');
+            } else {
+                this.showFormError(errorDiv, data.detail || 'Password change failed');
+            }
+        } catch (error) {
+            console.error('Password change error:', error);
+            this.showFormError(errorDiv, 'Password change failed. Please try again.');
+        }
+    }
+
+    async showSessionsModal() {
+        document.getElementById('user-dropdown').classList.remove('active');
+
+        try {
+            const response = await fetch('/api/auth/sessions');
+            const data = await response.json();
+
+            const sessions = data.sessions || [];
+
+            this.showModal('Active Sessions', `
+                <div class="sessions-list">
+                    ${sessions.length === 0 ? '<p style="color: var(--text-muted);">No active sessions</p>' :
+                        sessions.map(session => `
+                            <div class="session-item">
+                                <div class="session-info">
+                                    <div class="session-device">
+                                        <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M4 6h18V4H4c-1.1 0-2 .9-2 2v11H0v3h14v-3H4V6zm19 2h-6c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1zm-1 9h-4v-7h4v7z"/></svg>
+                                        <span>${session.ip_address || 'Unknown device'}</span>
+                                    </div>
+                                    <div class="session-meta">
+                                        <span>Last active: ${new Date(session.last_activity).toLocaleString()}</span>
+                                    </div>
+                                </div>
+                                <button class="btn btn-danger btn-small" onclick="app.revokeSession('${session.session_id}')">Revoke</button>
+                            </div>
+                        `).join('')
+                    }
+                </div>
+            `, `
+                <button class="btn btn-secondary" onclick="app.hideModal()">Close</button>
+                ${sessions.length > 1 ? '<button class="btn btn-danger" onclick="app.logoutAll()">Sign Out All</button>' : ''}
+            `);
+        } catch (error) {
+            console.error('Failed to load sessions:', error);
+            this.showError('Failed to load sessions');
+        }
+    }
+
+    async revokeSession(sessionId) {
+        try {
+            await fetch(`/api/auth/sessions/${sessionId}`, { method: 'DELETE' });
+            this.showSessionsModal(); // Refresh
+            this.showNotification('Session revoked', 'success');
+        } catch (error) {
+            this.showError('Failed to revoke session');
+        }
+    }
+
+    async logoutAll() {
+        try {
+            await fetch('/api/auth/logout-all', { method: 'POST' });
+            this.setUnauthenticated();
+            this.hideModal();
+            this.showNotification('Signed out from all devices', 'info');
+        } catch (error) {
+            this.showError('Failed to sign out from all devices');
+        }
+    }
+
+    showFormError(element, message) {
+        if (element) {
+            element.textContent = message;
+            element.style.display = 'block';
+        }
+    }
+
+    showNotification(message, type = 'info') {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.innerHTML = `
+            <span>${this.escapeHtml(message)}</span>
+            <button onclick="this.parentElement.remove()">&times;</button>
+        `;
+
+        // Add to page
+        let container = document.getElementById('notification-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'notification-container';
+            document.body.appendChild(container);
+        }
+
+        container.appendChild(notification);
+
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            notification.classList.add('fade-out');
+            setTimeout(() => notification.remove(), 300);
+        }, 5000);
     }
 
     // Navigation
