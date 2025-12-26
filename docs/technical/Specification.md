@@ -1076,9 +1076,9 @@ Future reference designs for dedicated hardware and OEM partnerships.
 ---
 
 ### UC-031: Post-Quantum Cryptography (Hybrid Mode)
-**Status:** 🔄 IN PROGRESS (Phase 3 Complete)
+**Status:** ✅ IMPLEMENTED (All Phases Complete)
 **Location:** `src/federation/pq/`, `src/memory/pq_keys.py`
-**Test:** `tests/test_post_quantum.py`, `tests/test_pq_keys.py`, `tests/test_hybrid_certs.py`
+**Test:** `tests/test_post_quantum.py`, `tests/test_pq_keys.py`, `tests/test_hybrid_certs.py`, `tests/test_pq_production.py`
 **Priority:** P4
 
 **Phase 1 - Hybrid Crypto Primitives (IMPLEMENTED):**
@@ -1135,8 +1135,32 @@ Future reference designs for dedicated hardware and OEM partnerships.
   - Serial number based revocation
   - Automatic rejection of revoked certificates
 
-**Remaining Phases:**
-- Phase 4: Production hardening and HSM support
+**Phase 4 - Production Hardening and HSM Support (IMPLEMENTED):**
+- **HSM Integration** - Hardware Security Module abstraction
+  - PKCS#11 interface support for industry-standard HSMs
+  - Software HSM for development/testing
+  - TPM integration ready
+  - Cloud HSM support (AWS, Azure, GCP)
+  - Key generation, encapsulation, signing inside HSM
+  - Security levels: Level 1 (software) to Level 4 (FIPS 140-3)
+- **Crypto Audit Logging** - Comprehensive operation auditing
+  - Tamper-evident log chain with hash linking
+  - All cryptographic operations logged
+  - Compliance reporting (SOC 2, FIPS 140-3, ISO 27001)
+  - Configurable retention policies
+  - Async processing for performance
+- **Key Backup & Recovery** - Enterprise key management
+  - Shamir's Secret Sharing for M-of-N recovery
+  - Password-protected encrypted exports (Argon2id + AES-256-GCM)
+  - Configurable backup policies
+  - Key escrow support
+  - Secure key destruction
+- **Production Configuration** - Environment-aware settings
+  - Development, staging, production profiles
+  - Security policy enforcement
+  - Algorithm restrictions
+  - Performance tuning
+  - Environment variable overrides
 
 **Future Research Areas:**
 - Homomorphic encryption for inference
@@ -1149,9 +1173,9 @@ Future reference designs for dedicated hardware and OEM partnerships.
 ## Summary Statistics
 
 ### Implementation Status (Updated December 2025)
-- **Fully Implemented:** 28 components (~90%)
-- **Partially Implemented:** 1 component (Post-Quantum Crypto Phase 3/4)
-- **Not Started:** 2 components (~7%)
+- **Fully Implemented:** 29 components (~94%)
+- **Partially Implemented:** 0 components
+- **Not Started:** 2 components (~6%)
 
 ### Component Breakdown
 | Phase | Planned | Implemented | Status |
@@ -1160,8 +1184,8 @@ Future reference designs for dedicated hardware and OEM partnerships.
 | Phase 1 (Memory) | 3 | 3 | ✅ 100% |
 | Phase 2 (Agents) | 3 | 3 | ✅ 100% |
 | Phase 3 (Security) | 6 | 6 | ✅ 100% |
-| Phase 4 (Advanced) | 14 | 12 | ✅ 86% |
-| Phase 5 (Future) | 3 | 1 | 🔄 33% |
+| Phase 4 (Advanced) | 14 | 13 | ✅ 93% |
+| Phase 5 (Future) | 3 | 2 | 🔄 67% |
 
 ### New Features Added (December 2025)
 - **UC-024:** User Authentication & Session Management
@@ -1169,19 +1193,21 @@ Future reference designs for dedicated hardware and OEM partnerships.
 - **UC-026:** Background Tasks & Scheduling
 - **UC-027:** Voice Interface (Detailed)
 - **UC-028:** Configuration & Environment
-- **UC-031:** Post-Quantum Cryptography (Phases 1-3)
+- **UC-031:** Post-Quantum Cryptography (All Phases Complete)
   - Phase 1: Hybrid Crypto Primitives (ML-KEM, ML-DSA)
   - Phase 2: Key Management Updates
   - Phase 3: Certificate and Identity Updates
+  - Phase 4: Production Hardening (HSM, Audit, Backup, Config)
 
 ### Test Coverage
-- **Test Files:** 34 modules
+- **Test Files:** 35 modules
 - **E2E Tests:** Full simulation test (`e2e_simulation.py`)
 - **All agents tested:** Whisper, Smith, Sage, Quill, Muse, Seshat
 - **Post-Quantum Tests:**
   - `test_post_quantum.py` (ML-KEM, ML-DSA, Hybrid crypto)
   - `test_pq_keys.py` (PQ key management)
   - `test_hybrid_certs.py` (Hybrid certificates and identity management)
+  - `test_pq_production.py` (HSM, audit, backup, production config)
 
 ### API Endpoint Count
 - **Total REST Endpoints:** 83+

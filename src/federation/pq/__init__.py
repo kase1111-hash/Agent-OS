@@ -74,6 +74,60 @@ from .hybrid_certs import (
     create_hybrid_identity,
 )
 
+# Phase 4: Production Hardening
+from .hsm import (
+    HSMType,
+    HSMSecurityLevel,
+    PQAlgorithm,
+    KeyState,
+    HSMKeyHandle,
+    HSMConfig,
+    HSMProvider,
+    SoftwareHSMProvider,
+    PKCS11HSMProvider,
+    create_hsm_provider,
+    get_recommended_hsm_config,
+)
+
+from .audit import (
+    AuditEventType,
+    AuditSeverity,
+    ComplianceStandard,
+    CryptoAuditEvent,
+    AuditConfig as CryptoAuditConfig,
+    AuditMetrics,
+    CryptoAuditLogger,
+    get_audit_logger,
+    configure_audit_logger,
+    create_production_audit_config,
+)
+
+from .backup import (
+    BackupFormat,
+    RecoveryMethod,
+    BackupStatus,
+    KeyShare,
+    KeyBackup,
+    BackupConfig,
+    KeyBackupManager,
+    ShamirSecretSharing,
+    create_backup_manager,
+    create_production_backup_config,
+)
+
+from .config import (
+    Environment,
+    AlgorithmConfig,
+    KeyPolicyConfig,
+    SecurityConfig,
+    PerformanceConfig,
+    HSMSettings,
+    PQConfig,
+    get_pq_config,
+    set_pq_config,
+    reset_pq_config,
+)
+
 __all__ = [
     # ML-KEM
     "MLKEMSecurityLevel",
@@ -114,10 +168,55 @@ __all__ = [
     "HybridIdentityManager",
     "create_hybrid_identity_manager",
     "create_hybrid_identity",
+    # HSM
+    "HSMType",
+    "HSMSecurityLevel",
+    "PQAlgorithm",
+    "KeyState",
+    "HSMKeyHandle",
+    "HSMConfig",
+    "HSMProvider",
+    "SoftwareHSMProvider",
+    "PKCS11HSMProvider",
+    "create_hsm_provider",
+    "get_recommended_hsm_config",
+    # Audit
+    "AuditEventType",
+    "AuditSeverity",
+    "ComplianceStandard",
+    "CryptoAuditEvent",
+    "CryptoAuditConfig",
+    "AuditMetrics",
+    "CryptoAuditLogger",
+    "get_audit_logger",
+    "configure_audit_logger",
+    "create_production_audit_config",
+    # Backup
+    "BackupFormat",
+    "RecoveryMethod",
+    "BackupStatus",
+    "KeyShare",
+    "KeyBackup",
+    "BackupConfig",
+    "KeyBackupManager",
+    "ShamirSecretSharing",
+    "create_backup_manager",
+    "create_production_backup_config",
+    # Config
+    "Environment",
+    "AlgorithmConfig",
+    "KeyPolicyConfig",
+    "SecurityConfig",
+    "PerformanceConfig",
+    "HSMSettings",
+    "PQConfig",
+    "get_pq_config",
+    "set_pq_config",
+    "reset_pq_config",
 ]
 
 # Version information
-__version__ = "1.0.0"
+__version__ = "2.0.0"  # Phase 4 complete
 __pq_standards__ = {
     "ml_kem": "FIPS 203 (CRYSTALS-Kyber)",
     "ml_dsa": "FIPS 204 (CRYSTALS-Dilithium)",
