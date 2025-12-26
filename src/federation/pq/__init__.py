@@ -61,6 +61,19 @@ from .hybrid import (
     HybridSessionManager,
 )
 
+from .hybrid_certs import (
+    HybridCertificateVersion,
+    CertificateType,
+    HybridIdentityStatus,
+    HybridIdentityKey,
+    HybridCertificateSignature,
+    HybridCertificate,
+    HybridIdentity,
+    HybridIdentityManager,
+    create_hybrid_identity_manager,
+    create_hybrid_identity,
+)
+
 __all__ = [
     # ML-KEM
     "MLKEMSecurityLevel",
@@ -90,6 +103,17 @@ __all__ = [
     "HybridSignature",
     "HybridCiphertext",
     "HybridSessionManager",
+    # Hybrid Certificates
+    "HybridCertificateVersion",
+    "CertificateType",
+    "HybridIdentityStatus",
+    "HybridIdentityKey",
+    "HybridCertificateSignature",
+    "HybridCertificate",
+    "HybridIdentity",
+    "HybridIdentityManager",
+    "create_hybrid_identity_manager",
+    "create_hybrid_identity",
 ]
 
 # Version information

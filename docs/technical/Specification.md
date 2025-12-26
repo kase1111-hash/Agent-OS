@@ -1076,9 +1076,9 @@ Future reference designs for dedicated hardware and OEM partnerships.
 ---
 
 ### UC-031: Post-Quantum Cryptography (Hybrid Mode)
-**Status:** 🔄 IN PROGRESS (Phase 2 Complete)
+**Status:** 🔄 IN PROGRESS (Phase 3 Complete)
 **Location:** `src/federation/pq/`, `src/memory/pq_keys.py`
-**Test:** `tests/test_post_quantum.py`, `tests/test_pq_keys.py`
+**Test:** `tests/test_post_quantum.py`, `tests/test_pq_keys.py`, `tests/test_hybrid_certs.py`
 **Priority:** P4
 
 **Phase 1 - Hybrid Crypto Primitives (IMPLEMENTED):**
@@ -1111,8 +1111,31 @@ Future reference designs for dedicated hardware and OEM partnerships.
   - Base64-encoded key files with restricted permissions
   - Metadata JSON with algorithm details
 
+**Phase 3 - Certificate and Identity Updates (IMPLEMENTED):**
+- **HybridCertificate** - Quantum-resistant certificates
+  - Dual signatures: Ed25519 + ML-DSA (both required for validity)
+  - PEM-like export/import format
+  - Certificate chain verification
+  - Configurable validity periods and extensions
+- **HybridIdentity** - Federation identity with hybrid keys
+  - Combined classical and PQ public keys
+  - Status tracking (unverified, verified, trusted, revoked)
+  - Endpoints and capabilities metadata
+- **HybridIdentityManager** - Full identity management
+  - Self-signed certificate generation
+  - Certificate authority (CA) functionality
+  - Certificate issuance for other nodes
+  - Hybrid signature verification
+  - Trust and revocation management
+  - Identity attestation with hybrid signatures
+- **HybridIdentityKey** - Combined Ed25519 + ML-DSA public key
+  - Key fingerprinting
+  - Conversion to HybridPublicKey for signing operations
+- **Certificate Revocation** - Revocation list management
+  - Serial number based revocation
+  - Automatic rejection of revoked certificates
+
 **Remaining Phases:**
-- Phase 3: Certificate and identity updates
 - Phase 4: Production hardening and HSM support
 
 **Future Research Areas:**
@@ -1127,7 +1150,7 @@ Future reference designs for dedicated hardware and OEM partnerships.
 
 ### Implementation Status (Updated December 2025)
 - **Fully Implemented:** 28 components (~90%)
-- **Partially Implemented:** 1 component (Post-Quantum Crypto Phase 1)
+- **Partially Implemented:** 1 component (Post-Quantum Crypto Phase 3/4)
 - **Not Started:** 2 components (~7%)
 
 ### Component Breakdown
@@ -1146,15 +1169,19 @@ Future reference designs for dedicated hardware and OEM partnerships.
 - **UC-026:** Background Tasks & Scheduling
 - **UC-027:** Voice Interface (Detailed)
 - **UC-028:** Configuration & Environment
-- **UC-031:** Post-Quantum Cryptography (Phase 1 - Hybrid Mode)
+- **UC-031:** Post-Quantum Cryptography (Phases 1-3)
+  - Phase 1: Hybrid Crypto Primitives (ML-KEM, ML-DSA)
+  - Phase 2: Key Management Updates
+  - Phase 3: Certificate and Identity Updates
 
 ### Test Coverage
-- **Test Files:** 33 modules
+- **Test Files:** 34 modules
 - **E2E Tests:** Full simulation test (`e2e_simulation.py`)
 - **All agents tested:** Whisper, Smith, Sage, Quill, Muse, Seshat
 - **Post-Quantum Tests:**
   - `test_post_quantum.py` (ML-KEM, ML-DSA, Hybrid crypto)
   - `test_pq_keys.py` (PQ key management)
+  - `test_hybrid_certs.py` (Hybrid certificates and identity management)
 
 ### API Endpoint Count
 - **Total REST Endpoints:** 83+
