@@ -20,6 +20,14 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
+from src.web.conversation_store import (
+    ConversationStore,
+    StoredMessage,
+    Conversation,
+    MessageRole as StoredMessageRole,
+    get_conversation_store,
+)
+
 logger = logging.getLogger(__name__)
 
 # Ollama configuration
@@ -183,12 +191,25 @@ class Connection:
 
 
 class ConnectionManager:
-    """Manages WebSocket connections."""
+    """Manages WebSocket connections with persistent conversation storage."""
 
-    def __init__(self):
+    def __init__(self, store: Optional[ConversationStore] = None):
         self.connections: Dict[str, Connection] = {}
-        self.conversations: Dict[str, List[ChatMessage]] = {}
+        self._conversations_cache: Dict[str, List[ChatMessage]] = {}  # In-memory cache
         self._message_handlers: List[Callable] = []
+        self._store = store  # Persistent storage
+
+    @property
+    def store(self) -> ConversationStore:
+        """Get the conversation store, initializing if needed."""
+        if self._store is None:
+            self._store = get_conversation_store()
+        return self._store
+
+    @property
+    def conversations(self) -> Dict[str, List[ChatMessage]]:
+        """Property for backwards compatibility - returns cached conversations."""
+        return self._conversations_cache
 
     async def connect(
         self,
@@ -260,20 +281,53 @@ class ConnectionManager:
         return self.connections.get(connection_id)
 
     def get_conversation(self, conversation_id: str) -> List[ChatMessage]:
-        """Get conversation history."""
-        if conversation_id not in self.conversations:
-            self.conversations[conversation_id] = []
-        return self.conversations[conversation_id]
+        """Get conversation history from cache or load from store."""
+        # Check cache first
+        if conversation_id in self._conversations_cache:
+            return self._conversations_cache[conversation_id]
+
+        # Load from persistent store
+        try:
+            stored_messages = self.store.get_messages(conversation_id)
+            messages = [
+                ChatMessage(
+                    id=m.id,
+                    role=MessageRole(m.role.value),
+                    content=m.content,
+                    timestamp=m.timestamp,
+                    metadata=m.metadata,
+                )
+                for m in stored_messages
+            ]
+            self._conversations_cache[conversation_id] = messages
+            return messages
+        except Exception as e:
+            logger.warning(f"Failed to load conversation {conversation_id}: {e}")
+            self._conversations_cache[conversation_id] = []
+            return self._conversations_cache[conversation_id]
 
     def add_message(
         self,
         conversation_id: str,
         message: ChatMessage,
     ) -> None:
-        """Add a message to a conversation."""
-        if conversation_id not in self.conversations:
-            self.conversations[conversation_id] = []
-        self.conversations[conversation_id].append(message)
+        """Add a message to a conversation (both cache and persistent store)."""
+        # Add to cache
+        if conversation_id not in self._conversations_cache:
+            self._conversations_cache[conversation_id] = []
+        self._conversations_cache[conversation_id].append(message)
+
+        # Persist to store
+        try:
+            self.store.add_message(
+                conversation_id=conversation_id,
+                role=StoredMessageRole(message.role.value),
+                content=message.content,
+                message_id=message.id,
+                metadata=message.metadata,
+            )
+        except Exception as e:
+            logger.error(f"Failed to persist message: {e}")
 
     def register_handler(self, handler: Callable) -> None:
         """Register a message handler."""
@@ -656,35 +710,45 @@ async def send_message(
 @router.get("/conversations", response_model=List[ConversationSummary])
 async def list_conversations(
     limit: int = 20,
+    search: Optional[str] = None,
     manager: ConnectionManager = Depends(get_manager),
 ) -> List[ConversationSummary]:
-    """List recent conversations."""
-    summaries = []
-
-    for conv_id, messages in manager.conversations.items():
-        if not messages:
-            continue
-
-        # Get first user message as title
-        user_messages = [m for m in messages if m.role == MessageRole.USER]
-        title = user_messages[0].content[:50] if user_messages else "Untitled"
-        if len(title) == 50:
-            title += "..."
-
-        summaries.append(
+    """List recent conversations from persistent storage."""
+    try:
+        # Get from persistent store
+        conversations = manager.store.list_conversations(limit=limit, search=search)
+        return [
             ConversationSummary(
-                id=conv_id,
-                title=title,
-                message_count=len(messages),
-                created_at=messages[0].timestamp,
-                updated_at=messages[-1].timestamp,
+                id=conv.id,
+                title=conv.title,
+                message_count=conv.message_count,
+                created_at=conv.created_at,
+                updated_at=conv.updated_at,
             )
-        )
-
-    # Sort by updated_at descending
-    summaries.sort(key=lambda x: x.updated_at, reverse=True)
-
-    return summaries[:limit]
+            for conv in conversations
+        ]
+    except Exception as e:
+        logger.error(f"Failed to list conversations: {e}")
+        # Fallback to cache
+        summaries = []
+        for conv_id, messages in manager.conversations.items():
+            if not messages:
+                continue
+            user_messages = [m for m in messages if m.role == MessageRole.USER]
+            title = user_messages[0].content[:50] if user_messages else "Untitled"
+            if len(title) == 50:
+                title += "..."
+            summaries.append(
+                ConversationSummary(
+                    id=conv_id,
+                    title=title,
+                    message_count=len(messages),
+                    created_at=messages[0].timestamp,
+                    updated_at=messages[-1].timestamp,
+                )
+            )
+        summaries.sort(key=lambda x: x.updated_at, reverse=True)
+        return summaries[:limit]
 
 
 @router.get("/conversations/{conversation_id}", response_model=List[ChatMessage])
@@ -702,10 +766,19 @@ async def delete_conversation(
     conversation_id: str,
     manager: ConnectionManager = Depends(get_manager),
 ) -> Dict[str, str]:
-    """Delete a conversation."""
-    if conversation_id in manager.conversations:
-        del manager.conversations[conversation_id]
-        return {"status": "deleted", "conversation_id": conversation_id}
+    """Delete a conversation from both cache and persistent storage."""
+    # Remove from cache
+    if conversation_id in manager._conversations_cache:
+        del manager._conversations_cache[conversation_id]
+
+    # Delete from persistent store
+    try:
+        deleted = manager.store.delete_conversation(conversation_id)
+        if deleted:
+            return {"status": "deleted", "conversation_id": conversation_id}
+    except Exception as e:
+        logger.error(f"Failed to delete conversation: {e}")
+
     raise HTTPException(status_code=404, detail="Conversation not found")
 
 
@@ -798,3 +871,158 @@ async def switch_model(request: ModelSwitchRequest) -> Dict[str, Any]:
                 "available_models": available,
             },
         )
+
+
+# =============================================================================
+# Conversation Export/Import Endpoints
+# =============================================================================
+
+
+class ImportRequest(BaseModel):
+    """Request to import conversations."""
+    data: Dict[str, Any]
+    overwrite: bool = False
+
+
+@router.get("/conversations/{conversation_id}/export")
+async def export_conversation(
+    conversation_id: str,
+    manager: ConnectionManager = Depends(get_manager),
+) -> Dict[str, Any]:
+    """Export a single conversation with all messages."""
+    try:
+        export_data = manager.store.export_conversation(conversation_id)
+        if export_data:
+            return export_data
+    except Exception as e:
+        logger.error(f"Failed to export conversation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    raise HTTPException(status_code=404, detail="Conversation not found")
+
+
+@router.get("/export")
+async def export_all_conversations(
+    manager: ConnectionManager = Depends(get_manager),
+) -> Dict[str, Any]:
+    """Export all conversations for backup."""
+    try:
+        return manager.store.export_all()
+    except Exception as e:
+        logger.error(f"Failed to export conversations: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/import")
+async def import_conversations(
+    request: ImportRequest,
+    manager: ConnectionManager = Depends(get_manager),
+) -> Dict[str, Any]:
+    """Import conversations from backup."""
+    try:
+        data = request.data
+        imported = []
+
+        # Handle single conversation or multiple
+        if "conversations" in data:
+            # Multiple conversations
+            for conv_data in data["conversations"]:
+                conv_id = manager.store.import_conversation(
+                    conv_data, overwrite=request.overwrite
+                )
+                if conv_id:
+                    imported.append(conv_id)
+        elif "conversation" in data:
+            # Single conversation
+            conv_id = manager.store.import_conversation(
+                data, overwrite=request.overwrite
+            )
+            if conv_id:
+                imported.append(conv_id)
+
+        # Clear cache to force reload from store
+        for conv_id in imported:
+            if conv_id in manager._conversations_cache:
+                del manager._conversations_cache[conv_id]
+
+        return {
+            "status": "success",
+            "imported_count": len(imported),
+            "conversation_ids": imported,
+        }
+    except Exception as e:
+        logger.error(f"Failed to import conversations: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/storage/stats")
+async def get_storage_stats(
+    manager: ConnectionManager = Depends(get_manager),
+) -> Dict[str, Any]:
+    """Get conversation storage statistics."""
+    try:
+        return manager.store.get_statistics()
+    except Exception as e:
+        logger.error(f"Failed to get storage stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/conversations/{conversation_id}/archive")
+async def archive_conversation(
+    conversation_id: str,
+    manager: ConnectionManager = Depends(get_manager),
+) -> Dict[str, str]:
+    """Archive a conversation."""
+    try:
+        success = manager.store.update_conversation(
+            conversation_id, archived=True
+        )
+        if success:
+            # Remove from cache
+            if conversation_id in manager._conversations_cache:
+                del manager._conversations_cache[conversation_id]
+            return {"status": "archived", "conversation_id": conversation_id}
+    except Exception as e:
+        logger.error(f"Failed to archive conversation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    raise HTTPException(status_code=404, detail="Conversation not found")
+
+
+@router.post("/conversations/{conversation_id}/unarchive")
+async def unarchive_conversation(
+    conversation_id: str,
+    manager: ConnectionManager = Depends(get_manager),
+) -> Dict[str, str]:
+    """Unarchive a conversation."""
+    try:
+        success = manager.store.update_conversation(
+            conversation_id, archived=False
+        )
+        if success:
+            return {"status": "unarchived", "conversation_id": conversation_id}
+    except Exception as e:
+        logger.error(f"Failed to unarchive conversation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    raise HTTPException(status_code=404, detail="Conversation not found")
+
+
+@router.get("/search")
+async def search_messages(
+    q: str,
+    conversation_id: Optional[str] = None,
+    limit: int = 20,
+    manager: ConnectionManager = Depends(get_manager),
+) -> List[Dict[str, Any]]:
+    """Search messages across conversations."""
+    try:
+        messages = manager.store.search_messages(
+            query=q,
+            conversation_id=conversation_id,
+            limit=limit,
+        )
+        return [m.to_dict() for m in messages]
+    except Exception as e:
+        logger.error(f"Failed to search messages: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

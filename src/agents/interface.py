@@ -12,6 +12,8 @@ from enum import Enum, auto
 from typing import Optional, List, Dict, Any, Callable, Set
 import logging
 
+from pathlib import Path
+
 from src.messaging.models import (
     FlowRequest,
     FlowResponse,
@@ -21,6 +23,12 @@ from src.core.models import ValidationResult, Rule
 
 
 logger = logging.getLogger(__name__)
+
+
+# Import constitution loader (lazy to avoid circular imports)
+def _get_constitution_loader():
+    from src.agents.constitution_loader import get_constitution_loader
+    return get_constitution_loader()
 
 
 class AgentState(Enum):
@@ -589,3 +597,126 @@ class BaseAgent(AgentInterface):
     def shutdown(self) -> bool:
         """Default shutdown."""
         return self._do_shutdown()
+
+    # ==========================================================================
+    # CONSTITUTIONAL CONTEXT HELPERS
+    # ==========================================================================
+
+    def load_constitutional_context(
+        self,
+        include_supreme: bool = True,
+    ) -> str:
+        """
+        Load constitutional context for this agent.
+
+        This loads:
+        - The supreme CONSTITUTION.md (if include_supreme=True)
+        - This agent's specific constitution.md
+
+        Other agents' constitutions are NOT loaded.
+
+        Args:
+            include_supreme: Whether to include the supreme constitution
+
+        Returns:
+            Formatted constitutional context string
+        """
+        try:
+            loader = _get_constitution_loader()
+            context = loader.load_for_agent(self.name, include_supreme)
+            return context.combined_prompt
+        except Exception as e:
+            logger.warning(f"Could not load constitutional context for {self.name}: {e}")
+            return ""
+
+    def build_system_prompt_with_constitution(
+        self,
+        base_prompt: str,
+        include_supreme: bool = True,
+    ) -> str:
+        """
+        Build a complete system prompt with constitutional context.
+
+        This prepends the constitutional rules to the base prompt,
+        ensuring the LLM has access to governance rules in its context.
+
+        Args:
+            base_prompt: The agent's base system prompt (from prompt.md)
+            include_supreme: Whether to include supreme constitution
+
+        Returns:
+            Combined system prompt with constitutional context
+        """
+        try:
+            loader = _get_constitution_loader()
+            return loader.get_system_prompt_with_constitution(
+                agent_name=self.name,
+                base_prompt=base_prompt,
+                include_supreme=include_supreme,
+            )
+        except Exception as e:
+            logger.warning(f"Could not build constitutional prompt for {self.name}: {e}")
+            return base_prompt
+
+    def _load_prompt_file(self, prompt_filename: str = "prompt.md") -> str:
+        """
+        Load a prompt file from the agent's directory.
+
+        Args:
+            prompt_filename: Name of the prompt file
+
+        Returns:
+            Content of the prompt file, or empty string if not found
+        """
+        try:
+            # Try standard location: agents/<name>/prompt.md
+            loader = _get_constitution_loader()
+            prompt_path = loader.project_root / "agents" / self.name / prompt_filename
+
+            if prompt_path.exists():
+                return prompt_path.read_text(encoding="utf-8")
+
+            logger.debug(f"Prompt file not found at {prompt_path}")
+            return ""
+        except Exception as e:
+            logger.warning(f"Could not load prompt file for {self.name}: {e}")
+            return ""
+
+    def get_full_system_prompt(
+        self,
+        include_constitution: bool = True,
+        include_supreme: bool = True,
+        fallback_prompt: str = "",
+    ) -> str:
+        """
+        Get the complete system prompt with constitutional context.
+
+        This is the recommended method for agents to get their system prompt.
+        It:
+        1. Loads the agent's prompt.md file
+        2. Prepends constitutional context (supreme + agent-specific)
+        3. Returns the combined prompt
+
+        Args:
+            include_constitution: Whether to include constitutional context
+            include_supreme: Whether to include the supreme constitution
+            fallback_prompt: Fallback prompt if prompt.md not found
+
+        Returns:
+            Complete system prompt ready for LLM use
+        """
+        # Load base prompt
+        base_prompt = self._load_prompt_file() or fallback_prompt
+
+        if not base_prompt:
+            logger.warning(f"No system prompt found for agent {self.name}")
+            base_prompt = f"You are {self.name}, an Agent-OS agent. {self._description}"
+
+        # Add constitutional context if requested
+        if include_constitution:
+            return self.build_system_prompt_with_constitution(
+                base_prompt=base_prompt,
+                include_supreme=include_supreme,
+            )
+
+        return base_prompt

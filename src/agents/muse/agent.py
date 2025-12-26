@@ -583,23 +583,32 @@ class MuseAgent(BaseAgent):
         return "\n".join(lines)
 
     def _load_system_prompt(self) -> None:
-        """Load system prompt from file or use default."""
-        try:
-            prompt_path = Path(__file__).parent.parent.parent.parent / "agents/muse/prompt.md"
-            if prompt_path.exists():
-                self._system_prompt = prompt_path.read_text()
-                return
-        except Exception:
-            pass
+        """Load system prompt with constitutional context.
 
-        # Default prompt
-        self._system_prompt = (
+        Loads:
+        - Supreme CONSTITUTION.md (core governance rules)
+        - Agent-specific constitution (agents/muse/constitution.md)
+        - Base prompt (agents/muse/prompt.md)
+
+        This ensures the LLM has full constitutional context in its prompt.
+        """
+        # Default fallback prompt
+        fallback = (
             "You are Muse, a creative agent specializing in generating imaginative content. "
             "You produce stories, poems, scenarios, and brainstormed ideas. "
             "All your outputs are drafts requiring human approval. "
             "You operate with high creativity while respecting constitutional boundaries. "
             "Guardian review is mandatory for all outputs."
         )
+
+        # Use the base class method to load prompt with constitutional context
+        self._system_prompt = self.get_full_system_prompt(
+            include_constitution=True,
+            include_supreme=True,
+            fallback_prompt=fallback,
+        )
+
+        logger.info(f"Muse: Loaded system prompt with constitutional context ({len(self._system_prompt)} chars)")
 
     def _llm_generate(self, prompt: str, temperature: float) -> str:
         """Generate response using Ollama LLM."""
