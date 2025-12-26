@@ -1076,12 +1076,12 @@ Future reference designs for dedicated hardware and OEM partnerships.
 ---
 
 ### UC-031: Post-Quantum Cryptography (Hybrid Mode)
-**Status:** 🔄 IN PROGRESS (Phase 1 Complete)
-**Location:** `src/federation/pq/`
-**Test:** `tests/test_post_quantum.py`
+**Status:** 🔄 IN PROGRESS (Phase 2 Complete)
+**Location:** `src/federation/pq/`, `src/memory/pq_keys.py`
+**Test:** `tests/test_post_quantum.py`, `tests/test_pq_keys.py`
 **Priority:** P4
 
-**Phase 1 - Hybrid Mode (IMPLEMENTED):**
+**Phase 1 - Hybrid Crypto Primitives (IMPLEMENTED):**
 - **ML-KEM (CRYSTALS-Kyber)** - FIPS 203 key encapsulation
   - ML-KEM-512, ML-KEM-768, ML-KEM-1024 security levels
   - Key generation, encapsulation, decapsulation
@@ -1098,8 +1098,20 @@ Future reference designs for dedicated hardware and OEM partnerships.
   - Both signatures required for verification
   - Backward-compatible algorithm identifiers
 
+**Phase 2 - Key Management Updates (IMPLEMENTED):**
+- **QuantumKeyType** - Key classification (CLASSICAL, HYBRID, POST_QUANTUM)
+- **PostQuantumKeyManager** - Extended key manager for PQ keys
+  - Hybrid and pure PQ key pair generation
+  - Key encapsulation/decapsulation operations
+  - Optimized storage for larger PQ key sizes (up to 8KB)
+  - Key lifecycle: rotation, revocation, secure deletion
+  - Thread-safe operations with proper locking
+- **PQSecurityLevel** - NIST security levels (LEVEL_1, LEVEL_3, LEVEL_5)
+- **PQ Key Persistence** - Separate storage for PQ key material
+  - Base64-encoded key files with restricted permissions
+  - Metadata JSON with algorithm details
+
 **Remaining Phases:**
-- Phase 2: Federation protocol integration
 - Phase 3: Certificate and identity updates
 - Phase 4: Production hardening and HSM support
 
@@ -1137,10 +1149,12 @@ Future reference designs for dedicated hardware and OEM partnerships.
 - **UC-031:** Post-Quantum Cryptography (Phase 1 - Hybrid Mode)
 
 ### Test Coverage
-- **Test Files:** 32 modules
+- **Test Files:** 33 modules
 - **E2E Tests:** Full simulation test (`e2e_simulation.py`)
 - **All agents tested:** Whisper, Smith, Sage, Quill, Muse, Seshat
-- **Post-Quantum Tests:** `test_post_quantum.py` (ML-KEM, ML-DSA, Hybrid)
+- **Post-Quantum Tests:**
+  - `test_post_quantum.py` (ML-KEM, ML-DSA, Hybrid crypto)
+  - `test_pq_keys.py` (PQ key management)
 
 ### API Endpoint Count
 - **Total REST Endpoints:** 83+
@@ -1169,7 +1183,7 @@ Future reference designs for dedicated hardware and OEM partnerships.
 
 ---
 
-**Document Version:** 3.2
+**Document Version:** 3.3
 **Last Updated:** December 26, 2025
 **Status Assessment By:** Implementation Audit (Comprehensive Code Review)
 **Maintained By:** Agent OS Community
