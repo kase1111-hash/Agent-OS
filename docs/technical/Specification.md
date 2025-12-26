@@ -1075,15 +1075,38 @@ Future reference designs for dedicated hardware and OEM partnerships.
 
 ---
 
-### UC-031: Advanced Cryptography (Research Track)
-**Status:** 🔬 RESEARCH
-**Priority:** P5
+### UC-031: Post-Quantum Cryptography (Hybrid Mode)
+**Status:** 🔄 IN PROGRESS (Phase 1 Complete)
+**Location:** `src/federation/pq/`
+**Test:** `tests/test_post_quantum.py`
+**Priority:** P4
 
-Research areas:
+**Phase 1 - Hybrid Mode (IMPLEMENTED):**
+- **ML-KEM (CRYSTALS-Kyber)** - FIPS 203 key encapsulation
+  - ML-KEM-512, ML-KEM-768, ML-KEM-1024 security levels
+  - Key generation, encapsulation, decapsulation
+  - liboqs integration with mock fallback
+- **ML-DSA (CRYSTALS-Dilithium)** - FIPS 204 digital signatures
+  - ML-DSA-44, ML-DSA-65, ML-DSA-87 security levels
+  - Sign and verify operations
+  - liboqs integration with mock fallback
+- **Hybrid Key Exchange** - X25519 + ML-KEM combined
+  - Defense-in-depth: secure if either algorithm holds
+  - HKDF-SHA384 secret combination
+  - Hybrid session management
+- **Hybrid Signatures** - Ed25519 + ML-DSA combined
+  - Both signatures required for verification
+  - Backward-compatible algorithm identifiers
+
+**Remaining Phases:**
+- Phase 2: Federation protocol integration
+- Phase 3: Certificate and identity updates
+- Phase 4: Production hardening and HSM support
+
+**Future Research Areas:**
 - Homomorphic encryption for inference
 - Federated learning without data sharing
 - Differential privacy for memory
-- Quantum-resistant cryptography
 - Formal verification of constitutional compliance
 
 ---
@@ -1092,8 +1115,8 @@ Research areas:
 
 ### Implementation Status (Updated December 2025)
 - **Fully Implemented:** 28 components (~90%)
-- **Partially Implemented:** 0 components
-- **Not Started:** 3 components (~10%)
+- **Partially Implemented:** 1 component (Post-Quantum Crypto Phase 1)
+- **Not Started:** 2 components (~7%)
 
 ### Component Breakdown
 | Phase | Planned | Implemented | Status |
@@ -1102,8 +1125,8 @@ Research areas:
 | Phase 1 (Memory) | 3 | 3 | ✅ 100% |
 | Phase 2 (Agents) | 3 | 3 | ✅ 100% |
 | Phase 3 (Security) | 6 | 6 | ✅ 100% |
-| Phase 4 (Advanced) | 14 | 11 | ✅ 79% |
-| Phase 5 (Future) | 3 | 0 | 📋 0% |
+| Phase 4 (Advanced) | 14 | 12 | ✅ 86% |
+| Phase 5 (Future) | 3 | 1 | 🔄 33% |
 
 ### New Features Added (December 2025)
 - **UC-024:** User Authentication & Session Management
@@ -1111,11 +1134,13 @@ Research areas:
 - **UC-026:** Background Tasks & Scheduling
 - **UC-027:** Voice Interface (Detailed)
 - **UC-028:** Configuration & Environment
+- **UC-031:** Post-Quantum Cryptography (Phase 1 - Hybrid Mode)
 
 ### Test Coverage
-- **Test Files:** 31 modules
+- **Test Files:** 32 modules
 - **E2E Tests:** Full simulation test (`e2e_simulation.py`)
 - **All agents tested:** Whisper, Smith, Sage, Quill, Muse, Seshat
+- **Post-Quantum Tests:** `test_post_quantum.py` (ML-KEM, ML-DSA, Hybrid)
 
 ### API Endpoint Count
 - **Total REST Endpoints:** 83+
@@ -1144,7 +1169,7 @@ Research areas:
 
 ---
 
-**Document Version:** 3.1
+**Document Version:** 3.2
 **Last Updated:** December 26, 2025
 **Status Assessment By:** Implementation Audit (Comprehensive Code Review)
 **Maintained By:** Agent OS Community
