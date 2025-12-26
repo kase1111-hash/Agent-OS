@@ -4,6 +4,7 @@ FastAPI Application
 Main application factory for the Agent OS web interface.
 """
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -39,6 +40,32 @@ class AppState:
 
 _app_state = AppState()
 _app = None
+_cleanup_task = None
+
+
+async def _session_cleanup_task(interval_seconds: int = 3600):
+    """
+    Background task to periodically clean up expired sessions.
+
+    Args:
+        interval_seconds: How often to run cleanup (default: 1 hour)
+    """
+    while True:
+        try:
+            await asyncio.sleep(interval_seconds)
+
+            # Clean up expired sessions
+            from .auth import get_user_store
+            store = get_user_store()
+            cleaned = store.cleanup_expired_sessions()
+            if cleaned > 0:
+                logger.info(f"Session cleanup: removed {cleaned} expired sessions")
+
+        except asyncio.CancelledError:
+            logger.debug("Session cleanup task cancelled")
+            break
+        except Exception as e:
+            logger.error(f"Session cleanup error: {e}")
 
 
 def create_app(config: Optional[WebConfig] = None) -> Any:
@@ -75,9 +102,27 @@ def create_app(config: Optional[WebConfig] = None) -> Any:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         """Application lifespan handler."""
+        global _cleanup_task
+
         logger.info("Starting Agent OS Web Interface...")
+
+        # Start session cleanup background task
+        _cleanup_task = asyncio.create_task(_session_cleanup_task())
+        logger.info("Session cleanup task started (runs every hour)")
+
         yield
+
         logger.info("Shutting down Agent OS Web Interface...")
+
+        # Stop session cleanup task
+        if _cleanup_task:
+            _cleanup_task.cancel()
+            try:
+                await _cleanup_task
+            except asyncio.CancelledError:
+                pass
+            _cleanup_task = None
+
         # Clean up WebSocket connections
         for conn_id in list(_app_state.active_connections.keys()):
             try:
