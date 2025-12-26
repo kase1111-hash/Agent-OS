@@ -44,6 +44,7 @@ class WebConfig:
     # Paths
     static_dir: Path = field(default_factory=lambda: Path(__file__).parent / "static")
     templates_dir: Path = field(default_factory=lambda: Path(__file__).parent / "templates")
+    data_dir: Path = field(default_factory=lambda: Path(__file__).parent / "data")
 
     # WebSocket settings
     ws_heartbeat_interval: int = 30  # seconds
