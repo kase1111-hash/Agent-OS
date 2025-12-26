@@ -165,6 +165,20 @@ async def register(
             max_age=86400,  # 24 hours
         )
 
+        # Log intent
+        try:
+            from ..intent_log import IntentType, log_user_intent
+            log_user_intent(
+                user_id=user.user_id,
+                intent_type=IntentType.AUTH_REGISTER,
+                description=f"User registered: {user.username}",
+                session_id=session.session_id,
+                ip_address=ip,
+                user_agent=user_agent,
+            )
+        except Exception as e:
+            logger.debug(f"Failed to log intent: {e}")
+
         logger.info(f"User registered: {user.username}")
 
         return LoginResponse(
@@ -227,6 +241,20 @@ async def login(
             max_age=max_age,
         )
 
+        # Log intent
+        try:
+            from ..intent_log import IntentType, log_user_intent
+            log_user_intent(
+                user_id=user.user_id,
+                intent_type=IntentType.AUTH_LOGIN,
+                description=f"User logged in: {user.username}",
+                session_id=session.session_id,
+                ip_address=ip,
+                user_agent=user_agent,
+            )
+        except Exception as e:
+            logger.debug(f"Failed to log intent: {e}")
+
         logger.info(f"User logged in: {user.username}")
 
         return LoginResponse(
@@ -258,9 +286,26 @@ async def logout(
     store = get_user_store()
     token = get_token_from_request(request, session_token)
 
+    user = None
     if token:
+        user = store.validate_session(token)
         store.invalidate_session_by_token(token)
         logger.info("User logged out")
+
+        # Log intent
+        if user:
+            try:
+                from ..intent_log import IntentType, log_user_intent
+                ip, user_agent = get_client_info(request)
+                log_user_intent(
+                    user_id=user.user_id,
+                    intent_type=IntentType.AUTH_LOGOUT,
+                    description=f"User logged out: {user.username}",
+                    ip_address=ip,
+                    user_agent=user_agent,
+                )
+            except Exception as e:
+                logger.debug(f"Failed to log intent: {e}")
 
     # Clear the session cookie
     response.delete_cookie(key="session_token")
