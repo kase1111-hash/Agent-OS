@@ -160,7 +160,7 @@ async def register(
             key="session_token",
             value=session.token,
             httponly=True,
-            secure=False,  # Set to True in production with HTTPS
+            secure=True,
             samesite="lax",
             max_age=86400,  # 24 hours
         )
@@ -236,7 +236,7 @@ async def login(
             key="session_token",
             value=session.token,
             httponly=True,
-            secure=False,  # Set to True in production with HTTPS
+            secure=True,
             samesite="lax",
             max_age=max_age,
         )
