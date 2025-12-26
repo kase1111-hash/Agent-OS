@@ -36,7 +36,8 @@ def get_current_user_id(
     """
     Get the current user ID from the session.
 
-    Returns "default" if no valid session.
+    Returns the authenticated user's ID.
+    Raises HTTPException 401 if not authenticated.
     """
     try:
         from ..auth import get_user_store
@@ -56,7 +57,7 @@ def get_current_user_id(
     except Exception as e:
         logger.debug(f"Auth check failed: {e}")
 
-    return "default"
+    raise HTTPException(status_code=401, detail="Authentication required")
 
 
 # =============================================================================
