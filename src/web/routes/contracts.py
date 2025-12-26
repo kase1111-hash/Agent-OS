@@ -2,13 +2,14 @@
 Learning Contracts API Routes
 
 Provides endpoints for managing learning consent contracts.
+Each user has their own contracts - contracts are isolated by user_id.
 """
 
 import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Cookie, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -550,20 +551,56 @@ def get_store() -> ContractsStore:
 
 
 # =============================================================================
+# Authentication Helper
+# =============================================================================
+
+
+def get_current_user_id(request: Request, session_token: Optional[str] = None) -> str:
+    """
+    Get the current user ID from the session.
+
+    Returns the authenticated user's ID, or "default" if not authenticated.
+    """
+    try:
+        from ..auth import get_user_store
+
+        # Get token from cookie or header
+        token = session_token
+        if not token:
+            auth_header = request.headers.get("authorization")
+            if auth_header and auth_header.startswith("Bearer "):
+                token = auth_header[7:]
+
+        if token:
+            store = get_user_store()
+            user = store.validate_session(token)
+            if user:
+                return user.user_id
+
+    except Exception as e:
+        logger.debug(f"Auth check failed: {e}")
+
+    return "default"
+
+
+# =============================================================================
 # Endpoints
 # =============================================================================
 
 
 @router.get("/", response_model=List[ContractSummary])
 async def list_contracts(
+    request: Request,
     status: Optional[str] = None,
-    user_id: str = "default",
+    session_token: Optional[str] = Cookie(None),
 ) -> List[ContractSummary]:
     """
-    List all contracts.
+    List all contracts for the current user.
 
     Optionally filter by status (ACTIVE, PENDING, EXPIRED, REVOKED).
+    Each user only sees their own contracts.
     """
+    user_id = get_current_user_id(request, session_token)
     store = get_store()
     contracts = store.get_contracts(status=status, user_id=user_id)
 
@@ -581,8 +618,12 @@ async def list_contracts(
 
 
 @router.get("/stats", response_model=ContractsStats)
-async def get_contracts_stats(user_id: str = "default") -> ContractsStats:
-    """Get contracts statistics."""
+async def get_contracts_stats(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+) -> ContractsStats:
+    """Get contracts statistics for the current user."""
+    user_id = get_current_user_id(request, session_token)
     store = get_store()
     return store.get_stats(user_id=user_id)
 
@@ -614,52 +655,118 @@ async def get_template_by_id(template_id: str) -> ContractTemplateModel:
 
 
 @router.get("/{contract_id}", response_model=ContractModel)
-async def get_contract(contract_id: str) -> ContractModel:
-    """Get detailed information about a specific contract."""
+async def get_contract(
+    contract_id: str,
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+) -> ContractModel:
+    """Get detailed information about a specific contract (must be owned by current user)."""
+    user_id = get_current_user_id(request, session_token)
     store = get_store()
     contract = store.get_contract(contract_id)
 
     if not contract:
         raise HTTPException(status_code=404, detail=f"Contract not found: {contract_id}")
+
+    # Verify ownership
+    if contract.user_id != user_id and user_id != "default":
+        raise HTTPException(status_code=403, detail="Access denied to this contract")
 
     return contract
 
 
 @router.post("/", response_model=ContractModel)
-async def create_contract(request: CreateContractRequest) -> ContractModel:
-    """Create a new learning contract."""
+async def create_contract(
+    request: Request,
+    body: CreateContractRequest,
+    session_token: Optional[str] = Cookie(None),
+) -> ContractModel:
+    """Create a new learning contract for the current user."""
+    user_id = get_current_user_id(request, session_token)
     store = get_store()
+
+    # Override user_id with authenticated user
+    body.user_id = user_id
 
     # Validate contract type
     valid_types = [t.name for t in store.get_contract_types()]
-    if request.contract_type not in valid_types:
+    if body.contract_type not in valid_types:
         raise HTTPException(
             status_code=400,
             detail=f"Invalid contract type. Valid types: {valid_types}"
         )
 
-    return store.create_contract(request)
+    contract = store.create_contract(body)
+
+    # Log intent
+    try:
+        from ..intent_log import IntentType, log_user_intent
+        log_user_intent(
+            user_id=user_id,
+            intent_type=IntentType.CONTRACT_CREATE,
+            description=f"Created {body.contract_type} contract for domains: {body.domains}",
+            details={"contract_id": contract.id, "contract_type": body.contract_type, "domains": body.domains},
+            related_entity_type="contract",
+            related_entity_id=contract.id,
+        )
+    except Exception as e:
+        logger.debug(f"Failed to log intent: {e}")
+
+    return contract
 
 
 @router.post("/from-template", response_model=ContractModel)
-async def create_contract_from_template(request: CreateFromTemplateRequest) -> ContractModel:
-    """Create a contract from a template."""
+async def create_contract_from_template(
+    request: Request,
+    body: CreateFromTemplateRequest,
+    session_token: Optional[str] = Cookie(None),
+) -> ContractModel:
+    """Create a contract from a template for the current user."""
+    user_id = get_current_user_id(request, session_token)
     store = get_store()
 
+    # Override user_id with authenticated user
+    body.user_id = user_id
+
     try:
-        return store.create_from_template(request)
+        contract = store.create_from_template(body)
+
+        # Log intent
+        try:
+            from ..intent_log import IntentType, log_user_intent
+            log_user_intent(
+                user_id=user_id,
+                intent_type=IntentType.CONTRACT_CREATE,
+                description=f"Created contract from template: {body.template_id}",
+                details={"contract_id": contract.id, "template_id": body.template_id},
+                related_entity_type="contract",
+                related_entity_id=contract.id,
+            )
+        except Exception as e:
+            logger.debug(f"Failed to log intent: {e}")
+
+        return contract
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.post("/{contract_id}/revoke")
-async def revoke_contract(contract_id: str) -> Dict[str, Any]:
-    """Revoke an active contract."""
+async def revoke_contract(
+    contract_id: str,
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+) -> Dict[str, Any]:
+    """Revoke an active contract (must be owned by current user)."""
+    user_id = get_current_user_id(request, session_token)
     store = get_store()
     contract = store.get_contract(contract_id)
 
     if not contract:
         raise HTTPException(status_code=404, detail=f"Contract not found: {contract_id}")
+
+    # Verify ownership
+    if contract.user_id != user_id and user_id != "default":
+        raise HTTPException(status_code=403, detail="Access denied to this contract")
 
     if contract.status == "REVOKED":
         return {"status": "already_revoked", "contract_id": contract_id}
@@ -667,12 +774,30 @@ async def revoke_contract(contract_id: str) -> Dict[str, Any]:
     success = store.revoke_contract(contract_id)
 
     if success:
+        # Log intent
+        try:
+            from ..intent_log import IntentType, log_user_intent
+            log_user_intent(
+                user_id=user_id,
+                intent_type=IntentType.CONTRACT_REVOKE,
+                description=f"Revoked contract: {contract_id}",
+                details={"contract_id": contract_id, "contract_type": contract.contract_type},
+                related_entity_type="contract",
+                related_entity_id=contract_id,
+            )
+        except Exception as e:
+            logger.debug(f"Failed to log intent: {e}")
+
         return {"status": "revoked", "contract_id": contract_id}
     else:
         raise HTTPException(status_code=500, detail="Failed to revoke contract")
 
 
 @router.delete("/{contract_id}")
-async def delete_contract(contract_id: str) -> Dict[str, Any]:
-    """Delete a contract (same as revoke for safety)."""
-    return await revoke_contract(contract_id)
+async def delete_contract(
+    contract_id: str,
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+) -> Dict[str, Any]:
+    """Delete a contract (same as revoke for safety, must be owned by current user)."""
+    return await revoke_contract(contract_id, request, session_token)

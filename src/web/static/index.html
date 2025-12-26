@@ -24,6 +24,45 @@
             <div class="nav-status">
                 <span id="connection-status" class="status-indicator disconnected" data-tooltip="WebSocket connection status" data-tooltip-position="bottom">Disconnected</span>
             </div>
+            <div class="nav-user">
+                <!-- Shows when not logged in -->
+                <div id="auth-buttons" class="auth-buttons">
+                    <button class="btn btn-secondary btn-small" onclick="app.showLoginModal()" data-tooltip="Sign in to your account" data-tooltip-position="bottom">Sign In</button>
+                    <button class="btn btn-primary btn-small" onclick="app.showRegisterModal()" data-tooltip="Create a new account" data-tooltip-position="bottom">Sign Up</button>
+                </div>
+                <!-- Shows when logged in -->
+                <div id="user-menu" class="user-menu" style="display: none;">
+                    <button class="user-menu-btn" onclick="app.toggleUserDropdown()" data-tooltip="Account options" data-tooltip-position="bottom">
+                        <span class="user-avatar" id="user-avatar">U</span>
+                        <span class="user-name" id="user-display-name">User</span>
+                        <svg class="dropdown-arrow" viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M7 10l5 5 5-5z"/></svg>
+                    </button>
+                    <div id="user-dropdown" class="user-dropdown">
+                        <div class="dropdown-header">
+                            <span class="dropdown-username" id="dropdown-username">username</span>
+                            <span class="dropdown-role" id="dropdown-role">user</span>
+                        </div>
+                        <div class="dropdown-divider"></div>
+                        <button class="dropdown-item" onclick="app.showProfileModal()">
+                            <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                            Profile
+                        </button>
+                        <button class="dropdown-item" onclick="app.showChangePasswordModal()">
+                            <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                            Change Password
+                        </button>
+                        <button class="dropdown-item" onclick="app.showSessionsModal()">
+                            <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M4 6h18V4H4c-1.1 0-2 .9-2 2v11H0v3h14v-3H4V6zm19 2h-6c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1zm-1 9h-4v-7h4v7z"/></svg>
+                            Sessions
+                        </button>
+                        <div class="dropdown-divider"></div>
+                        <button class="dropdown-item dropdown-item-danger" onclick="app.logout()">
+                            <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+                            Sign Out
+                        </button>
+                    </div>
+                </div>
+            </div>
         </nav>
 
         <!-- Main Content -->
