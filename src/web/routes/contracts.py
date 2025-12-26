@@ -559,7 +559,8 @@ def get_current_user_id(request: Request, session_token: Optional[str] = None) -
     """
     Get the current user ID from the session.
 
-    Returns the authenticated user's ID, or "default" if not authenticated.
+    Returns the authenticated user's ID.
+    Raises HTTPException 401 if not authenticated.
     """
     try:
         from ..auth import get_user_store
@@ -580,7 +581,7 @@ def get_current_user_id(request: Request, session_token: Optional[str] = None) -
     except Exception as e:
         logger.debug(f"Auth check failed: {e}")
 
-    return "default"
+    raise HTTPException(status_code=401, detail="Authentication required")
 
 
 # =============================================================================
@@ -669,7 +670,7 @@ async def get_contract(
         raise HTTPException(status_code=404, detail=f"Contract not found: {contract_id}")
 
     # Verify ownership
-    if contract.user_id != user_id and user_id != "default":
+    if contract.user_id != user_id:
         raise HTTPException(status_code=403, detail="Access denied to this contract")
 
     return contract
@@ -765,7 +766,7 @@ async def revoke_contract(
         raise HTTPException(status_code=404, detail=f"Contract not found: {contract_id}")
 
     # Verify ownership
-    if contract.user_id != user_id and user_id != "default":
+    if contract.user_id != user_id:
         raise HTTPException(status_code=403, detail="Access denied to this contract")
 
     if contract.status == "REVOKED":
