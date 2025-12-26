@@ -451,32 +451,48 @@ class SageAgent(BaseAgent):
     # =========================================================================
 
     def _load_system_prompt(self) -> None:
-        """Load system prompt from file or use default."""
-        # Try to load from configured path
-        if self._sage_config.prompt_template_path:
-            try:
-                self._system_prompt = self._sage_config.prompt_template_path.read_text()
-                return
-            except Exception as e:
-                logger.warning(f"Could not load prompt template: {e}")
+        """Load system prompt with constitutional context.
 
-        # Try standard location
-        try:
-            prompt_path = Path(__file__).parent.parent.parent.parent / "agents/sage/prompt.md"
-            if prompt_path.exists():
-                self._system_prompt = prompt_path.read_text()
-                return
-        except Exception:
-            pass
+        Loads:
+        - Supreme CONSTITUTION.md (core governance rules)
+        - Agent-specific constitution (agents/sage/constitution.md)
+        - Base prompt (agents/sage/prompt.md or configured path)
 
-        # Default prompt
-        self._system_prompt = (
+        This ensures the LLM has full constitutional context in its prompt.
+        """
+        # Default fallback prompt
+        fallback = (
             "You are Sage, a reasoning agent that performs rigorous chain-of-thought analysis. "
             "You analyze complex problems, showing your reasoning explicitly in numbered steps. "
             "You never make value judgments or decisions for humans - you illuminate options, "
             "trade-offs, and implications, but the human decides. "
             "Always acknowledge assumptions, uncertainties, and confidence levels."
         )
+
+        # Check for configured custom prompt path first
+        base_prompt = None
+        if self._sage_config.prompt_template_path:
+            try:
+                base_prompt = self._sage_config.prompt_template_path.read_text()
+            except Exception as e:
+                logger.warning(f"Could not load configured prompt template: {e}")
+
+        # If no custom prompt, use the standard method with constitutional context
+        if base_prompt:
+            # Custom prompt - still add constitutional context
+            self._system_prompt = self.build_system_prompt_with_constitution(
+                base_prompt=base_prompt,
+                include_supreme=True,
+            )
+        else:
+            # Use standard method which loads prompt.md + constitution
+            self._system_prompt = self.get_full_system_prompt(
+                include_constitution=True,
+                include_supreme=True,
+                fallback_prompt=fallback,
+            )
+
+        logger.info(f"Sage: Loaded system prompt with constitutional context ({len(self._system_prompt)} chars)")
 
     def _llm_generate(self, prompt: str, options: Dict[str, Any]) -> str:
         """Generate response using Ollama LLM."""

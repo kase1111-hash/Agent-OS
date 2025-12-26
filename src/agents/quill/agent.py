@@ -579,24 +579,32 @@ class QuillAgent(BaseAgent):
         )
 
     def _load_system_prompt(self) -> None:
-        """Load system prompt."""
-        # Try standard location
-        try:
-            prompt_path = Path(__file__).parent.parent.parent.parent / "agents/quill/prompt.md"
-            if prompt_path.exists():
-                self._system_prompt = prompt_path.read_text()
-                return
-        except Exception:
-            pass
+        """Load system prompt with constitutional context.
 
-        # Default prompt
-        self._system_prompt = (
+        Loads:
+        - Supreme CONSTITUTION.md (core governance rules)
+        - Agent-specific constitution (agents/quill/constitution.md)
+        - Base prompt (agents/quill/prompt.md)
+
+        This ensures the LLM has full constitutional context in its prompt.
+        """
+        # Default fallback prompt
+        fallback = (
             "You are Quill, a document refinement agent. "
             "You improve grammar, spelling, punctuation, and style while "
             "strictly preserving the author's meaning and voice. "
             "You never add new content or change the intent. "
             "You format documents cleanly and consistently."
         )
+
+        # Use the base class method to load prompt with constitutional context
+        self._system_prompt = self.get_full_system_prompt(
+            include_constitution=True,
+            include_supreme=True,
+            fallback_prompt=fallback,
+        )
+
+        logger.info(f"Quill: Loaded system prompt with constitutional context ({len(self._system_prompt)} chars)")
 
     def _llm_generate(self, prompt: str, options: Dict[str, Any]) -> str:
         """Generate response using Ollama LLM."""

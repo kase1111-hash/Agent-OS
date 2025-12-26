@@ -50,6 +50,13 @@ from .isolation import (
     IsolatedProcessInfo,
     create_isolator,
 )
+from .constitution_loader import (
+    ConstitutionLoader,
+    ConstitutionalContext,
+    get_constitution_loader,
+    load_constitutional_context,
+    build_system_prompt_with_constitution,
+)
 
 # Ollama is optional (requires httpx)
 try:
@@ -113,6 +120,12 @@ __all__ = [
     "ContainerIsolator",
     "IsolatedProcessInfo",
     "create_isolator",
+    # Constitution Loader
+    "ConstitutionLoader",
+    "ConstitutionalContext",
+    "get_constitution_loader",
+    "load_constitutional_context",
+    "build_system_prompt_with_constitution",
     # Ollama
     "OllamaClient",
     "OllamaMessage",
