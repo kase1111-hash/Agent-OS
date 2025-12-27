@@ -84,6 +84,34 @@ except ImportError:
     create_ollama_client = None
     OLLAMA_AVAILABLE = False
 
+# Llama.cpp is optional (requires llama-cpp-python or httpx)
+try:
+    from .llama_cpp import (
+        LlamaCppClient,
+        LlamaCppMessage,
+        LlamaCppResponse,
+        LlamaCppModelInfo,
+        LlamaCppModelManager,
+        LlamaCppError,
+        LlamaCppConnectionError,
+        LlamaCppModelError,
+        create_llama_cpp_client,
+        LLAMA_CPP_PYTHON_AVAILABLE,
+    )
+    LLAMA_CPP_AVAILABLE = True
+except ImportError:
+    LlamaCppClient = None
+    LlamaCppMessage = None
+    LlamaCppResponse = None
+    LlamaCppModelInfo = None
+    LlamaCppModelManager = None
+    LlamaCppError = None
+    LlamaCppConnectionError = None
+    LlamaCppModelError = None
+    create_llama_cpp_client = None
+    LLAMA_CPP_PYTHON_AVAILABLE = False
+    LLAMA_CPP_AVAILABLE = False
+
 
 __all__ = [
     # Interface
@@ -137,4 +165,16 @@ __all__ = [
     "OllamaModelError",
     "create_ollama_client",
     "OLLAMA_AVAILABLE",
+    # Llama.cpp
+    "LlamaCppClient",
+    "LlamaCppMessage",
+    "LlamaCppResponse",
+    "LlamaCppModelInfo",
+    "LlamaCppModelManager",
+    "LlamaCppError",
+    "LlamaCppConnectionError",
+    "LlamaCppModelError",
+    "create_llama_cpp_client",
+    "LLAMA_CPP_AVAILABLE",
+    "LLAMA_CPP_PYTHON_AVAILABLE",
 ]

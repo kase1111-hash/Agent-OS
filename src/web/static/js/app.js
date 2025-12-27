@@ -491,6 +491,9 @@ class AgentOS {
 
         // Load view-specific data
         switch (view) {
+            case 'images':
+                this.loadImages();
+                break;
             case 'agents':
                 this.loadAgents();
                 break;
@@ -1559,6 +1562,267 @@ class AgentOS {
         }
     }
 
+    // Images
+    async loadImages() {
+        try {
+            const [stats, gallery] = await Promise.all([
+                fetch('/api/images/stats').then(r => r.json()),
+                fetch('/api/images/gallery').then(r => r.json())
+            ]);
+
+            this.renderImagesStats(stats);
+            this.renderImageGallery(gallery);
+        } catch (error) {
+            console.error('Failed to load images:', error);
+        }
+    }
+
+    renderImagesStats(stats) {
+        const container = document.getElementById('images-stats');
+        container.innerHTML = `
+            <div class="stat-card">
+                <div class="stat-value">${stats.total_jobs}</div>
+                <div class="stat-label">Total Jobs</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">${stats.completed_jobs}</div>
+                <div class="stat-label">Completed</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">${stats.total_images}</div>
+                <div class="stat-label">Images Generated</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">${stats.pending_jobs}</div>
+                <div class="stat-label">Pending</div>
+            </div>
+        `;
+    }
+
+    renderImageGallery(images) {
+        const container = document.getElementById('images-gallery');
+
+        if (images.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <p>No images generated yet</p>
+                    <p style="color: var(--text-muted);">Use the form on the left to generate your first image</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = images.map(image => `
+            <div class="gallery-item" onclick="app.viewImage('${image.id}')">
+                <img src="${image.thumbnail_url}" alt="${this.escapeHtml(image.prompt)}" loading="lazy">
+                <div class="gallery-overlay">
+                    <span class="gallery-prompt">${this.escapeHtml(image.prompt.substring(0, 50))}${image.prompt.length > 50 ? '...' : ''}</span>
+                    <div class="gallery-meta">
+                        <span>${image.width}x${image.height}</span>
+                        <span>${image.model}</span>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async generateImage(event) {
+        if (event) event.preventDefault();
+
+        const prompt = document.getElementById('image-prompt').value.trim();
+        const negativePrompt = document.getElementById('image-negative-prompt').value.trim();
+        const model = document.getElementById('image-model').value;
+        const width = parseInt(document.getElementById('image-width').value);
+        const height = parseInt(document.getElementById('image-height').value);
+        const steps = parseInt(document.getElementById('image-steps').value);
+        const guidance = parseFloat(document.getElementById('image-guidance').value);
+        const seedInput = document.getElementById('image-seed').value;
+        const numImages = parseInt(document.getElementById('image-count').value);
+
+        if (!prompt) {
+            this.showError('Please enter a prompt');
+            return;
+        }
+
+        const generateBtn = document.getElementById('generate-btn');
+        const progressDiv = document.getElementById('generation-progress');
+        const progressFill = document.getElementById('progress-fill');
+        const progressText = document.getElementById('progress-text');
+
+        generateBtn.disabled = true;
+        generateBtn.textContent = 'Generating...';
+        progressDiv.style.display = 'block';
+        progressFill.style.width = '0%';
+        progressText.textContent = 'Starting generation...';
+
+        try {
+            const response = await fetch('/api/images/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    prompt: prompt,
+                    negative_prompt: negativePrompt || null,
+                    model: model,
+                    width: width,
+                    height: height,
+                    steps: steps,
+                    guidance_scale: guidance,
+                    seed: seedInput ? parseInt(seedInput) : null,
+                    num_images: numImages
+                })
+            });
+
+            const job = await response.json();
+
+            if (!response.ok) {
+                throw new Error(job.detail || 'Generation failed');
+            }
+
+            // Poll for completion
+            await this.pollGenerationJob(job.id, progressFill, progressText);
+
+            // Refresh gallery
+            this.loadImages();
+
+            // Reset form
+            document.getElementById('image-prompt').value = '';
+            document.getElementById('image-negative-prompt').value = '';
+
+            this.showNotification('Image generated successfully!', 'success');
+
+        } catch (error) {
+            console.error('Generation error:', error);
+            this.showError(error.message || 'Failed to generate image');
+        } finally {
+            generateBtn.disabled = false;
+            generateBtn.textContent = 'Generate Image';
+            progressDiv.style.display = 'none';
+        }
+    }
+
+    async pollGenerationJob(jobId, progressFill, progressText) {
+        const maxAttempts = 120; // 2 minutes max
+        let attempts = 0;
+
+        while (attempts < maxAttempts) {
+            const response = await fetch(`/api/images/generate/${jobId}`);
+            const job = await response.json();
+
+            if (job.status === 'completed') {
+                progressFill.style.width = '100%';
+                progressText.textContent = 'Complete!';
+                return job;
+            } else if (job.status === 'failed') {
+                throw new Error(job.error || 'Generation failed');
+            } else if (job.status === 'processing') {
+                // Estimate progress based on attempts
+                const estimatedProgress = Math.min((attempts / 30) * 100, 90);
+                progressFill.style.width = `${estimatedProgress}%`;
+                progressText.textContent = 'Processing...';
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            attempts++;
+        }
+
+        throw new Error('Generation timed out');
+    }
+
+    async viewImage(imageId) {
+        try {
+            // Find image in gallery
+            const galleryResponse = await fetch('/api/images/gallery');
+            const gallery = await galleryResponse.json();
+            const image = gallery.find(img => img.id === imageId);
+
+            if (!image) {
+                this.showError('Image not found');
+                return;
+            }
+
+            this.showModal('Image Details', `
+                <div class="image-viewer">
+                    <img src="${image.full_url}" alt="${this.escapeHtml(image.prompt)}" style="max-width: 100%; max-height: 60vh; object-fit: contain;">
+                </div>
+                <div class="image-details" style="margin-top: 1rem;">
+                    <div class="form-group">
+                        <label>Prompt</label>
+                        <textarea readonly style="height: auto;">${this.escapeHtml(image.prompt)}</textarea>
+                    </div>
+                    ${image.negative_prompt ? `
+                        <div class="form-group">
+                            <label>Negative Prompt</label>
+                            <textarea readonly style="height: auto;">${this.escapeHtml(image.negative_prompt)}</textarea>
+                        </div>
+                    ` : ''}
+                    <div class="form-row" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+                        <div class="form-group">
+                            <label>Model</label>
+                            <input type="text" value="${image.model}" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Size</label>
+                            <input type="text" value="${image.width}x${image.height}" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Seed</label>
+                            <input type="text" value="${image.seed}" readonly>
+                        </div>
+                    </div>
+                    <div class="form-row" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+                        <div class="form-group">
+                            <label>Steps</label>
+                            <input type="text" value="${image.steps}" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Guidance Scale</label>
+                            <input type="text" value="${image.guidance_scale}" readonly>
+                        </div>
+                    </div>
+                </div>
+            `, `
+                <button class="btn btn-secondary" onclick="app.hideModal()">Close</button>
+                <button class="btn btn-primary" onclick="app.downloadImage('${imageId}')">Download</button>
+                <button class="btn btn-danger" onclick="app.deleteImage('${imageId}')">Delete</button>
+            `);
+        } catch (error) {
+            console.error('Failed to view image:', error);
+            this.showError('Failed to load image details');
+        }
+    }
+
+    async downloadImage(imageId) {
+        try {
+            const response = await fetch(`/api/images/image/${imageId}`);
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `generated-${imageId}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            this.showError('Failed to download image');
+        }
+    }
+
+    async deleteImage(imageId) {
+        if (!confirm('Are you sure you want to delete this image?')) {
+            return;
+        }
+
+        try {
+            await fetch(`/api/images/gallery/${imageId}`, { method: 'DELETE' });
+            this.hideModal();
+            this.loadImages();
+            this.showNotification('Image deleted', 'success');
+        } catch (error) {
+            this.showError('Failed to delete image');
+        }
+    }
+
     // Modal
     setupModal() {
         const modal = document.getElementById('modal');
@@ -1645,6 +1909,10 @@ document.getElementById('add-memory-btn')?.addEventListener('click', () => app.s
 
 // Contracts button
 document.getElementById('create-contract-btn')?.addEventListener('click', () => app.showCreateContractModal());
+
+// Image generation
+document.getElementById('image-generation-form')?.addEventListener('submit', (e) => app.generateImage(e));
+document.getElementById('refresh-images-btn')?.addEventListener('click', () => app.loadImages());
 
 // Memory search
 document.getElementById('memory-search')?.addEventListener('input', async (e) => {

@@ -15,6 +15,7 @@
             </div>
             <div class="nav-links">
                 <button class="nav-link active" data-view="chat" data-tooltip="Converse with AI agents" data-tooltip-position="bottom">Chat</button>
+                <button class="nav-link" data-view="images" data-tooltip="Generate images with AI" data-tooltip-position="bottom">Images</button>
                 <button class="nav-link" data-view="agents" data-tooltip="Monitor and manage agents" data-tooltip-position="bottom">Agents</button>
                 <button class="nav-link" data-view="constitution" data-tooltip="View and edit system rules" data-tooltip-position="bottom">Constitution</button>
                 <button class="nav-link" data-view="memory" data-tooltip="Browse and manage memories" data-tooltip-position="bottom">Memory</button>
@@ -86,6 +87,85 @@
                             <textarea id="chat-input" placeholder="Type your message..." rows="1" data-tooltip="Press Enter to send, Shift+Enter for new line"></textarea>
                             <button id="send-btn" class="btn btn-primary" data-tooltip="Send message (Enter)">Send</button>
                         </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Images View -->
+            <section id="images-view" class="view">
+                <div class="view-header">
+                    <h2>Image Generation</h2>
+                    <div class="view-actions">
+                        <button id="refresh-images-btn" class="btn btn-secondary" data-tooltip="Refresh gallery">Refresh</button>
+                    </div>
+                </div>
+                <div class="images-container">
+                    <!-- Generation Panel -->
+                    <div class="images-sidebar">
+                        <h3>Generate Image</h3>
+                        <form id="image-generation-form" class="generation-form">
+                            <div class="form-group">
+                                <label for="image-prompt">Prompt *</label>
+                                <textarea id="image-prompt" placeholder="Describe the image you want to generate..." rows="3" required></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="image-negative-prompt">Negative Prompt</label>
+                                <textarea id="image-negative-prompt" placeholder="What to avoid in the image..." rows="2"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="image-model">Model</label>
+                                <select id="image-model">
+                                    <option value="stable-diffusion-v1-5">Stable Diffusion v1.5</option>
+                                    <option value="stable-diffusion-xl-base-1.0">SDXL Base 1.0</option>
+                                    <option value="stable-diffusion-xl-turbo">SDXL Turbo</option>
+                                    <option value="flux-1-schnell">FLUX.1 [schnell]</option>
+                                    <option value="playground-v2.5">Playground v2.5</option>
+                                </select>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="image-width">Width</label>
+                                    <input type="number" id="image-width" value="512" min="64" max="2048" step="64">
+                                </div>
+                                <div class="form-group">
+                                    <label for="image-height">Height</label>
+                                    <input type="number" id="image-height" value="512" min="64" max="2048" step="64">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="image-steps">Steps</label>
+                                    <input type="number" id="image-steps" value="20" min="1" max="150">
+                                </div>
+                                <div class="form-group">
+                                    <label for="image-guidance">Guidance</label>
+                                    <input type="number" id="image-guidance" value="7.5" min="1" max="30" step="0.5">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="image-seed">Seed (optional)</label>
+                                <input type="number" id="image-seed" placeholder="Random">
+                            </div>
+                            <div class="form-group">
+                                <label for="image-count">Number of Images</label>
+                                <input type="number" id="image-count" value="1" min="1" max="4">
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-full" id="generate-btn">
+                                Generate Image
+                            </button>
+                        </form>
+                        <div id="generation-progress" class="generation-progress" style="display: none;">
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="progress-fill"></div>
+                            </div>
+                            <span id="progress-text">Generating...</span>
+                        </div>
+                    </div>
+                    <!-- Gallery -->
+                    <div class="images-main">
+                        <div class="stats-grid" id="images-stats"></div>
+                        <h3>Gallery</h3>
+                        <div id="images-gallery" class="images-gallery"></div>
                     </div>
                 </div>
             </section>
