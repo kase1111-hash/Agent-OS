@@ -15,6 +15,7 @@
             </div>
             <div class="nav-links">
                 <button class="nav-link active" data-view="chat" data-tooltip="Converse with AI agents" data-tooltip-position="bottom">Chat</button>
+                <button class="nav-link" data-view="images" data-tooltip="Generate images with AI" data-tooltip-position="bottom">Images</button>
                 <button class="nav-link" data-view="agents" data-tooltip="Monitor and manage agents" data-tooltip-position="bottom">Agents</button>
                 <button class="nav-link" data-view="constitution" data-tooltip="View and edit system rules" data-tooltip-position="bottom">Constitution</button>
                 <button class="nav-link" data-view="memory" data-tooltip="Browse and manage memories" data-tooltip-position="bottom">Memory</button>
@@ -90,6 +91,85 @@
                 </div>
             </section>
 
+            <!-- Images View -->
+            <section id="images-view" class="view">
+                <div class="view-header">
+                    <h2>Image Generation</h2>
+                    <div class="view-actions">
+                        <button id="refresh-images-btn" class="btn btn-secondary" data-tooltip="Refresh gallery">Refresh</button>
+                    </div>
+                </div>
+                <div class="images-container">
+                    <!-- Generation Panel -->
+                    <div class="images-sidebar">
+                        <h3>Generate Image</h3>
+                        <form id="image-generation-form" class="generation-form">
+                            <div class="form-group">
+                                <label for="image-prompt">Prompt *</label>
+                                <textarea id="image-prompt" placeholder="Describe the image you want to generate..." rows="3" required></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="image-negative-prompt">Negative Prompt</label>
+                                <textarea id="image-negative-prompt" placeholder="What to avoid in the image..." rows="2"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="image-model">Model</label>
+                                <select id="image-model">
+                                    <option value="stable-diffusion-v1-5">Stable Diffusion v1.5</option>
+                                    <option value="stable-diffusion-xl-base-1.0">SDXL Base 1.0</option>
+                                    <option value="stable-diffusion-xl-turbo">SDXL Turbo</option>
+                                    <option value="flux-1-schnell">FLUX.1 [schnell]</option>
+                                    <option value="playground-v2.5">Playground v2.5</option>
+                                </select>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="image-width">Width</label>
+                                    <input type="number" id="image-width" value="512" min="64" max="2048" step="64">
+                                </div>
+                                <div class="form-group">
+                                    <label for="image-height">Height</label>
+                                    <input type="number" id="image-height" value="512" min="64" max="2048" step="64">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="image-steps">Steps</label>
+                                    <input type="number" id="image-steps" value="20" min="1" max="150">
+                                </div>
+                                <div class="form-group">
+                                    <label for="image-guidance">Guidance</label>
+                                    <input type="number" id="image-guidance" value="7.5" min="1" max="30" step="0.5">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="image-seed">Seed (optional)</label>
+                                <input type="number" id="image-seed" placeholder="Random">
+                            </div>
+                            <div class="form-group">
+                                <label for="image-count">Number of Images</label>
+                                <input type="number" id="image-count" value="1" min="1" max="4">
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-full" id="generate-btn">
+                                Generate Image
+                            </button>
+                        </form>
+                        <div id="generation-progress" class="generation-progress" style="display: none;">
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="progress-fill"></div>
+                            </div>
+                            <span id="progress-text">Generating...</span>
+                        </div>
+                    </div>
+                    <!-- Gallery -->
+                    <div class="images-main">
+                        <div class="stats-grid" id="images-stats"></div>
+                        <h3>Gallery</h3>
+                        <div id="images-gallery" class="images-gallery"></div>
+                    </div>
+                </div>
+            </section>
+
             <!-- Agents View -->
             <section id="agents-view" class="view">
                 <div class="view-header">
@@ -133,15 +213,91 @@
             <!-- System View -->
             <section id="system-view" class="view">
                 <div class="view-header">
-                    <h2>System Status</h2>
+                    <h2>System Status & Settings</h2>
                     <button id="refresh-system-btn" class="btn btn-secondary" data-tooltip="Reload system information">Refresh</button>
                 </div>
                 <div class="system-container">
-                    <div class="system-info" id="system-info"></div>
-                    <div class="system-health" id="system-health"></div>
-                    <div class="system-settings">
-                        <h3>Settings</h3>
-                        <div id="settings-list" class="settings-list"></div>
+                    <div class="system-panel">
+                        <div class="system-info" id="system-info"></div>
+                        <div class="system-health" id="system-health"></div>
+                    </div>
+                    <div class="system-panel">
+                        <div class="settings-section">
+                            <h3>Application Settings</h3>
+                            <div class="settings-group">
+                                <div class="setting-item-toggle">
+                                    <div class="setting-info">
+                                        <span class="setting-name">Debug Mode</span>
+                                        <span class="setting-description">Show debug console with logs and diagnostics</span>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="setting-debug-mode" onchange="app.toggleDebugMode(this.checked)">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                                <div class="setting-item-toggle">
+                                    <div class="setting-info">
+                                        <span class="setting-name">Verbose Logging</span>
+                                        <span class="setting-description">Include detailed request/response data in logs</span>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="setting-verbose-logging" onchange="app.updateSetting('verbose_logging', this.checked)">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                                <div class="setting-item-toggle">
+                                    <div class="setting-info">
+                                        <span class="setting-name">Auto-Reconnect</span>
+                                        <span class="setting-description">Automatically reconnect WebSocket on disconnect</span>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="setting-auto-reconnect" checked onchange="app.updateSetting('auto_reconnect', this.checked)">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                                <div class="setting-item-toggle">
+                                    <div class="setting-info">
+                                        <span class="setting-name">Sound Notifications</span>
+                                        <span class="setting-description">Play sound on new messages and alerts</span>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="setting-sound-notifications" onchange="app.updateSetting('sound_notifications', this.checked)">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                                <div class="setting-item-toggle">
+                                    <div class="setting-info">
+                                        <span class="setting-name">Dark Theme</span>
+                                        <span class="setting-description">Use dark color scheme (default)</span>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="setting-dark-theme" checked onchange="app.updateSetting('dark_theme', this.checked)">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="settings-section">
+                            <h3>LLM Provider Settings</h3>
+                            <div class="settings-group">
+                                <div class="setting-item-input">
+                                    <label for="setting-ollama-endpoint">Ollama Endpoint</label>
+                                    <input type="text" id="setting-ollama-endpoint" value="http://localhost:11434" placeholder="http://localhost:11434">
+                                </div>
+                                <div class="setting-item-input">
+                                    <label for="setting-llama-cpp-endpoint">Llama.cpp Endpoint</label>
+                                    <input type="text" id="setting-llama-cpp-endpoint" value="http://localhost:8080" placeholder="http://localhost:8080">
+                                </div>
+                                <div class="setting-item-input">
+                                    <label for="setting-default-model">Default Model</label>
+                                    <input type="text" id="setting-default-model" value="llama3.2:3b" placeholder="llama3.2:3b">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="settings-section">
+                            <h3>Server Settings</h3>
+                            <div id="settings-list" class="settings-list"></div>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -186,6 +342,48 @@
             <div class="modal-body" id="modal-body"></div>
             <div class="modal-footer" id="modal-footer"></div>
         </div>
+    </div>
+
+    <!-- Debug Panel -->
+    <div id="debug-panel" class="debug-panel" style="display: none;">
+        <div class="debug-header">
+            <h4>Debug Console</h4>
+            <div class="debug-controls">
+                <select id="debug-filter" onchange="app.filterDebugLogs(this.value)">
+                    <option value="all">All</option>
+                    <option value="info">Info</option>
+                    <option value="warn">Warnings</option>
+                    <option value="error">Errors</option>
+                    <option value="network">Network</option>
+                    <option value="websocket">WebSocket</option>
+                </select>
+                <button class="btn btn-small btn-secondary" onclick="app.clearDebugLogs()">Clear</button>
+                <button class="btn btn-small btn-secondary" onclick="app.exportDebugLogs()">Export</button>
+                <button class="debug-minimize" onclick="app.minimizeDebugPanel()">_</button>
+                <button class="debug-close" onclick="app.toggleDebugMode(false)">&times;</button>
+            </div>
+        </div>
+        <div class="debug-tabs">
+            <button class="debug-tab active" data-tab="logs" onclick="app.switchDebugTab('logs')">Logs</button>
+            <button class="debug-tab" data-tab="network" onclick="app.switchDebugTab('network')">Network</button>
+            <button class="debug-tab" data-tab="state" onclick="app.switchDebugTab('state')">State</button>
+            <button class="debug-tab" data-tab="performance" onclick="app.switchDebugTab('performance')">Performance</button>
+        </div>
+        <div class="debug-content">
+            <div id="debug-logs" class="debug-tab-content active">
+                <div id="debug-log-entries" class="debug-log-entries"></div>
+            </div>
+            <div id="debug-network" class="debug-tab-content">
+                <div id="debug-network-entries" class="debug-network-entries"></div>
+            </div>
+            <div id="debug-state" class="debug-tab-content">
+                <div id="debug-state-view" class="debug-state-view"></div>
+            </div>
+            <div id="debug-performance" class="debug-tab-content">
+                <div id="debug-performance-view" class="debug-performance-view"></div>
+            </div>
+        </div>
+        <div class="debug-resize-handle"></div>
     </div>
 
     <script src="/static/js/app.js"></script>

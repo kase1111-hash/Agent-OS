@@ -10,6 +10,28 @@ class AgentOS {
         this.currentView = 'chat';
         this.currentUser = null;
         this.isAuthenticated = false;
+
+        // Debug settings
+        this.debugMode = localStorage.getItem('debugMode') === 'true';
+        this.debugLogs = [];
+        this.networkLogs = [];
+        this.maxLogs = 500;
+        this.debugFilter = 'all';
+        this.currentDebugTab = 'logs';
+        this.debugPanelMinimized = false;
+
+        // Settings
+        this.settings = {
+            debug_mode: this.debugMode,
+            verbose_logging: localStorage.getItem('verboseLogging') === 'true',
+            auto_reconnect: localStorage.getItem('autoReconnect') !== 'false',
+            sound_notifications: localStorage.getItem('soundNotifications') === 'true',
+            dark_theme: localStorage.getItem('darkTheme') !== 'false',
+            ollama_endpoint: localStorage.getItem('ollamaEndpoint') || 'http://localhost:11434',
+            llama_cpp_endpoint: localStorage.getItem('llamaCppEndpoint') || 'http://localhost:8080',
+            default_model: localStorage.getItem('defaultModel') || 'llama3.2:3b'
+        };
+
         this.init();
     }
 
@@ -17,11 +39,20 @@ class AgentOS {
         this.setupNavigation();
         this.setupChat();
         this.setupModal();
+        this.setupDebugPanel();
+        this.loadSettings();
         this.checkAuthStatus().then(() => {
             this.connectWebSocket();
             this.loadInitialData();
         });
         this.setupClickOutside();
+        this.interceptConsole();
+        this.interceptFetch();
+
+        // Initialize debug mode if previously enabled
+        if (this.debugMode) {
+            this.toggleDebugMode(true, false);
+        }
     }
 
     // =========================================================================
@@ -491,6 +522,9 @@ class AgentOS {
 
         // Load view-specific data
         switch (view) {
+            case 'images':
+                this.loadImages();
+                break;
             case 'agents':
                 this.loadAgents();
                 break;
@@ -1559,6 +1593,625 @@ class AgentOS {
         }
     }
 
+    // Images
+    async loadImages() {
+        try {
+            const [stats, gallery] = await Promise.all([
+                fetch('/api/images/stats').then(r => r.json()),
+                fetch('/api/images/gallery').then(r => r.json())
+            ]);
+
+            this.renderImagesStats(stats);
+            this.renderImageGallery(gallery);
+        } catch (error) {
+            console.error('Failed to load images:', error);
+        }
+    }
+
+    renderImagesStats(stats) {
+        const container = document.getElementById('images-stats');
+        container.innerHTML = `
+            <div class="stat-card">
+                <div class="stat-value">${stats.total_jobs}</div>
+                <div class="stat-label">Total Jobs</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">${stats.completed_jobs}</div>
+                <div class="stat-label">Completed</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">${stats.total_images}</div>
+                <div class="stat-label">Images Generated</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">${stats.pending_jobs}</div>
+                <div class="stat-label">Pending</div>
+            </div>
+        `;
+    }
+
+    renderImageGallery(images) {
+        const container = document.getElementById('images-gallery');
+
+        if (images.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <p>No images generated yet</p>
+                    <p style="color: var(--text-muted);">Use the form on the left to generate your first image</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = images.map(image => `
+            <div class="gallery-item" onclick="app.viewImage('${image.id}')">
+                <img src="${image.thumbnail_url}" alt="${this.escapeHtml(image.prompt)}" loading="lazy">
+                <div class="gallery-overlay">
+                    <span class="gallery-prompt">${this.escapeHtml(image.prompt.substring(0, 50))}${image.prompt.length > 50 ? '...' : ''}</span>
+                    <div class="gallery-meta">
+                        <span>${image.width}x${image.height}</span>
+                        <span>${image.model}</span>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async generateImage(event) {
+        if (event) event.preventDefault();
+
+        const prompt = document.getElementById('image-prompt').value.trim();
+        const negativePrompt = document.getElementById('image-negative-prompt').value.trim();
+        const model = document.getElementById('image-model').value;
+        const width = parseInt(document.getElementById('image-width').value);
+        const height = parseInt(document.getElementById('image-height').value);
+        const steps = parseInt(document.getElementById('image-steps').value);
+        const guidance = parseFloat(document.getElementById('image-guidance').value);
+        const seedInput = document.getElementById('image-seed').value;
+        const numImages = parseInt(document.getElementById('image-count').value);
+
+        if (!prompt) {
+            this.showError('Please enter a prompt');
+            return;
+        }
+
+        const generateBtn = document.getElementById('generate-btn');
+        const progressDiv = document.getElementById('generation-progress');
+        const progressFill = document.getElementById('progress-fill');
+        const progressText = document.getElementById('progress-text');
+
+        generateBtn.disabled = true;
+        generateBtn.textContent = 'Generating...';
+        progressDiv.style.display = 'block';
+        progressFill.style.width = '0%';
+        progressText.textContent = 'Starting generation...';
+
+        try {
+            const response = await fetch('/api/images/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    prompt: prompt,
+                    negative_prompt: negativePrompt || null,
+                    model: model,
+                    width: width,
+                    height: height,
+                    steps: steps,
+                    guidance_scale: guidance,
+                    seed: seedInput ? parseInt(seedInput) : null,
+                    num_images: numImages
+                })
+            });
+
+            const job = await response.json();
+
+            if (!response.ok) {
+                throw new Error(job.detail || 'Generation failed');
+            }
+
+            // Poll for completion
+            await this.pollGenerationJob(job.id, progressFill, progressText);
+
+            // Refresh gallery
+            this.loadImages();
+
+            // Reset form
+            document.getElementById('image-prompt').value = '';
+            document.getElementById('image-negative-prompt').value = '';
+
+            this.showNotification('Image generated successfully!', 'success');
+
+        } catch (error) {
+            console.error('Generation error:', error);
+            this.showError(error.message || 'Failed to generate image');
+        } finally {
+            generateBtn.disabled = false;
+            generateBtn.textContent = 'Generate Image';
+            progressDiv.style.display = 'none';
+        }
+    }
+
+    async pollGenerationJob(jobId, progressFill, progressText) {
+        const maxAttempts = 120; // 2 minutes max
+        let attempts = 0;
+
+        while (attempts < maxAttempts) {
+            const response = await fetch(`/api/images/generate/${jobId}`);
+            const job = await response.json();
+
+            if (job.status === 'completed') {
+                progressFill.style.width = '100%';
+                progressText.textContent = 'Complete!';
+                return job;
+            } else if (job.status === 'failed') {
+                throw new Error(job.error || 'Generation failed');
+            } else if (job.status === 'processing') {
+                // Estimate progress based on attempts
+                const estimatedProgress = Math.min((attempts / 30) * 100, 90);
+                progressFill.style.width = `${estimatedProgress}%`;
+                progressText.textContent = 'Processing...';
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            attempts++;
+        }
+
+        throw new Error('Generation timed out');
+    }
+
+    async viewImage(imageId) {
+        try {
+            // Find image in gallery
+            const galleryResponse = await fetch('/api/images/gallery');
+            const gallery = await galleryResponse.json();
+            const image = gallery.find(img => img.id === imageId);
+
+            if (!image) {
+                this.showError('Image not found');
+                return;
+            }
+
+            this.showModal('Image Details', `
+                <div class="image-viewer">
+                    <img src="${image.full_url}" alt="${this.escapeHtml(image.prompt)}" style="max-width: 100%; max-height: 60vh; object-fit: contain;">
+                </div>
+                <div class="image-details" style="margin-top: 1rem;">
+                    <div class="form-group">
+                        <label>Prompt</label>
+                        <textarea readonly style="height: auto;">${this.escapeHtml(image.prompt)}</textarea>
+                    </div>
+                    ${image.negative_prompt ? `
+                        <div class="form-group">
+                            <label>Negative Prompt</label>
+                            <textarea readonly style="height: auto;">${this.escapeHtml(image.negative_prompt)}</textarea>
+                        </div>
+                    ` : ''}
+                    <div class="form-row" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+                        <div class="form-group">
+                            <label>Model</label>
+                            <input type="text" value="${image.model}" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Size</label>
+                            <input type="text" value="${image.width}x${image.height}" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Seed</label>
+                            <input type="text" value="${image.seed}" readonly>
+                        </div>
+                    </div>
+                    <div class="form-row" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+                        <div class="form-group">
+                            <label>Steps</label>
+                            <input type="text" value="${image.steps}" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Guidance Scale</label>
+                            <input type="text" value="${image.guidance_scale}" readonly>
+                        </div>
+                    </div>
+                </div>
+            `, `
+                <button class="btn btn-secondary" onclick="app.hideModal()">Close</button>
+                <button class="btn btn-primary" onclick="app.downloadImage('${imageId}')">Download</button>
+                <button class="btn btn-danger" onclick="app.deleteImage('${imageId}')">Delete</button>
+            `);
+        } catch (error) {
+            console.error('Failed to view image:', error);
+            this.showError('Failed to load image details');
+        }
+    }
+
+    async downloadImage(imageId) {
+        try {
+            const response = await fetch(`/api/images/image/${imageId}`);
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `generated-${imageId}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            this.showError('Failed to download image');
+        }
+    }
+
+    async deleteImage(imageId) {
+        if (!confirm('Are you sure you want to delete this image?')) {
+            return;
+        }
+
+        try {
+            await fetch(`/api/images/gallery/${imageId}`, { method: 'DELETE' });
+            this.hideModal();
+            this.loadImages();
+            this.showNotification('Image deleted', 'success');
+        } catch (error) {
+            this.showError('Failed to delete image');
+        }
+    }
+
+    // =========================================================================
+    // Debug Panel
+    // =========================================================================
+
+    setupDebugPanel() {
+        const panel = document.getElementById('debug-panel');
+        if (!panel) return;
+
+        // Setup resize handle
+        const resizeHandle = panel.querySelector('.debug-resize-handle');
+        if (resizeHandle) {
+            let startY, startHeight;
+
+            resizeHandle.addEventListener('mousedown', (e) => {
+                startY = e.clientY;
+                startHeight = panel.offsetHeight;
+                document.addEventListener('mousemove', resize);
+                document.addEventListener('mouseup', stopResize);
+            });
+
+            const resize = (e) => {
+                const newHeight = startHeight - (e.clientY - startY);
+                if (newHeight >= 100 && newHeight <= window.innerHeight * 0.8) {
+                    panel.style.height = newHeight + 'px';
+                }
+            };
+
+            const stopResize = () => {
+                document.removeEventListener('mousemove', resize);
+                document.removeEventListener('mouseup', stopResize);
+            };
+        }
+    }
+
+    interceptConsole() {
+        const originalLog = console.log;
+        const originalWarn = console.warn;
+        const originalError = console.error;
+
+        console.log = (...args) => {
+            this.addDebugLog('info', args.map(a => this.formatLogArg(a)).join(' '));
+            originalLog.apply(console, args);
+        };
+
+        console.warn = (...args) => {
+            this.addDebugLog('warn', args.map(a => this.formatLogArg(a)).join(' '));
+            originalWarn.apply(console, args);
+        };
+
+        console.error = (...args) => {
+            this.addDebugLog('error', args.map(a => this.formatLogArg(a)).join(' '));
+            originalError.apply(console, args);
+        };
+    }
+
+    interceptFetch() {
+        const originalFetch = window.fetch;
+        window.fetch = async (...args) => {
+            const startTime = performance.now();
+            const url = typeof args[0] === 'string' ? args[0] : args[0].url;
+            const method = args[1]?.method || 'GET';
+
+            try {
+                const response = await originalFetch.apply(window, args);
+                const duration = Math.round(performance.now() - startTime);
+
+                this.addNetworkLog({
+                    method,
+                    url,
+                    status: response.status,
+                    duration,
+                    success: response.ok
+                });
+
+                if (this.settings.verbose_logging) {
+                    this.addDebugLog('network', `${method} ${url} - ${response.status} (${duration}ms)`);
+                }
+
+                return response;
+            } catch (error) {
+                const duration = Math.round(performance.now() - startTime);
+                this.addNetworkLog({
+                    method,
+                    url,
+                    status: 'ERR',
+                    duration,
+                    success: false,
+                    error: error.message
+                });
+                this.addDebugLog('error', `Network error: ${method} ${url} - ${error.message}`);
+                throw error;
+            }
+        };
+    }
+
+    formatLogArg(arg) {
+        if (typeof arg === 'object') {
+            try {
+                return JSON.stringify(arg, null, 2);
+            } catch {
+                return String(arg);
+            }
+        }
+        return String(arg);
+    }
+
+    addDebugLog(level, message) {
+        const entry = {
+            time: new Date().toLocaleTimeString(),
+            level,
+            message
+        };
+
+        this.debugLogs.unshift(entry);
+        if (this.debugLogs.length > this.maxLogs) {
+            this.debugLogs.pop();
+        }
+
+        if (this.debugMode && this.currentDebugTab === 'logs') {
+            this.renderDebugLogs();
+        }
+    }
+
+    addNetworkLog(entry) {
+        entry.time = new Date().toLocaleTimeString();
+        this.networkLogs.unshift(entry);
+        if (this.networkLogs.length > this.maxLogs) {
+            this.networkLogs.pop();
+        }
+
+        if (this.debugMode && this.currentDebugTab === 'network') {
+            this.renderNetworkLogs();
+        }
+    }
+
+    toggleDebugMode(enabled, save = true) {
+        this.debugMode = enabled;
+        if (save) {
+            localStorage.setItem('debugMode', enabled);
+        }
+
+        const panel = document.getElementById('debug-panel');
+        const checkbox = document.getElementById('setting-debug-mode');
+
+        if (panel) {
+            panel.style.display = enabled ? 'flex' : 'none';
+        }
+
+        if (checkbox) {
+            checkbox.checked = enabled;
+        }
+
+        if (enabled) {
+            this.addDebugLog('info', 'Debug mode enabled');
+            this.renderDebugLogs();
+            this.updateDebugState();
+            this.updateDebugPerformance();
+        }
+    }
+
+    minimizeDebugPanel() {
+        const panel = document.getElementById('debug-panel');
+        if (panel) {
+            this.debugPanelMinimized = !this.debugPanelMinimized;
+            panel.classList.toggle('minimized', this.debugPanelMinimized);
+        }
+    }
+
+    switchDebugTab(tab) {
+        this.currentDebugTab = tab;
+
+        document.querySelectorAll('.debug-tab').forEach(t => {
+            t.classList.toggle('active', t.dataset.tab === tab);
+        });
+
+        document.querySelectorAll('.debug-tab-content').forEach(c => {
+            c.classList.toggle('active', c.id === `debug-${tab}`);
+        });
+
+        switch (tab) {
+            case 'logs':
+                this.renderDebugLogs();
+                break;
+            case 'network':
+                this.renderNetworkLogs();
+                break;
+            case 'state':
+                this.updateDebugState();
+                break;
+            case 'performance':
+                this.updateDebugPerformance();
+                break;
+        }
+    }
+
+    filterDebugLogs(filter) {
+        this.debugFilter = filter;
+        this.renderDebugLogs();
+    }
+
+    renderDebugLogs() {
+        const container = document.getElementById('debug-log-entries');
+        if (!container) return;
+
+        const filteredLogs = this.debugFilter === 'all'
+            ? this.debugLogs
+            : this.debugLogs.filter(log => log.level === this.debugFilter);
+
+        container.innerHTML = filteredLogs.slice(0, 100).map(log => `
+            <div class="debug-log-entry">
+                <span class="debug-log-time">${log.time}</span>
+                <span class="debug-log-level ${log.level}">${log.level}</span>
+                <span class="debug-log-message">${this.escapeHtml(log.message)}</span>
+            </div>
+        `).join('') || '<div style="color: var(--text-muted); padding: 1rem;">No logs yet</div>';
+    }
+
+    renderNetworkLogs() {
+        const container = document.getElementById('debug-network-entries');
+        if (!container) return;
+
+        container.innerHTML = this.networkLogs.slice(0, 50).map(log => `
+            <div class="debug-network-entry">
+                <span class="debug-network-method ${log.method}">${log.method}</span>
+                <span class="debug-network-url" title="${this.escapeHtml(log.url)}">${this.escapeHtml(log.url)}</span>
+                <span class="debug-network-status ${log.success ? 'success' : 'error'}">${log.status}</span>
+                <span class="debug-network-time">${log.duration}ms</span>
+            </div>
+        `).join('') || '<div style="color: var(--text-muted); padding: 1rem;">No network requests yet</div>';
+    }
+
+    updateDebugState() {
+        const container = document.getElementById('debug-state-view');
+        if (!container) return;
+
+        const state = {
+            currentView: this.currentView,
+            isAuthenticated: this.isAuthenticated,
+            currentUser: this.currentUser?.username || 'none',
+            wsConnected: this.ws?.readyState === WebSocket.OPEN,
+            conversationId: this.conversationId || 'none',
+            debugMode: this.debugMode,
+            settings: this.settings
+        };
+
+        container.innerHTML = Object.entries(state).map(([key, value]) => `
+            <div class="debug-state-item">
+                <div class="debug-state-key">${key}</div>
+                <div class="debug-state-value">${typeof value === 'object' ? JSON.stringify(value, null, 2) : value}</div>
+            </div>
+        `).join('');
+    }
+
+    updateDebugPerformance() {
+        const container = document.getElementById('debug-performance-view');
+        if (!container) return;
+
+        const perf = performance.getEntriesByType('navigation')[0];
+        const memory = performance.memory || {};
+
+        container.innerHTML = `
+            <div class="debug-performance-metric">
+                <span>Page Load Time</span>
+                <span>${perf ? Math.round(perf.loadEventEnd - perf.startTime) : 'N/A'}ms</span>
+            </div>
+            <div class="debug-performance-metric">
+                <span>DOM Content Loaded</span>
+                <span>${perf ? Math.round(perf.domContentLoadedEventEnd - perf.startTime) : 'N/A'}ms</span>
+            </div>
+            <div class="debug-performance-metric">
+                <span>JS Heap Size</span>
+                <span>${memory.usedJSHeapSize ? (memory.usedJSHeapSize / 1024 / 1024).toFixed(2) + ' MB' : 'N/A'}</span>
+            </div>
+            <div class="debug-performance-metric">
+                <span>Debug Logs</span>
+                <span>${this.debugLogs.length}</span>
+            </div>
+            <div class="debug-performance-metric">
+                <span>Network Requests</span>
+                <span>${this.networkLogs.length}</span>
+            </div>
+            <div class="debug-performance-metric">
+                <span>WebSocket State</span>
+                <span>${this.ws ? ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'][this.ws.readyState] : 'N/A'}</span>
+            </div>
+        `;
+    }
+
+    clearDebugLogs() {
+        this.debugLogs = [];
+        this.networkLogs = [];
+        this.renderDebugLogs();
+        this.renderNetworkLogs();
+        this.addDebugLog('info', 'Logs cleared');
+    }
+
+    exportDebugLogs() {
+        const data = {
+            timestamp: new Date().toISOString(),
+            logs: this.debugLogs,
+            network: this.networkLogs,
+            state: {
+                currentView: this.currentView,
+                isAuthenticated: this.isAuthenticated,
+                settings: this.settings
+            }
+        };
+
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `agent-os-debug-${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    // =========================================================================
+    // Settings
+    // =========================================================================
+
+    loadSettings() {
+        // Load settings into UI
+        const debugCheckbox = document.getElementById('setting-debug-mode');
+        const verboseCheckbox = document.getElementById('setting-verbose-logging');
+        const autoReconnectCheckbox = document.getElementById('setting-auto-reconnect');
+        const soundCheckbox = document.getElementById('setting-sound-notifications');
+        const darkThemeCheckbox = document.getElementById('setting-dark-theme');
+        const ollamaEndpoint = document.getElementById('setting-ollama-endpoint');
+        const llamaCppEndpoint = document.getElementById('setting-llama-cpp-endpoint');
+        const defaultModel = document.getElementById('setting-default-model');
+
+        if (debugCheckbox) debugCheckbox.checked = this.settings.debug_mode;
+        if (verboseCheckbox) verboseCheckbox.checked = this.settings.verbose_logging;
+        if (autoReconnectCheckbox) autoReconnectCheckbox.checked = this.settings.auto_reconnect;
+        if (soundCheckbox) soundCheckbox.checked = this.settings.sound_notifications;
+        if (darkThemeCheckbox) darkThemeCheckbox.checked = this.settings.dark_theme;
+        if (ollamaEndpoint) ollamaEndpoint.value = this.settings.ollama_endpoint;
+        if (llamaCppEndpoint) llamaCppEndpoint.value = this.settings.llama_cpp_endpoint;
+        if (defaultModel) defaultModel.value = this.settings.default_model;
+    }
+
+    updateSetting(key, value) {
+        this.settings[key] = value;
+
+        // Persist to localStorage
+        const storageKey = key.replace(/_/g, '').replace(/([A-Z])/g, (m) => m.toLowerCase());
+        const camelKey = key.replace(/_([a-z])/g, (m, c) => c.toUpperCase());
+        localStorage.setItem(camelKey, value);
+
+        this.addDebugLog('info', `Setting updated: ${key} = ${value}`);
+
+        // Handle specific settings
+        if (key === 'dark_theme') {
+            // Could toggle light/dark theme here
+        }
+    }
+
     // Modal
     setupModal() {
         const modal = document.getElementById('modal');
@@ -1645,6 +2298,10 @@ document.getElementById('add-memory-btn')?.addEventListener('click', () => app.s
 
 // Contracts button
 document.getElementById('create-contract-btn')?.addEventListener('click', () => app.showCreateContractModal());
+
+// Image generation
+document.getElementById('image-generation-form')?.addEventListener('submit', (e) => app.generateImage(e));
+document.getElementById('refresh-images-btn')?.addEventListener('click', () => app.loadImages());
 
 // Memory search
 document.getElementById('memory-search')?.addEventListener('input', async (e) => {
