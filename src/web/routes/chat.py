@@ -27,6 +27,7 @@ from src.web.conversation_store import (
     MessageRole as StoredMessageRole,
     get_conversation_store,
 )
+from src.boundary import SmithClient, create_smith_client, BoundaryMode
 
 logger = logging.getLogger(__name__)
 
@@ -193,11 +194,16 @@ class Connection:
 class ConnectionManager:
     """Manages WebSocket connections with persistent conversation storage."""
 
-    def __init__(self, store: Optional[ConversationStore] = None):
+    def __init__(
+        self,
+        store: Optional[ConversationStore] = None,
+        boundary_client: Optional[SmithClient] = None,
+    ):
         self.connections: Dict[str, Connection] = {}
         self._conversations_cache: Dict[str, List[ChatMessage]] = {}  # In-memory cache
         self._message_handlers: List[Callable] = []
         self._store = store  # Persistent storage
+        self._boundary_client = boundary_client  # Boundary daemon client
 
     @property
     def store(self) -> ConversationStore:
@@ -205,6 +211,17 @@ class ConnectionManager:
         if self._store is None:
             self._store = get_conversation_store()
         return self._store
+
+    @property
+    def boundary(self) -> SmithClient:
+        """Get the boundary client, initializing if needed."""
+        if self._boundary_client is None:
+            self._boundary_client = create_smith_client(
+                embedded=True,
+                initial_mode=BoundaryMode.RESTRICTED,
+                fail_closed=True,
+            )
+        return self._boundary_client
 
     @property
     def conversations(self) -> Dict[str, List[ChatMessage]]:
@@ -282,6 +299,11 @@ class ConnectionManager:
 
     def get_conversation(self, conversation_id: str) -> List[ChatMessage]:
         """Get conversation history from cache or load from store."""
+        # Check boundary permission for memory access
+        if not self.boundary.check_memory_access("chat:conversation", conversation_id):
+            logger.warning(f"Boundary daemon denied memory access to conversation {conversation_id}")
+            return []
+
         # Check cache first
         if conversation_id in self._conversations_cache:
             return self._conversations_cache[conversation_id]
@@ -446,7 +468,17 @@ class ConnectionManager:
         Generate a response using Ollama.
 
         Runs the synchronous Ollama client in a thread pool to avoid blocking.
+        Checks boundary permissions before making network calls.
         """
+        # Check boundary permission for network access to Ollama
+        if not self.boundary.check_network_access("chat:ollama", OLLAMA_ENDPOINT):
+            logger.warning("Boundary daemon denied network access to Ollama")
+            return (
+                "I'm unable to respond right now. Network access to the AI backend "
+                "has been restricted by the security boundary.",
+                {"error": "boundary_denied", "request_type": "network_access"},
+            )
+
         # Build conversation history for context
         history = self.get_conversation(conversation_id)
 
