@@ -15,7 +15,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
@@ -277,7 +277,7 @@ class ImageGenerator:
     async def generate(
         self,
         job: ImageGenerationJob,
-        progress_callback: Optional[callable] = None,
+        progress_callback: Optional[Callable] = None,
     ) -> List[Dict[str, Any]]:
         """
         Generate images for a job.
@@ -298,7 +298,7 @@ class ImageGenerator:
     async def _generate_placeholder(
         self,
         job: ImageGenerationJob,
-        progress_callback: Optional[callable] = None,
+        progress_callback: Optional[Callable] = None,
     ) -> List[Dict[str, Any]]:
         """Generate placeholder images (for demo without actual model)."""
         try:
@@ -393,7 +393,7 @@ class ImageGenerator:
     async def _generate_diffusers(
         self,
         job: ImageGenerationJob,
-        progress_callback: Optional[callable] = None,
+        progress_callback: Optional[Callable] = None,
     ) -> List[Dict[str, Any]]:
         """Generate using Hugging Face diffusers."""
         import torch
@@ -450,7 +450,7 @@ class ImageGenerator:
     async def _generate_comfyui(
         self,
         job: ImageGenerationJob,
-        progress_callback: Optional[callable] = None,
+        progress_callback: Optional[Callable] = None,
     ) -> List[Dict[str, Any]]:
         """Generate using ComfyUI API."""
         import httpx
@@ -493,7 +493,7 @@ class ImageGenerator:
     async def _generate_a1111(
         self,
         job: ImageGenerationJob,
-        progress_callback: Optional[callable] = None,
+        progress_callback: Optional[Callable] = None,
     ) -> List[Dict[str, Any]]:
         """Generate using Automatic1111 API."""
         import httpx
