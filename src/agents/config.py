@@ -46,7 +46,17 @@ class ModelConfig:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ModelConfig":
-        """Create from dictionary."""
+        """Create from dictionary.
+
+        Raises:
+            ValueError: If required fields are missing or invalid
+        """
+        if not isinstance(data, dict):
+            raise ValueError(f"Model config must be a dictionary, got {type(data).__name__}")
+
+        if 'name' not in data:
+            raise ValueError("Model config missing required field 'name'")
+
         # Extract known fields
         known_fields = {
             'name', 'endpoint', 'context_window', 'max_output_tokens',
@@ -57,7 +67,10 @@ class ModelConfig:
         kwargs = {k: v for k, v in data.items() if k in known_fields}
         kwargs['extra_params'] = {k: v for k, v in data.items() if k not in known_fields}
 
-        return cls(**kwargs)
+        try:
+            return cls(**kwargs)
+        except TypeError as e:
+            raise ValueError(f"Invalid model config parameters: {e}") from e
 
 
 @dataclass
@@ -119,41 +132,62 @@ class AgentConfig:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "AgentConfig":
-        """Create configuration from dictionary."""
+        """Create configuration from dictionary.
+
+        Raises:
+            ValueError: If required fields are missing or invalid
+        """
+        if not isinstance(data, dict):
+            raise ValueError(f"Agent config must be a dictionary, got {type(data).__name__}")
+
+        if 'name' not in data:
+            raise ValueError("Agent config missing required field 'name'")
+
         # Parse model config
         model = None
         if 'model' in data:
-            model = ModelConfig.from_dict(data['model'])
+            try:
+                model = ModelConfig.from_dict(data['model'])
+            except ValueError as e:
+                raise ValueError(f"Invalid model configuration: {e}") from e
 
         # Parse constitution binding
         constitution = None
         if 'constitution' in data:
-            const_data = data['constitution']
-            constitution = ConstitutionBinding(
-                supreme_path=Path(const_data['supreme']) if const_data.get('supreme') else None,
-                agent_path=Path(const_data['agent']) if const_data.get('agent') else None,
-                role_paths=[Path(p) for p in const_data.get('roles', [])],
-                task_paths=[Path(p) for p in const_data.get('tasks', [])],
-            )
+            try:
+                const_data = data['constitution']
+                if not isinstance(const_data, dict):
+                    raise ValueError(f"Constitution config must be a dictionary, got {type(const_data).__name__}")
+                constitution = ConstitutionBinding(
+                    supreme_path=Path(const_data['supreme']) if const_data.get('supreme') else None,
+                    agent_path=Path(const_data['agent']) if const_data.get('agent') else None,
+                    role_paths=[Path(p) for p in const_data.get('roles', [])],
+                    task_paths=[Path(p) for p in const_data.get('tasks', [])],
+                )
+            except (TypeError, ValueError) as e:
+                raise ValueError(f"Invalid constitution binding: {e}") from e
 
-        return cls(
-            name=data['name'],
-            version=data.get('version', '0.1.0'),
-            description=data.get('description', ''),
-            model=model,
-            constitution=constitution,
-            capabilities=set(data.get('capabilities', [])),
-            supported_intents=data.get('supported_intents', []),
-            requires_memory=data.get('requires_memory', False),
-            requires_smith=data.get('requires_smith', True),
-            can_escalate=data.get('can_escalate', True),
-            isolation_level=data.get('isolation_level', 'none'),
-            resource_limits=data.get('resource_limits', {}),
-            message_bus_channel=data.get('message_bus_channel'),
-            log_level=data.get('log_level', 'INFO'),
-            metrics_enabled=data.get('metrics_enabled', True),
-            custom=data.get('custom', {}),
-        )
+        try:
+            return cls(
+                name=data['name'],
+                version=data.get('version', '0.1.0'),
+                description=data.get('description', ''),
+                model=model,
+                constitution=constitution,
+                capabilities=set(data.get('capabilities', [])),
+                supported_intents=data.get('supported_intents', []),
+                requires_memory=data.get('requires_memory', False),
+                requires_smith=data.get('requires_smith', True),
+                can_escalate=data.get('can_escalate', True),
+                isolation_level=data.get('isolation_level', 'none'),
+                resource_limits=data.get('resource_limits', {}),
+                message_bus_channel=data.get('message_bus_channel'),
+                log_level=data.get('log_level', 'INFO'),
+                metrics_enabled=data.get('metrics_enabled', True),
+                custom=data.get('custom', {}),
+            )
+        except TypeError as e:
+            raise ValueError(f"Invalid agent config parameters: {e}") from e
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert configuration to dictionary."""
@@ -217,7 +251,8 @@ class ConfigLoader:
 
         Raises:
             FileNotFoundError: If file doesn't exist
-            ValueError: If file format not supported
+            ValueError: If file format not supported or invalid
+            IOError: If file cannot be read
         """
         path = Path(config_path)
         if not path.is_absolute():
@@ -226,22 +261,43 @@ class ConfigLoader:
         if not path.exists():
             raise FileNotFoundError(f"Config file not found: {path}")
 
-        content = path.read_text()
+        try:
+            content = path.read_text()
+        except PermissionError as e:
+            raise IOError(f"Permission denied reading config file {path}: {e}") from e
+        except UnicodeDecodeError as e:
+            raise ValueError(f"Config file {path} is not valid UTF-8: {e}") from e
+        except OSError as e:
+            raise IOError(f"Failed to read config file {path}: {e}") from e
+
+        if not content.strip():
+            raise ValueError(f"Config file {path} is empty")
 
         # Interpolate environment variables
         content = self._interpolate_env(content)
 
         # Parse based on extension
-        if path.suffix in ('.yaml', '.yml'):
-            if not YAML_AVAILABLE:
-                raise ValueError("YAML support requires PyYAML package")
-            data = yaml.safe_load(content)
-        elif path.suffix == '.json':
-            data = json.loads(content)
-        else:
-            raise ValueError(f"Unsupported config format: {path.suffix}")
+        try:
+            if path.suffix in ('.yaml', '.yml'):
+                if not YAML_AVAILABLE:
+                    raise ValueError("YAML support requires PyYAML package")
+                data = yaml.safe_load(content)
+            elif path.suffix == '.json':
+                data = json.loads(content)
+            else:
+                raise ValueError(f"Unsupported config format: {path.suffix}")
+        except yaml.YAMLError as e:
+            raise ValueError(f"Invalid YAML in config file {path}: {e}") from e
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in config file {path}: {e}") from e
 
-        return AgentConfig.from_dict(data)
+        if data is None:
+            raise ValueError(f"Config file {path} parsed to empty data")
+
+        try:
+            return AgentConfig.from_dict(data)
+        except ValueError as e:
+            raise ValueError(f"Invalid configuration in {path}: {e}") from e
 
     def load_from_string(self, content: str, format: str = "yaml") -> AgentConfig:
         """
@@ -253,19 +309,36 @@ class ConfigLoader:
 
         Returns:
             AgentConfig instance
+
+        Raises:
+            ValueError: If format is invalid or content cannot be parsed
         """
+        if not content or not content.strip():
+            raise ValueError("Configuration content is empty")
+
         content = self._interpolate_env(content)
 
-        if format == "yaml":
-            if not YAML_AVAILABLE:
-                raise ValueError("YAML support requires PyYAML package")
-            data = yaml.safe_load(content)
-        elif format == "json":
-            data = json.loads(content)
-        else:
-            raise ValueError(f"Unsupported format: {format}")
+        try:
+            if format == "yaml":
+                if not YAML_AVAILABLE:
+                    raise ValueError("YAML support requires PyYAML package")
+                data = yaml.safe_load(content)
+            elif format == "json":
+                data = json.loads(content)
+            else:
+                raise ValueError(f"Unsupported format: {format}. Use 'yaml' or 'json'")
+        except yaml.YAMLError as e:
+            raise ValueError(f"Invalid YAML configuration: {e}") from e
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON configuration: {e}") from e
 
-        return AgentConfig.from_dict(data)
+        if data is None:
+            raise ValueError("Configuration parsed to empty data")
+
+        try:
+            return AgentConfig.from_dict(data)
+        except ValueError as e:
+            raise ValueError(f"Invalid agent configuration: {e}") from e
 
     def _interpolate_env(self, content: str) -> str:
         """

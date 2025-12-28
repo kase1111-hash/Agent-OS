@@ -7,11 +7,14 @@ Extracts rules, sections, and metadata for the constitutional kernel.
 
 import re
 import hashlib
+import logging
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Set, Any
 from dataclasses import dataclass
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 from .models import (
     ConstitutionMetadata,
@@ -69,11 +72,23 @@ class ConstitutionParser:
         Raises:
             FileNotFoundError: If file doesn't exist
             ValueError: If file format is invalid
+            IOError: If file cannot be read
         """
         if not file_path.exists():
             raise FileNotFoundError(f"Constitution file not found: {file_path}")
 
-        content = file_path.read_text(encoding="utf-8")
+        try:
+            content = file_path.read_text(encoding="utf-8")
+        except PermissionError as e:
+            raise IOError(f"Permission denied reading constitution file {file_path}: {e}") from e
+        except UnicodeDecodeError as e:
+            raise ValueError(f"Constitution file {file_path} is not valid UTF-8: {e}") from e
+        except OSError as e:
+            raise IOError(f"Failed to read constitution file {file_path}: {e}") from e
+
+        if not content.strip():
+            raise ValueError(f"Constitution file {file_path} is empty")
+
         return self.parse_content(content, file_path)
 
     def parse_content(self, content: str, source_path: Optional[Path] = None) -> Constitution:
@@ -86,22 +101,44 @@ class ConstitutionParser:
 
         Returns:
             Parsed Constitution object
+
+        Raises:
+            ValueError: If content format is invalid
         """
         # Calculate file hash for change detection
         file_hash = hashlib.sha256(content.encode()).hexdigest()
 
         # Extract frontmatter and body
-        frontmatter, body = self._extract_frontmatter(content)
+        try:
+            frontmatter, body = self._extract_frontmatter(content)
+        except ValueError as e:
+            source_info = f" from {source_path}" if source_path else ""
+            raise ValueError(f"Failed to parse frontmatter{source_info}: {e}") from e
 
         # Parse metadata
-        metadata = ConstitutionMetadata.from_frontmatter(frontmatter, source_path)
+        try:
+            metadata = ConstitutionMetadata.from_frontmatter(frontmatter, source_path)
+        except (KeyError, TypeError, ValueError) as e:
+            source_info = f" from {source_path}" if source_path else ""
+            raise ValueError(f"Invalid metadata in constitution{source_info}: {e}") from e
 
         # Parse sections
-        sections = self._parse_sections(body)
+        try:
+            sections = self._parse_sections(body)
+        except Exception as e:
+            source_info = f" from {source_path}" if source_path else ""
+            logger.error(f"Error parsing sections{source_info}: {e}")
+            sections = []
+
         sections_dict = {s.title: s.full_content for s in sections}
 
         # Extract rules from sections
-        rules = self._extract_rules(sections, metadata)
+        try:
+            rules = self._extract_rules(sections, metadata)
+        except Exception as e:
+            source_info = f" from {source_path}" if source_path else ""
+            logger.error(f"Error extracting rules{source_info}: {e}")
+            rules = []
 
         return Constitution(
             metadata=metadata,

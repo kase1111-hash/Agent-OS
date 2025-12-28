@@ -365,25 +365,49 @@ class AgentLoader:
         Raises:
             ImportError: If module cannot be loaded
             AttributeError: If class not found
+            TypeError: If class is not an AgentInterface subclass
+            ValueError: If agent instantiation fails
         """
         # Import module
-        module = importlib.import_module(module_path)
+        try:
+            module = importlib.import_module(module_path)
+        except ModuleNotFoundError as e:
+            raise ImportError(f"Module '{module_path}' not found: {e}") from e
+        except ImportError as e:
+            raise ImportError(f"Failed to import module '{module_path}': {e}") from e
 
         # Get class
-        agent_class = getattr(module, class_name)
+        try:
+            agent_class = getattr(module, class_name)
+        except AttributeError as e:
+            raise AttributeError(
+                f"Class '{class_name}' not found in module '{module_path}'. "
+                f"Available: {[n for n in dir(module) if not n.startswith('_')]}"
+            ) from e
 
-        if not issubclass(agent_class, AgentInterface):
-            raise TypeError(f"{class_name} is not an AgentInterface subclass")
+        if not isinstance(agent_class, type) or not issubclass(agent_class, AgentInterface):
+            raise TypeError(
+                f"'{class_name}' in module '{module_path}' is not an AgentInterface subclass. "
+                f"Got: {type(agent_class).__name__}"
+            )
 
         # Instantiate
-        agent = agent_class(config.name)
+        try:
+            agent = agent_class(config.name)
+        except Exception as e:
+            raise ValueError(
+                f"Failed to instantiate agent '{class_name}' from '{module_path}': {e}"
+            ) from e
 
         # Register
-        return self.registry.register(
-            agent,
-            config,
-            loaded_from=f"{module_path}.{class_name}",
-        )
+        try:
+            return self.registry.register(
+                agent,
+                config,
+                loaded_from=f"{module_path}.{class_name}",
+            )
+        except ValueError as e:
+            raise ValueError(f"Failed to register agent '{config.name}': {e}") from e
 
     def load_from_file(
         self,
@@ -401,34 +425,73 @@ class AgentLoader:
 
         Returns:
             RegisteredAgent record
-        """
-        # Load module from file
-        spec = importlib.util.spec_from_file_location(
-            f"agent_{config.name}",
-            file_path
-        )
-        if not spec or not spec.loader:
-            raise ImportError(f"Cannot load module from: {file_path}")
 
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[spec.name] = module
-        spec.loader.exec_module(module)
+        Raises:
+            FileNotFoundError: If file doesn't exist
+            ImportError: If module cannot be loaded
+            AttributeError: If class not found
+            TypeError: If class is not an AgentInterface subclass
+            ValueError: If agent instantiation fails
+        """
+        if not file_path.exists():
+            raise FileNotFoundError(f"Agent file not found: {file_path}")
+
+        if not file_path.is_file():
+            raise ValueError(f"Agent path is not a file: {file_path}")
+
+        # Load module from file
+        try:
+            spec = importlib.util.spec_from_file_location(
+                f"agent_{config.name}",
+                file_path
+            )
+            if not spec or not spec.loader:
+                raise ImportError(f"Cannot create module spec from: {file_path}")
+
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[spec.name] = module
+            spec.loader.exec_module(module)
+        except SyntaxError as e:
+            raise ImportError(f"Syntax error in agent file {file_path}: {e}") from e
+        except Exception as e:
+            # Clean up partially loaded module
+            module_name = f"agent_{config.name}"
+            if module_name in sys.modules:
+                del sys.modules[module_name]
+            raise ImportError(f"Failed to load agent from {file_path}: {e}") from e
 
         # Get class
-        agent_class = getattr(module, class_name)
+        try:
+            agent_class = getattr(module, class_name)
+        except AttributeError as e:
+            raise AttributeError(
+                f"Class '{class_name}' not found in file '{file_path}'. "
+                f"Available: {[n for n in dir(module) if not n.startswith('_')]}"
+            ) from e
 
-        if not issubclass(agent_class, AgentInterface):
-            raise TypeError(f"{class_name} is not an AgentInterface subclass")
+        if not isinstance(agent_class, type) or not issubclass(agent_class, AgentInterface):
+            raise TypeError(
+                f"'{class_name}' in file '{file_path}' is not an AgentInterface subclass. "
+                f"Got: {type(agent_class).__name__}"
+            )
 
         # Instantiate
-        agent = agent_class(config.name)
+        try:
+            agent = agent_class(config.name)
+        except Exception as e:
+            raise ValueError(
+                f"Failed to instantiate agent '{class_name}' from '{file_path}': {e}"
+            ) from e
 
         # Register
-        return self.registry.register(
-            agent,
-            config,
-            loaded_from=str(file_path),
-        )
+        try:
+            return self.registry.register(
+                agent,
+                config,
+                loaded_from=str(file_path),
+            )
+        except ValueError as e:
+            raise ValueError(f"Failed to register agent '{config.name}': {e}") from e
 
     def load_from_config(
         self,
@@ -446,28 +509,50 @@ class AgentLoader:
 
         Returns:
             RegisteredAgent record
+
+        Raises:
+            FileNotFoundError: If config file doesn't exist
+            ValueError: If agent type is unknown or configuration is invalid
         """
         # Load config
-        config = self.config_loader.load(config_path)
+        try:
+            config = self.config_loader.load(config_path)
+        except FileNotFoundError:
+            raise
+        except Exception as e:
+            raise ValueError(f"Failed to load config from {config_path}: {e}") from e
 
         # Determine agent type
         type_name = agent_type or config.custom.get("agent_type", "BaseAgent")
 
         # Get class
         if type_name not in self._agent_classes:
-            raise ValueError(f"Unknown agent type: {type_name}")
+            available_types = list(self._agent_classes.keys())
+            raise ValueError(
+                f"Unknown agent type: '{type_name}'. "
+                f"Available types: {available_types}. "
+                f"Register new types with register_class() first."
+            )
 
         agent_class = self._agent_classes[type_name]
 
         # Instantiate
-        agent = agent_class(config.name)
+        try:
+            agent = agent_class(config.name)
+        except Exception as e:
+            raise ValueError(
+                f"Failed to instantiate agent type '{type_name}' with name '{config.name}': {e}"
+            ) from e
 
         # Register
-        return self.registry.register(
-            agent,
-            config,
-            loaded_from=str(config_path),
-        )
+        try:
+            return self.registry.register(
+                agent,
+                config,
+                loaded_from=str(config_path),
+            )
+        except ValueError as e:
+            raise ValueError(f"Failed to register agent '{config.name}': {e}") from e
 
     def discover_agents(
         self,

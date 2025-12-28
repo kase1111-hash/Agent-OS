@@ -421,7 +421,14 @@ class FederationNode:
         """
         connection = self._peers.get(peer_id)
         if not connection:
-            logger.warning(f"Cannot send: peer {peer_id} not connected")
+            logger.warning(f"Cannot send message: peer '{peer_id}' not connected")
+            return False
+
+        if connection.peer_info.state not in (ConnectionState.CONNECTED, ConnectionState.AUTHENTICATED):
+            logger.warning(
+                f"Cannot send message to peer '{peer_id}': connection state is "
+                f"'{connection.peer_info.state.value}', expected 'connected' or 'authenticated'"
+            )
             return False
 
         try:
@@ -434,7 +441,11 @@ class FederationNode:
             )
 
             # Serialize
-            message_data = json.dumps(message.to_dict()).encode()
+            try:
+                message_data = json.dumps(message.to_dict()).encode()
+            except (TypeError, ValueError) as e:
+                logger.error(f"Failed to serialize message for peer {peer_id}: {e}")
+                return False
 
             # Encrypt if required
             if encrypted and self._crypto and connection.peer_info.session_key:
@@ -448,11 +459,21 @@ class FederationNode:
                             "data": encrypted_msg.to_dict(),
                         }
                     ).encode()
+                else:
+                    logger.warning(
+                        f"Encryption failed for message to peer {peer_id}, "
+                        f"sending unencrypted (message_type={message_type.value})"
+                    )
 
             return await connection.send(message_data)
 
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
-            logger.error(f"Failed to send message to {peer_id}: {e}")
+            logger.error(
+                f"Failed to send message to peer '{peer_id}' "
+                f"(type={message_type.value}): {type(e).__name__}: {e}"
+            )
             return False
 
     async def send_request(
@@ -818,20 +839,48 @@ class FederationNode:
             return peer_id
 
         except asyncio.TimeoutError:
-            logger.error("Handshake timed out")
+            logger.error(
+                f"Handshake timed out after {self.config.connection_timeout}s "
+                f"with peer at {connection.peer_info.address}:{connection.peer_info.port}"
+            )
+            return None
+        except json.JSONDecodeError as e:
+            logger.error(
+                f"Handshake failed: invalid JSON received from peer at "
+                f"{connection.peer_info.address}:{connection.peer_info.port}: {e}"
+            )
+            return None
+        except (KeyError, ValueError) as e:
+            logger.error(
+                f"Handshake failed: malformed handshake data from peer at "
+                f"{connection.peer_info.address}:{connection.peer_info.port}: {e}"
+            )
+            return None
+        except ConnectionError as e:
+            logger.error(
+                f"Handshake failed: connection error with peer at "
+                f"{connection.peer_info.address}:{connection.peer_info.port}: {e}"
+            )
             return None
         except Exception as e:
-            logger.error(f"Handshake failed: {e}")
+            logger.error(
+                f"Handshake failed with peer at "
+                f"{connection.peer_info.address}:{connection.peer_info.port}: "
+                f"{type(e).__name__}: {e}"
+            )
             return None
 
     async def _receive_loop(self, connection: PeerConnection):
         """Receive messages from a peer."""
         peer_id = connection.peer_id
+        consecutive_errors = 0
+        max_consecutive_errors = 5
 
         try:
             while True:
                 data = await connection.receive()
                 if not data:
+                    logger.debug(f"Connection closed by peer {peer_id}")
                     break
 
                 # Update last seen
@@ -840,16 +889,27 @@ class FederationNode:
                 # Parse message
                 try:
                     msg_dict = json.loads(data.decode())
+                    consecutive_errors = 0  # Reset on successful parse
 
                     # Check for encrypted message
                     if msg_dict.get("encrypted") and self._crypto:
-                        enc_data = msg_dict["data"]
-                        enc_msg = EncryptedMessage.from_dict(enc_data)
-                        decrypted = self._crypto.decrypt(
-                            enc_msg, connection.peer_info.session_key
-                        )
-                        if decrypted:
-                            msg_dict = json.loads(decrypted.decode())
+                        enc_data = msg_dict.get("data")
+                        if not enc_data:
+                            logger.warning(f"Received encrypted message from {peer_id} without data field")
+                            continue
+                        try:
+                            enc_msg = EncryptedMessage.from_dict(enc_data)
+                            decrypted = self._crypto.decrypt(
+                                enc_msg, connection.peer_info.session_key
+                            )
+                            if decrypted:
+                                msg_dict = json.loads(decrypted.decode())
+                            else:
+                                logger.warning(f"Failed to decrypt message from {peer_id}")
+                                continue
+                        except (KeyError, ValueError) as e:
+                            logger.warning(f"Invalid encrypted message format from {peer_id}: {e}")
+                            continue
 
                     # Parse as federation message
                     message = FederationMessage.from_dict(msg_dict)
@@ -857,13 +917,29 @@ class FederationNode:
                     # Handle message
                     await self._handle_message(peer_id, message)
 
+                except json.JSONDecodeError as e:
+                    consecutive_errors += 1
+                    logger.warning(f"Invalid JSON received from {peer_id}: {e}")
+                    if consecutive_errors >= max_consecutive_errors:
+                        logger.error(f"Too many consecutive parse errors from {peer_id}, disconnecting")
+                        break
+                except (KeyError, ValueError) as e:
+                    consecutive_errors += 1
+                    logger.warning(f"Malformed message from {peer_id}: {e}")
+                    if consecutive_errors >= max_consecutive_errors:
+                        logger.error(f"Too many consecutive parse errors from {peer_id}, disconnecting")
+                        break
                 except Exception as e:
-                    logger.error(f"Failed to parse message from {peer_id}: {e}")
+                    consecutive_errors += 1
+                    logger.error(f"Failed to process message from {peer_id}: {type(e).__name__}: {e}")
+                    if consecutive_errors >= max_consecutive_errors:
+                        logger.error(f"Too many consecutive errors from {peer_id}, disconnecting")
+                        break
 
         except asyncio.CancelledError:
-            pass
+            logger.debug(f"Receive loop cancelled for peer {peer_id}")
         except Exception as e:
-            logger.error(f"Error in receive loop for {peer_id}: {e}")
+            logger.error(f"Error in receive loop for peer {peer_id}: {type(e).__name__}: {e}")
         finally:
             # Disconnect
             await self.disconnect_peer(peer_id)
