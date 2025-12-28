@@ -2,7 +2,8 @@
 Agent OS Routing Engine
 
 Routes requests to appropriate agents based on intent classification.
-Manages routing tables, confidence-based routing, and fallback handling.
+Manages routing tables, confidence-based routing, fallback handling,
+and load balancing across available agents.
 """
 
 from dataclasses import dataclass, field
@@ -12,6 +13,14 @@ from enum import Enum, auto
 import logging
 
 from .intent import IntentCategory, IntentClassification
+from .load_balancer import (
+    LoadBalancer,
+    LoadBalancingStrategy,
+    AgentLoadTracker,
+    HealthChecker,
+    AgentHealthStatus,
+    create_load_balancer,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -102,7 +111,9 @@ class RoutingEngine:
     - Confidence-based agent selection
     - Multi-agent routing strategies
     - Fallback handling
-    - Load balancing (future)
+    - Load balancing with multiple strategies
+    - Health-aware routing
+    - Circuit breaker pattern
     """
 
     def __init__(
@@ -110,6 +121,10 @@ class RoutingEngine:
         routing_table: Optional[Dict[IntentCategory, List[AgentRoute]]] = None,
         available_agents: Optional[Set[str]] = None,
         default_agent: str = "sage",
+        load_balancing_strategy: LoadBalancingStrategy = LoadBalancingStrategy.ADAPTIVE,
+        enable_load_balancing: bool = True,
+        enable_health_checks: bool = True,
+        health_check_interval: float = 30.0,
     ):
         """
         Initialize routing engine.
@@ -118,6 +133,10 @@ class RoutingEngine:
             routing_table: Custom routing table (uses default if not provided)
             available_agents: Set of currently available agent names
             default_agent: Fallback agent when no route matches
+            load_balancing_strategy: Strategy for load balancing
+            enable_load_balancing: Whether to enable load balancing
+            enable_health_checks: Whether to enable periodic health checks
+            health_check_interval: Interval between health checks in seconds
         """
         self.routing_table = routing_table or DEFAULT_ROUTING_TABLE.copy()
         self.available_agents = available_agents or set()
@@ -127,6 +146,27 @@ class RoutingEngine:
         self._routing_count = 0
         self._fallback_count = 0
         self._multi_agent_count = 0
+
+        # Load balancing setup
+        self._enable_load_balancing = enable_load_balancing
+        self._load_tracker: Optional[AgentLoadTracker] = None
+        self._load_balancer: Optional[LoadBalancer] = None
+        self._health_checker: Optional[HealthChecker] = None
+
+        if enable_load_balancing:
+            self._load_tracker, self._load_balancer, self._health_checker = (
+                create_load_balancer(
+                    strategy=load_balancing_strategy,
+                    health_check_interval=health_check_interval,
+                )
+            )
+            # Register available agents for load tracking
+            for agent_name in self.available_agents:
+                self._load_tracker.register_agent(agent_name)
+
+            # Start health checks if enabled
+            if enable_health_checks:
+                self._health_checker.start()
 
     def route(
         self,
@@ -163,7 +203,15 @@ class RoutingEngine:
             reasoning = f"No routes found for {intent.value}, using fallback"
         else:
             strategy = self._determine_strategy(routes, classification)
-            reasoning = self._generate_reasoning(routes, intent, confidence)
+
+            # Apply load balancing to select best agent when multiple candidates
+            if self._enable_load_balancing and len(routes) > 1:
+                routes = self._apply_load_balancing(routes, intent)
+                reasoning = self._generate_reasoning(
+                    routes, intent, confidence, load_balanced=True
+                )
+            else:
+                reasoning = self._generate_reasoning(routes, intent, confidence)
 
         # Track multi-agent routing
         if len(routes) > 1:
@@ -183,6 +231,46 @@ class RoutingEngine:
             context_budget=self._calculate_context_budget(routes),
             reasoning=reasoning,
         )
+
+    def _apply_load_balancing(
+        self,
+        routes: List[AgentRoute],
+        intent: IntentCategory,
+    ) -> List[AgentRoute]:
+        """
+        Apply load balancing to reorder routes based on agent load.
+
+        Args:
+            routes: Candidate routes
+            intent: The intent category for round-robin state
+
+        Returns:
+            Routes reordered based on load balancing
+        """
+        if not self._load_balancer or len(routes) <= 1:
+            return routes
+
+        # Get candidate agent names
+        candidates = [r.agent_name for r in routes]
+
+        # Use load balancer to select best agent
+        selected_agent = self._load_balancer.select_agent(
+            candidates,
+            intent_key=intent.value,
+        )
+
+        if not selected_agent:
+            return routes
+
+        # Reorder routes to put selected agent first
+        reordered = []
+        for route in routes:
+            if route.agent_name == selected_agent:
+                reordered.insert(0, route)
+            else:
+                reordered.append(route)
+
+        return reordered
 
     def _get_routes_for_intent(
         self,
@@ -237,13 +325,17 @@ class RoutingEngine:
         routes: List[AgentRoute],
         intent: IntentCategory,
         confidence: float,
+        load_balanced: bool = False,
     ) -> str:
         """Generate human-readable routing reasoning."""
         agents = [r.agent_name for r in routes]
-        return (
+        base_reason = (
             f"Routing {intent.value} (confidence: {confidence:.2f}) "
             f"to {', '.join(agents)}"
         )
+        if load_balanced:
+            base_reason += " (load-balanced)"
+        return base_reason
 
     def add_route(
         self,
@@ -278,11 +370,17 @@ class RoutingEngine:
         agent_name: str,
         available: bool,
     ) -> None:
-        """Update agent availability."""
+        """Update agent availability and load balancing registration."""
         if available:
             self.available_agents.add(agent_name)
+            # Register for load balancing if enabled
+            if self._enable_load_balancing and self._load_tracker:
+                self._load_tracker.register_agent(agent_name)
         else:
             self.available_agents.discard(agent_name)
+            # Unregister from load balancing
+            if self._enable_load_balancing and self._load_tracker:
+                self._load_tracker.unregister_agent(agent_name)
 
     def get_routes_for_agent(self, agent_name: str) -> List[IntentCategory]:
         """Get all intents routed to an agent."""
@@ -293,8 +391,8 @@ class RoutingEngine:
         return intents
 
     def get_metrics(self) -> Dict[str, Any]:
-        """Get routing metrics."""
-        return {
+        """Get routing metrics including load balancing data."""
+        metrics = {
             "total_routings": self._routing_count,
             "fallback_count": self._fallback_count,
             "fallback_rate": (
@@ -308,7 +406,144 @@ class RoutingEngine:
                 if self._routing_count > 0
                 else 0.0
             ),
+            "load_balancing_enabled": self._enable_load_balancing,
         }
+
+        # Add load balancing metrics if enabled
+        if self._enable_load_balancing and self._load_tracker:
+            agent_loads = {}
+            for agent_name, agent_metrics in self._load_tracker.get_all_metrics().items():
+                agent_loads[agent_name] = agent_metrics.to_dict()
+            metrics["agent_load_metrics"] = agent_loads
+
+        return metrics
+
+    # =========================================================================
+    # Load Balancing Methods
+    # =========================================================================
+
+    def record_request_start(self, agent_name: str) -> None:
+        """
+        Record that a request has started for an agent.
+
+        Call this when routing a request to an agent.
+
+        Args:
+            agent_name: The agent receiving the request
+        """
+        if self._enable_load_balancing and self._load_tracker:
+            self._load_tracker.request_start(agent_name)
+
+    def record_request_complete(
+        self,
+        agent_name: str,
+        response_time_ms: float,
+        success: bool,
+    ) -> None:
+        """
+        Record that a request has completed for an agent.
+
+        Call this when an agent finishes processing a request.
+
+        Args:
+            agent_name: The agent that processed the request
+            response_time_ms: How long the request took in milliseconds
+            success: Whether the request succeeded
+        """
+        if self._enable_load_balancing and self._load_tracker:
+            self._load_tracker.request_complete(agent_name, response_time_ms, success)
+
+    def register_agent_for_load_balancing(
+        self,
+        agent_name: str,
+        weight: int = 100,
+        max_concurrent: int = 10,
+    ) -> None:
+        """
+        Register an agent for load tracking.
+
+        Args:
+            agent_name: Agent name
+            weight: Weight for weighted round-robin (1-100)
+            max_concurrent: Maximum concurrent requests
+        """
+        if self._enable_load_balancing and self._load_tracker:
+            self._load_tracker.register_agent(agent_name, weight, max_concurrent)
+
+    def unregister_agent_from_load_balancing(self, agent_name: str) -> None:
+        """Remove an agent from load tracking."""
+        if self._enable_load_balancing and self._load_tracker:
+            self._load_tracker.unregister_agent(agent_name)
+
+    def set_agent_weight(self, agent_name: str, weight: int) -> None:
+        """
+        Set weight for an agent in weighted round-robin.
+
+        Args:
+            agent_name: Agent name
+            weight: Weight (1-100, higher means more requests)
+        """
+        if self._enable_load_balancing and self._load_tracker:
+            self._load_tracker.set_weight(agent_name, weight)
+
+    def set_agent_max_concurrent(self, agent_name: str, max_concurrent: int) -> None:
+        """
+        Set maximum concurrent requests for an agent.
+
+        Args:
+            agent_name: Agent name
+            max_concurrent: Maximum concurrent requests
+        """
+        if self._enable_load_balancing and self._load_tracker:
+            self._load_tracker.set_max_concurrent(agent_name, max_concurrent)
+
+    def get_load_distribution(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Get current load distribution across all agents.
+
+        Returns:
+            Dictionary mapping agent names to their load metrics
+        """
+        if not self._enable_load_balancing or not self._load_balancer:
+            return {}
+
+        candidates = list(self.available_agents) if self.available_agents else []
+        return self._load_balancer.get_load_distribution(candidates)
+
+    def get_agent_health_status(self, agent_name: str) -> Optional[str]:
+        """
+        Get health status for an agent.
+
+        Args:
+            agent_name: Agent name
+
+        Returns:
+            Health status string or None if not tracked
+        """
+        if not self._enable_load_balancing or not self._load_tracker:
+            return None
+
+        metrics = self._load_tracker.get_metrics(agent_name)
+        if metrics:
+            return metrics.health_status.value
+        return None
+
+    def set_load_balancing_strategy(self, strategy: LoadBalancingStrategy) -> None:
+        """
+        Change the load balancing strategy at runtime.
+
+        Args:
+            strategy: New load balancing strategy
+        """
+        if self._enable_load_balancing and self._load_balancer:
+            self._load_balancer.strategy = strategy
+            logger.info(f"Load balancing strategy changed to: {strategy.name}")
+
+    def shutdown(self) -> None:
+        """Shutdown the routing engine and cleanup resources."""
+        if self._health_checker:
+            self._health_checker.stop()
+        logger.info("Routing engine shutdown complete")
 
 
 @dataclass

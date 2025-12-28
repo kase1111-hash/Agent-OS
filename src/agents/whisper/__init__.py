@@ -8,6 +8,7 @@ Whisper is the central orchestrator agent responsible for:
 - Multi-agent flow coordination
 - Smith integration for constitutional validation
 - Response aggregation
+- Load balancing across agents
 """
 
 from .intent import (
@@ -25,6 +26,15 @@ from .router import (
     RoutingAuditor,
     RoutingAuditEntry,
     DEFAULT_ROUTING_TABLE,
+)
+from .load_balancer import (
+    LoadBalancer,
+    LoadBalancingStrategy,
+    AgentLoadTracker,
+    AgentLoadMetrics,
+    AgentHealthStatus,
+    HealthChecker,
+    create_load_balancer,
 )
 from .context import (
     ContextMinimizer,
@@ -73,6 +83,14 @@ __all__ = [
     "RoutingAuditor",
     "RoutingAuditEntry",
     "DEFAULT_ROUTING_TABLE",
+    # Load Balancing
+    "LoadBalancer",
+    "LoadBalancingStrategy",
+    "AgentLoadTracker",
+    "AgentLoadMetrics",
+    "AgentHealthStatus",
+    "HealthChecker",
+    "create_load_balancer",
     # Context
     "ContextMinimizer",
     "MinimizedContext",
