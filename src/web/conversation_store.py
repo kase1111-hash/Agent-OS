@@ -159,62 +159,71 @@ class ConversationStore:
         self._initialized = False
 
     def _create_tables(self) -> None:
-        """Create database tables."""
+        """Create database tables.
+
+        Raises:
+            sqlite3.Error: If database schema creation fails
+        """
         with self._lock:
-            cursor = self._conn.cursor()
+            try:
+                cursor = self._conn.cursor()
 
-            # Conversations table
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS conversations (
-                    id TEXT PRIMARY KEY,
-                    title TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    message_count INTEGER DEFAULT 0,
-                    metadata_json TEXT,
-                    archived INTEGER DEFAULT 0
-                )
-            """)
+                # Conversations table
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS conversations (
+                        id TEXT PRIMARY KEY,
+                        title TEXT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL,
+                        message_count INTEGER DEFAULT 0,
+                        metadata_json TEXT,
+                        archived INTEGER DEFAULT 0
+                    )
+                """)
 
-            # Messages table
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS messages (
-                    id TEXT PRIMARY KEY,
-                    conversation_id TEXT NOT NULL,
-                    role TEXT NOT NULL,
-                    content TEXT NOT NULL,
-                    timestamp TEXT NOT NULL,
-                    metadata_json TEXT,
-                    parent_message_id TEXT,
-                    FOREIGN KEY (conversation_id) REFERENCES conversations(id)
-                        ON DELETE CASCADE
-                )
-            """)
+                # Messages table
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS messages (
+                        id TEXT PRIMARY KEY,
+                        conversation_id TEXT NOT NULL,
+                        role TEXT NOT NULL,
+                        content TEXT NOT NULL,
+                        timestamp TEXT NOT NULL,
+                        metadata_json TEXT,
+                        parent_message_id TEXT,
+                        FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+                            ON DELETE CASCADE
+                    )
+                """)
 
-            # Indexes
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_messages_conversation
-                ON messages(conversation_id)
-            """)
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_messages_timestamp
-                ON messages(timestamp)
-            """)
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_conversations_updated
-                ON conversations(updated_at DESC)
-            """)
+                # Indexes
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_messages_conversation
+                    ON messages(conversation_id)
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_messages_timestamp
+                    ON messages(timestamp)
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_conversations_updated
+                    ON conversations(updated_at DESC)
+                """)
 
-            # Full-text search for messages (optional)
-            cursor.execute("""
-                CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
-                    content,
-                    content=messages,
-                    content_rowid=rowid
-                )
-            """)
+                # Full-text search for messages (optional)
+                cursor.execute("""
+                    CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+                        content,
+                        content=messages,
+                        content_rowid=rowid
+                    )
+                """)
 
-            self._conn.commit()
+                self._conn.commit()
+            except sqlite3.Error as e:
+                logger.error(f"Failed to create database tables: {e}")
+                self._conn.rollback()
+                raise
 
     # =========================================================================
     # Conversation Operations
@@ -226,7 +235,12 @@ class ConversationStore:
         title: str = "New Conversation",
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Conversation:
-        """Create a new conversation."""
+        """Create a new conversation.
+
+        Raises:
+            sqlite3.Error: If database operation fails
+            ValueError: If conversation already exists
+        """
         now = datetime.utcnow()
         conv = Conversation(
             id=conversation_id or str(uuid.uuid4()),
@@ -237,20 +251,28 @@ class ConversationStore:
         )
 
         with self._lock:
-            cursor = self._conn.cursor()
-            cursor.execute("""
-                INSERT INTO conversations (id, title, created_at, updated_at, message_count, metadata_json, archived)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                conv.id,
-                conv.title,
-                conv.created_at.isoformat(),
-                conv.updated_at.isoformat(),
-                0,
-                json.dumps(conv.metadata),
-                0,
-            ))
-            self._conn.commit()
+            try:
+                cursor = self._conn.cursor()
+                cursor.execute("""
+                    INSERT INTO conversations (id, title, created_at, updated_at, message_count, metadata_json, archived)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    conv.id,
+                    conv.title,
+                    conv.created_at.isoformat(),
+                    conv.updated_at.isoformat(),
+                    0,
+                    json.dumps(conv.metadata),
+                    0,
+                ))
+                self._conn.commit()
+            except sqlite3.IntegrityError as e:
+                self._conn.rollback()
+                raise ValueError(f"Conversation with ID '{conv.id}' already exists") from e
+            except sqlite3.Error as e:
+                self._conn.rollback()
+                logger.error(f"Failed to create conversation {conv.id}: {e}")
+                raise
 
         logger.debug(f"Created conversation: {conv.id}")
         return conv
@@ -377,7 +399,12 @@ class ConversationStore:
         metadata: Optional[Dict[str, Any]] = None,
         parent_message_id: Optional[str] = None,
     ) -> StoredMessage:
-        """Add a message to a conversation."""
+        """Add a message to a conversation.
+
+        Raises:
+            sqlite3.Error: If database operation fails
+            ValueError: If message with same ID already exists
+        """
         # Ensure conversation exists
         conv = self.get_or_create_conversation(conversation_id)
 
@@ -392,49 +419,61 @@ class ConversationStore:
         )
 
         with self._lock:
-            cursor = self._conn.cursor()
+            try:
+                cursor = self._conn.cursor()
 
-            # Insert message
-            cursor.execute("""
-                INSERT INTO messages (id, conversation_id, role, content, timestamp, metadata_json, parent_message_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                msg.id,
-                msg.conversation_id,
-                msg.role.value,
-                msg.content,
-                msg.timestamp.isoformat(),
-                json.dumps(msg.metadata),
-                msg.parent_message_id,
-            ))
+                # Insert message
+                cursor.execute("""
+                    INSERT INTO messages (id, conversation_id, role, content, timestamp, metadata_json, parent_message_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    msg.id,
+                    msg.conversation_id,
+                    msg.role.value,
+                    msg.content,
+                    msg.timestamp.isoformat(),
+                    json.dumps(msg.metadata),
+                    msg.parent_message_id,
+                ))
 
-            # Update conversation
-            new_count = conv.message_count + 1
-            cursor.execute("""
-                UPDATE conversations
-                SET updated_at = ?, message_count = ?
-                WHERE id = ?
-            """, (
-                msg.timestamp.isoformat(),
-                new_count,
-                conversation_id,
-            ))
+                # Update conversation
+                new_count = conv.message_count + 1
+                cursor.execute("""
+                    UPDATE conversations
+                    SET updated_at = ?, message_count = ?
+                    WHERE id = ?
+                """, (
+                    msg.timestamp.isoformat(),
+                    new_count,
+                    conversation_id,
+                ))
 
-            # Auto-title from first user message
-            if self.auto_title and new_count == 1 and role == MessageRole.USER:
-                title = content[:50] + ("..." if len(content) > 50 else "")
-                cursor.execute(
-                    "UPDATE conversations SET title = ? WHERE id = ?",
-                    (title, conversation_id)
-                )
+                # Auto-title from first user message
+                if self.auto_title and new_count == 1 and role == MessageRole.USER:
+                    title = content[:50] + ("..." if len(content) > 50 else "")
+                    cursor.execute(
+                        "UPDATE conversations SET title = ? WHERE id = ?",
+                        (title, conversation_id)
+                    )
 
-            # Update FTS index
-            cursor.execute("""
-                INSERT INTO messages_fts(rowid, content)
-                SELECT rowid, content FROM messages WHERE id = ?
-            """, (msg.id,))
+                # Update FTS index
+                try:
+                    cursor.execute("""
+                        INSERT INTO messages_fts(rowid, content)
+                        SELECT rowid, content FROM messages WHERE id = ?
+                    """, (msg.id,))
+                except sqlite3.Error as e:
+                    # FTS index update is not critical, log and continue
+                    logger.warning(f"Failed to update FTS index for message {msg.id}: {e}")
 
-            self._conn.commit()
+                self._conn.commit()
+            except sqlite3.IntegrityError as e:
+                self._conn.rollback()
+                raise ValueError(f"Message with ID '{msg.id}' already exists") from e
+            except sqlite3.Error as e:
+                self._conn.rollback()
+                logger.error(f"Failed to add message to conversation {conversation_id}: {e}")
+                raise
 
         return msg
 
@@ -673,28 +712,56 @@ class ConversationStore:
     # =========================================================================
 
     def _row_to_conversation(self, row: sqlite3.Row) -> Conversation:
-        """Convert a database row to Conversation."""
-        return Conversation(
-            id=row["id"],
-            title=row["title"],
-            created_at=datetime.fromisoformat(row["created_at"]),
-            updated_at=datetime.fromisoformat(row["updated_at"]),
-            message_count=row["message_count"],
-            metadata=json.loads(row["metadata_json"]) if row["metadata_json"] else {},
-            archived=bool(row["archived"]),
-        )
+        """Convert a database row to Conversation.
+
+        Raises:
+            ValueError: If row data is invalid
+        """
+        try:
+            metadata = {}
+            if row["metadata_json"]:
+                try:
+                    metadata = json.loads(row["metadata_json"])
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Invalid metadata JSON for conversation {row['id']}: {e}")
+
+            return Conversation(
+                id=row["id"],
+                title=row["title"] or "Untitled",
+                created_at=datetime.fromisoformat(row["created_at"]),
+                updated_at=datetime.fromisoformat(row["updated_at"]),
+                message_count=row["message_count"] or 0,
+                metadata=metadata,
+                archived=bool(row["archived"]),
+            )
+        except (KeyError, ValueError) as e:
+            raise ValueError(f"Failed to parse conversation row: {e}") from e
 
     def _row_to_message(self, row: sqlite3.Row) -> StoredMessage:
-        """Convert a database row to StoredMessage."""
-        return StoredMessage(
-            id=row["id"],
-            conversation_id=row["conversation_id"],
-            role=MessageRole(row["role"]),
-            content=row["content"],
-            timestamp=datetime.fromisoformat(row["timestamp"]),
-            metadata=json.loads(row["metadata_json"]) if row["metadata_json"] else {},
-            parent_message_id=row["parent_message_id"],
-        )
+        """Convert a database row to StoredMessage.
+
+        Raises:
+            ValueError: If row data is invalid
+        """
+        try:
+            metadata = {}
+            if row["metadata_json"]:
+                try:
+                    metadata = json.loads(row["metadata_json"])
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Invalid metadata JSON for message {row['id']}: {e}")
+
+            return StoredMessage(
+                id=row["id"],
+                conversation_id=row["conversation_id"],
+                role=MessageRole(row["role"]),
+                content=row["content"],
+                timestamp=datetime.fromisoformat(row["timestamp"]),
+                metadata=metadata,
+                parent_message_id=row["parent_message_id"],
+            )
+        except (KeyError, ValueError) as e:
+            raise ValueError(f"Failed to parse message row: {e}") from e
 
 
 # =============================================================================

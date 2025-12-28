@@ -99,27 +99,39 @@ class BlobMetadata:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "BlobMetadata":
-        return cls(
-            blob_id=data["blob_id"],
-            key_id=data["key_id"],
-            tier=EncryptionTier[data["tier"]],
-            blob_type=BlobType[data["blob_type"]],
-            size_bytes=data["size_bytes"],
-            encrypted_size=data["encrypted_size"],
-            content_hash=data["content_hash"],
-            created_at=datetime.fromisoformat(data["created_at"]),
-            modified_at=datetime.fromisoformat(data["modified_at"]),
-            accessed_at=(
-                datetime.fromisoformat(data["accessed_at"])
-                if data.get("accessed_at") else None
-            ),
-            access_count=data.get("access_count", 0),
-            status=BlobStatus[data.get("status", "ACTIVE")],
-            consent_id=data.get("consent_id"),
-            ttl_seconds=data.get("ttl_seconds"),
-            tags=data.get("tags", []),
-            custom_metadata=data.get("custom_metadata", {}),
-        )
+        try:
+            # Validate required fields
+            required_fields = ["blob_id", "key_id", "tier", "blob_type", "size_bytes",
+                             "encrypted_size", "content_hash", "created_at", "modified_at"]
+            missing_fields = [f for f in required_fields if f not in data]
+            if missing_fields:
+                raise ValueError(f"Missing required fields in blob metadata: {missing_fields}")
+
+            return cls(
+                blob_id=data["blob_id"],
+                key_id=data["key_id"],
+                tier=EncryptionTier[data["tier"]],
+                blob_type=BlobType[data["blob_type"]],
+                size_bytes=data["size_bytes"],
+                encrypted_size=data["encrypted_size"],
+                content_hash=data["content_hash"],
+                created_at=datetime.fromisoformat(data["created_at"]),
+                modified_at=datetime.fromisoformat(data["modified_at"]),
+                accessed_at=(
+                    datetime.fromisoformat(data["accessed_at"])
+                    if data.get("accessed_at") else None
+                ),
+                access_count=data.get("access_count", 0),
+                status=BlobStatus[data.get("status", "ACTIVE")],
+                consent_id=data.get("consent_id"),
+                ttl_seconds=data.get("ttl_seconds"),
+                tags=data.get("tags", []),
+                custom_metadata=data.get("custom_metadata", {}),
+            )
+        except KeyError as e:
+            raise ValueError(f"Invalid enum value in blob metadata: {e}") from e
+        except (TypeError, ValueError) as e:
+            raise ValueError(f"Failed to parse blob metadata: {e}") from e
 
 
 @dataclass
@@ -286,11 +298,24 @@ class BlobStorage:
 
             # Write to storage
             blob_path = self._get_blob_path(blob_id)
-            blob_path.write_bytes(encrypted_blob.to_bytes())
+            try:
+                blob_path.write_bytes(encrypted_blob.to_bytes())
+            except PermissionError as e:
+                raise IOError(f"Permission denied writing blob to {blob_path}: {e}") from e
+            except OSError as e:
+                raise IOError(f"Failed to write blob to {blob_path}: {e}") from e
 
             # Cache metadata
             self._cache[blob_id] = metadata
-            self._persist_metadata(metadata)
+            try:
+                self._persist_metadata(metadata)
+            except IOError as e:
+                # Rollback: remove the blob file we just wrote
+                try:
+                    blob_path.unlink()
+                except OSError:
+                    pass
+                raise IOError(f"Failed to persist metadata for blob {blob_id}: {e}") from e
 
             logger.info(f"Stored blob: {blob_id} (tier={tier.name}, size={len(data)})")
             return metadata
@@ -358,23 +383,40 @@ class BlobStorage:
             aesgcm = AESGCM(derived_key.key)
 
             # Process chunks
-            while True:
-                chunk = stream.read(chunk_size)
-                if not chunk:
-                    break
+            try:
+                while True:
+                    try:
+                        chunk = stream.read(chunk_size)
+                    except IOError as e:
+                        raise IOError(f"Failed to read from stream at offset {total_size}: {e}") from e
 
-                hasher.update(chunk)
-                total_size += len(chunk)
+                    if not chunk:
+                        break
 
-                # Encrypt chunk
-                nonce = secrets.token_bytes(NONCE_SIZE)
-                ciphertext = aesgcm.encrypt(nonce, chunk, None)
-                encrypted_size += len(nonce) + len(ciphertext)
+                    hasher.update(chunk)
+                    total_size += len(chunk)
 
-                # Write chunk
-                chunk_path = chunk_dir / f"{chunk_index:08d}.chunk"
-                chunk_path.write_bytes(nonce + ciphertext)
-                chunk_index += 1
+                    # Encrypt chunk
+                    nonce = secrets.token_bytes(NONCE_SIZE)
+                    ciphertext = aesgcm.encrypt(nonce, chunk, None)
+                    encrypted_size += len(nonce) + len(ciphertext)
+
+                    # Write chunk
+                    chunk_path = chunk_dir / f"{chunk_index:08d}.chunk"
+                    try:
+                        chunk_path.write_bytes(nonce + ciphertext)
+                    except PermissionError as e:
+                        raise IOError(f"Permission denied writing chunk {chunk_index} to {chunk_path}: {e}") from e
+                    except OSError as e:
+                        raise IOError(f"Failed to write chunk {chunk_index} to {chunk_path}: {e}") from e
+                    chunk_index += 1
+            except IOError:
+                # Clean up partial chunks on failure
+                try:
+                    shutil.rmtree(chunk_dir)
+                except OSError:
+                    pass
+                raise
 
             # Create metadata
             now = datetime.now()
@@ -453,9 +495,25 @@ class BlobStorage:
         """Retrieve a single (non-chunked) blob."""
         blob_path = self._get_blob_path(blob_id)
         if not blob_path.exists():
+            logger.warning(f"Blob file not found: {blob_path}")
             return None
 
-        encrypted_blob = EncryptedBlob.from_bytes(blob_path.read_bytes())
+        try:
+            blob_data = blob_path.read_bytes()
+        except PermissionError as e:
+            logger.error(f"Permission denied reading blob {blob_id} from {blob_path}: {e}")
+            return None
+        except OSError as e:
+            logger.error(f"Failed to read blob {blob_id} from {blob_path}: {e}")
+            return None
+
+        try:
+            encrypted_blob = EncryptedBlob.from_bytes(blob_data)
+        except (ValueError, struct.error) as e:
+            logger.error(f"Corrupted blob format for {blob_id}: {e}")
+            metadata.status = BlobStatus.CORRUPTED
+            self._persist_metadata(metadata)
+            return None
 
         aesgcm = AESGCM(key)
         plaintext = aesgcm.decrypt(
@@ -500,11 +558,32 @@ class BlobStorage:
                 logger.error(f"Missing chunk {i} for blob: {blob_id}")
                 return None
 
-            chunk_data = chunk_path.read_bytes()
+            try:
+                chunk_data = chunk_path.read_bytes()
+            except PermissionError as e:
+                logger.error(f"Permission denied reading chunk {i} for blob {blob_id}: {e}")
+                return None
+            except OSError as e:
+                logger.error(f"Failed to read chunk {i} for blob {blob_id}: {e}")
+                return None
+
+            if len(chunk_data) < NONCE_SIZE:
+                logger.error(f"Chunk {i} for blob {blob_id} is too small (corrupted)")
+                metadata.status = BlobStatus.CORRUPTED
+                self._persist_metadata(metadata)
+                return None
+
             nonce = chunk_data[:NONCE_SIZE]
             ciphertext = chunk_data[NONCE_SIZE:]
 
-            plaintext = aesgcm.decrypt(nonce, ciphertext, None)
+            try:
+                plaintext = aesgcm.decrypt(nonce, ciphertext, None)
+            except InvalidTag:
+                logger.error(f"Chunk {i} decryption failed (integrity check) for blob: {blob_id}")
+                metadata.status = BlobStatus.CORRUPTED
+                self._persist_metadata(metadata)
+                return None
+
             hasher.update(plaintext)
             result.extend(plaintext)
 
@@ -747,30 +826,62 @@ class BlobStorage:
         """Persist blob metadata to disk."""
         shard = metadata.blob_id[:4]
         shard_dir = self._metadata_dir / shard
-        shard_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            shard_dir.mkdir(parents=True, exist_ok=True)
+        except PermissionError as e:
+            raise IOError(f"Permission denied creating metadata directory {shard_dir}: {e}") from e
+        except OSError as e:
+            raise IOError(f"Failed to create metadata directory {shard_dir}: {e}") from e
 
         meta_path = shard_dir / f"{metadata.blob_id}.json"
-        with open(meta_path, 'w') as f:
-            json.dump(metadata.to_dict(), f, indent=2)
+        try:
+            with open(meta_path, 'w') as f:
+                json.dump(metadata.to_dict(), f, indent=2)
+        except PermissionError as e:
+            raise IOError(f"Permission denied writing metadata to {meta_path}: {e}") from e
+        except (OSError, TypeError) as e:
+            raise IOError(f"Failed to write metadata to {meta_path}: {e}") from e
 
     def _secure_delete_file(self, path: Path) -> None:
         """Securely delete a file by overwriting before removal."""
         if not path.exists():
             return
 
-        file_size = path.stat().st_size
+        try:
+            file_size = path.stat().st_size
+        except OSError as e:
+            logger.warning(f"Could not get file size for secure delete of {path}: {e}")
+            # Fall back to simple delete
+            try:
+                path.unlink()
+            except OSError as e:
+                raise IOError(f"Failed to delete file {path}: {e}") from e
+            return
 
-        # Overwrite with random data
-        with open(path, 'r+b') as f:
-            f.write(secrets.token_bytes(file_size))
-            f.flush()
-            os.fsync(f.fileno())
+        try:
+            # Overwrite with random data
+            with open(path, 'r+b') as f:
+                f.write(secrets.token_bytes(file_size))
+                f.flush()
+                os.fsync(f.fileno())
 
-        # Overwrite with zeros
-        with open(path, 'r+b') as f:
-            f.write(b'\x00' * file_size)
-            f.flush()
-            os.fsync(f.fileno())
+            # Overwrite with zeros
+            with open(path, 'r+b') as f:
+                f.write(b'\x00' * file_size)
+                f.flush()
+                os.fsync(f.fileno())
+        except PermissionError as e:
+            logger.warning(f"Permission denied during secure overwrite of {path}: {e}")
+            # Continue to attempt deletion
+        except OSError as e:
+            logger.warning(f"Error during secure overwrite of {path}: {e}")
+            # Continue to attempt deletion
 
         # Delete
-        path.unlink()
+        try:
+            path.unlink()
+        except PermissionError as e:
+            raise IOError(f"Permission denied deleting file {path}: {e}") from e
+        except OSError as e:
+            raise IOError(f"Failed to delete file {path}: {e}") from e
