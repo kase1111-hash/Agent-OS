@@ -441,7 +441,7 @@ class ConnectionManager:
 
     async def _generate_ollama_response(
         self, message: str, conversation_id: str
-    ) -> tuple[str, Dict[str, Any]]:
+    ) -> Tuple[str, Dict[str, Any]]:
         """
         Generate a response using Ollama.
 
@@ -481,7 +481,7 @@ class ConnectionManager:
                     {"model": model, "error": str(e)},
                 )
 
-    def _call_ollama(self, messages: List[Dict[str, str]]) -> tuple[str, Dict[str, Any]]:
+    def _call_ollama(self, messages: List[Dict[str, str]]) -> Tuple[str, Dict[str, Any]]:
         """
         Call Ollama API synchronously.
 
