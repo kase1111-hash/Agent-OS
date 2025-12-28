@@ -1,0 +1,619 @@
+"""
+Encryption Utilities
+
+Provides encryption utilities for securing sensitive data:
+- Symmetric encryption (AES-256-GCM)
+- Secure key derivation (PBKDF2)
+- Credential encryption/decryption
+- Sensitive data redaction
+"""
+
+import base64
+import hashlib
+import hmac
+import logging
+import os
+import re
+import secrets
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Pattern, Tuple, Union
+
+logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Configuration
+# =============================================================================
+
+
+@dataclass
+class EncryptionConfig:
+    """Encryption configuration."""
+
+    algorithm: str = "AES-256-GCM"
+    key_length: int = 32  # 256 bits
+    iv_length: int = 12  # 96 bits for GCM
+    salt_length: int = 16
+    iterations: int = 100000
+    tag_length: int = 16
+
+
+# =============================================================================
+# Encryption Service
+# =============================================================================
+
+
+class EncryptionService:
+    """
+    Service for encrypting and decrypting sensitive data.
+
+    Uses AES-256-GCM for authenticated encryption.
+    Falls back to HMAC-based obfuscation if cryptography is unavailable.
+    """
+
+    def __init__(self, master_key: Optional[bytes] = None, config: Optional[EncryptionConfig] = None):
+        self.config = config or EncryptionConfig()
+        self._has_crypto = self._check_crypto()
+
+        # Master key for encryption
+        if master_key:
+            self._master_key = master_key
+        else:
+            # Try to load from environment or generate
+            self._master_key = self._get_or_create_master_key()
+
+    def _check_crypto(self) -> bool:
+        """Check if cryptography library is available."""
+        try:
+            from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+            return True
+        except ImportError:
+            logger.warning("cryptography library not available - using fallback encryption")
+            return False
+
+    def _get_or_create_master_key(self) -> bytes:
+        """Get or create master encryption key."""
+        # Try environment variable first
+        env_key = os.environ.get("AGENT_OS_ENCRYPTION_KEY")
+        if env_key:
+            return base64.b64decode(env_key)
+
+        # Try to load from file
+        key_file = os.path.expanduser("~/.agent-os/encryption.key")
+        if os.path.exists(key_file):
+            with open(key_file, "rb") as f:
+                return f.read()
+
+        # Generate new key
+        key = secrets.token_bytes(self.config.key_length)
+
+        # Try to persist (create directory if needed)
+        try:
+            key_dir = os.path.dirname(key_file)
+            os.makedirs(key_dir, mode=0o700, exist_ok=True)
+            with open(key_file, "wb") as f:
+                f.write(key)
+            os.chmod(key_file, 0o600)
+            logger.info(f"Created new encryption key at {key_file}")
+        except (OSError, PermissionError) as e:
+            logger.warning(f"Could not persist encryption key: {e}")
+
+        return key
+
+    def derive_key(self, password: str, salt: Optional[bytes] = None) -> Tuple[bytes, bytes]:
+        """
+        Derive encryption key from password using PBKDF2.
+
+        Returns:
+            Tuple of (derived_key, salt)
+        """
+        if salt is None:
+            salt = secrets.token_bytes(self.config.salt_length)
+
+        if self._has_crypto:
+            from cryptography.hazmat.primitives import hashes
+            from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
+            kdf = PBKDF2HMAC(
+                algorithm=hashes.SHA256(),
+                length=self.config.key_length,
+                salt=salt,
+                iterations=self.config.iterations,
+            )
+            key = kdf.derive(password.encode())
+        else:
+            # Fallback: HMAC-based key derivation
+            key = password.encode()
+            for _ in range(self.config.iterations // 1000):
+                key = hmac.new(salt, key, hashlib.sha256).digest()
+            key = key[:self.config.key_length]
+
+        return key, salt
+
+    def encrypt(
+        self,
+        plaintext: Union[str, bytes],
+        key: Optional[bytes] = None,
+        associated_data: Optional[bytes] = None,
+    ) -> str:
+        """
+        Encrypt data and return as base64 string.
+
+        Args:
+            plaintext: Data to encrypt
+            key: Encryption key (uses master key if not provided)
+            associated_data: Additional authenticated data
+
+        Returns:
+            Base64-encoded encrypted data with format: "enc:<iv>:<ciphertext>:<tag>"
+        """
+        if isinstance(plaintext, str):
+            plaintext = plaintext.encode("utf-8")
+
+        key = key or self._master_key
+
+        if self._has_crypto:
+            return self._encrypt_aes_gcm(plaintext, key, associated_data)
+        else:
+            return self._encrypt_fallback(plaintext, key, associated_data)
+
+    def decrypt(
+        self,
+        ciphertext: str,
+        key: Optional[bytes] = None,
+        associated_data: Optional[bytes] = None,
+    ) -> str:
+        """
+        Decrypt data.
+
+        Args:
+            ciphertext: Base64-encoded encrypted data
+            key: Decryption key (uses master key if not provided)
+            associated_data: Additional authenticated data
+
+        Returns:
+            Decrypted string
+        """
+        # Check if already decrypted (backward compatibility)
+        if not ciphertext.startswith("enc:") and not ciphertext.startswith("obs:"):
+            return ciphertext
+
+        key = key or self._master_key
+
+        if ciphertext.startswith("enc:"):
+            if self._has_crypto:
+                return self._decrypt_aes_gcm(ciphertext, key, associated_data)
+            else:
+                logger.error("Cannot decrypt AES-GCM without cryptography library")
+                return ciphertext
+        else:
+            return self._decrypt_fallback(ciphertext, key)
+
+    def _encrypt_aes_gcm(
+        self,
+        plaintext: bytes,
+        key: bytes,
+        associated_data: Optional[bytes],
+    ) -> str:
+        """Encrypt using AES-GCM."""
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+        iv = secrets.token_bytes(self.config.iv_length)
+        aesgcm = AESGCM(key[:self.config.key_length])
+
+        ciphertext_with_tag = aesgcm.encrypt(iv, plaintext, associated_data)
+
+        # Split ciphertext and tag
+        ciphertext = ciphertext_with_tag[:-self.config.tag_length]
+        tag = ciphertext_with_tag[-self.config.tag_length:]
+
+        # Encode as base64
+        iv_b64 = base64.b64encode(iv).decode()
+        ct_b64 = base64.b64encode(ciphertext).decode()
+        tag_b64 = base64.b64encode(tag).decode()
+
+        return f"enc:{iv_b64}:{ct_b64}:{tag_b64}"
+
+    def _decrypt_aes_gcm(
+        self,
+        encrypted: str,
+        key: bytes,
+        associated_data: Optional[bytes],
+    ) -> str:
+        """Decrypt using AES-GCM."""
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+        try:
+            parts = encrypted.split(":")
+            if len(parts) != 4:
+                raise ValueError("Invalid encrypted format")
+
+            iv = base64.b64decode(parts[1])
+            ciphertext = base64.b64decode(parts[2])
+            tag = base64.b64decode(parts[3])
+
+            aesgcm = AESGCM(key[:self.config.key_length])
+            plaintext = aesgcm.decrypt(iv, ciphertext + tag, associated_data)
+
+            return plaintext.decode("utf-8")
+
+        except Exception as e:
+            logger.error(f"Decryption failed: {e}")
+            raise ValueError("Decryption failed") from e
+
+    def _encrypt_fallback(
+        self,
+        plaintext: bytes,
+        key: bytes,
+        associated_data: Optional[bytes],
+    ) -> str:
+        """Fallback encryption using XOR with HMAC authentication."""
+        iv = secrets.token_bytes(16)
+
+        # Generate keystream
+        keystream = self._generate_keystream(key, iv, len(plaintext))
+
+        # XOR encryption
+        ciphertext = bytes(p ^ k for p, k in zip(plaintext, keystream))
+
+        # HMAC for authentication
+        auth_data = iv + ciphertext + (associated_data or b"")
+        tag = hmac.new(key, auth_data, hashlib.sha256).digest()[:self.config.tag_length]
+
+        # Encode
+        iv_b64 = base64.b64encode(iv).decode()
+        ct_b64 = base64.b64encode(ciphertext).decode()
+        tag_b64 = base64.b64encode(tag).decode()
+
+        return f"obs:{iv_b64}:{ct_b64}:{tag_b64}"
+
+    def _decrypt_fallback(self, encrypted: str, key: bytes) -> str:
+        """Fallback decryption."""
+        try:
+            parts = encrypted.split(":")
+            if len(parts) != 4:
+                raise ValueError("Invalid format")
+
+            iv = base64.b64decode(parts[1])
+            ciphertext = base64.b64decode(parts[2])
+            tag = base64.b64decode(parts[3])
+
+            # Verify HMAC
+            auth_data = iv + ciphertext
+            expected_tag = hmac.new(key, auth_data, hashlib.sha256).digest()[:self.config.tag_length]
+
+            if not hmac.compare_digest(tag, expected_tag):
+                raise ValueError("Authentication failed")
+
+            # Decrypt
+            keystream = self._generate_keystream(key, iv, len(ciphertext))
+            plaintext = bytes(c ^ k for c, k in zip(ciphertext, keystream))
+
+            return plaintext.decode("utf-8")
+
+        except Exception as e:
+            logger.error(f"Fallback decryption failed: {e}")
+            raise ValueError("Decryption failed") from e
+
+    def _generate_keystream(self, key: bytes, iv: bytes, length: int) -> bytes:
+        """Generate keystream for XOR encryption."""
+        keystream = b""
+        counter = 0
+
+        while len(keystream) < length:
+            block_input = key + iv + counter.to_bytes(4, "big")
+            block = hashlib.sha256(block_input).digest()
+            keystream += block
+            counter += 1
+
+        return keystream[:length]
+
+
+# =============================================================================
+# Credential Manager
+# =============================================================================
+
+
+class CredentialManager:
+    """
+    Manages encrypted credentials storage.
+    """
+
+    def __init__(self, encryption_service: Optional[EncryptionService] = None):
+        self.encryption = encryption_service or EncryptionService()
+        self._credentials: Dict[str, str] = {}
+        self._storage_path = os.path.expanduser("~/.agent-os/credentials.enc")
+
+    def store(self, key: str, value: str) -> None:
+        """Store an encrypted credential."""
+        encrypted = self.encryption.encrypt(value)
+        self._credentials[key] = encrypted
+        self._persist()
+
+    def retrieve(self, key: str) -> Optional[str]:
+        """Retrieve and decrypt a credential."""
+        encrypted = self._credentials.get(key)
+        if encrypted:
+            try:
+                return self.encryption.decrypt(encrypted)
+            except ValueError:
+                logger.error(f"Failed to decrypt credential: {key}")
+                return None
+        return None
+
+    def delete(self, key: str) -> None:
+        """Delete a credential."""
+        if key in self._credentials:
+            del self._credentials[key]
+            self._persist()
+
+    def list_keys(self) -> List[str]:
+        """List all credential keys."""
+        return list(self._credentials.keys())
+
+    def _persist(self) -> None:
+        """Persist credentials to disk."""
+        try:
+            os.makedirs(os.path.dirname(self._storage_path), mode=0o700, exist_ok=True)
+
+            # Serialize and encrypt the whole credentials dict
+            import json
+            data = json.dumps(self._credentials)
+            encrypted = self.encryption.encrypt(data)
+
+            with open(self._storage_path, "w") as f:
+                f.write(encrypted)
+
+            os.chmod(self._storage_path, 0o600)
+
+        except Exception as e:
+            logger.error(f"Failed to persist credentials: {e}")
+
+    def load(self) -> None:
+        """Load credentials from disk."""
+        if not os.path.exists(self._storage_path):
+            return
+
+        try:
+            with open(self._storage_path, "r") as f:
+                encrypted = f.read()
+
+            import json
+            data = self.encryption.decrypt(encrypted)
+            self._credentials = json.loads(data)
+
+        except Exception as e:
+            logger.error(f"Failed to load credentials: {e}")
+            self._credentials = {}
+
+
+# =============================================================================
+# Sensitive Data Redactor
+# =============================================================================
+
+
+@dataclass
+class RedactionPattern:
+    """Pattern for redacting sensitive data."""
+
+    pattern: Pattern
+    replacement: str
+    description: str = ""
+
+
+class SensitiveDataRedactor:
+    """
+    Redacts sensitive information from logs and output.
+    """
+
+    def __init__(self):
+        self.patterns: List[RedactionPattern] = [
+            # API Keys
+            RedactionPattern(
+                re.compile(r'([a-zA-Z0-9_-]*(?:api[_-]?key|apikey)[a-zA-Z0-9_-]*)[=:]\s*["\']?([a-zA-Z0-9_-]{20,})["\']?', re.I),
+                r'\1=[REDACTED]',
+                "API key assignments"
+            ),
+            RedactionPattern(
+                re.compile(r'sk-[a-zA-Z0-9]{20,}'),
+                '[REDACTED_OPENAI_KEY]',
+                "OpenAI API keys"
+            ),
+            RedactionPattern(
+                re.compile(r'hf_[a-zA-Z0-9]{20,}'),
+                '[REDACTED_HF_TOKEN]',
+                "Hugging Face tokens"
+            ),
+            RedactionPattern(
+                re.compile(r'ghp_[a-zA-Z0-9]{20,}'),
+                '[REDACTED_GITHUB_TOKEN]',
+                "GitHub personal access tokens"
+            ),
+
+            # Auth headers
+            RedactionPattern(
+                re.compile(r'Bearer\s+[a-zA-Z0-9_.-]{20,}', re.I),
+                'Bearer [REDACTED]',
+                "Bearer tokens"
+            ),
+            RedactionPattern(
+                re.compile(r'Basic\s+[a-zA-Z0-9+/=]{20,}', re.I),
+                'Basic [REDACTED]',
+                "Basic auth"
+            ),
+
+            # Passwords
+            RedactionPattern(
+                re.compile(r'(password|passwd|pwd)[=:]\s*["\']?[^"\'\s&]+["\']?', re.I),
+                r'\1=[REDACTED]',
+                "Password fields"
+            ),
+
+            # Connection strings
+            RedactionPattern(
+                re.compile(r'(mongodb|postgresql|mysql|redis):\/\/[^:]+:[^@]+@', re.I),
+                r'\1://[REDACTED]:[REDACTED]@',
+                "Database connection strings"
+            ),
+
+            # JWT tokens
+            RedactionPattern(
+                re.compile(r'eyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*'),
+                '[REDACTED_JWT]',
+                "JWT tokens"
+            ),
+
+            # Private keys
+            RedactionPattern(
+                re.compile(r'-----BEGIN\s+(?:RSA\s+)?PRIVATE\s+KEY-----[\s\S]*?-----END\s+(?:RSA\s+)?PRIVATE\s+KEY-----'),
+                '[REDACTED_PRIVATE_KEY]',
+                "Private keys"
+            ),
+
+            # AWS keys
+            RedactionPattern(
+                re.compile(r'AKIA[0-9A-Z]{16}'),
+                '[REDACTED_AWS_KEY]',
+                "AWS access keys"
+            ),
+
+            # Credit cards (basic)
+            RedactionPattern(
+                re.compile(r'\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b'),
+                '[REDACTED_CARD]',
+                "Credit card numbers"
+            ),
+
+            # SSN
+            RedactionPattern(
+                re.compile(r'\b\d{3}-\d{2}-\d{4}\b'),
+                '[REDACTED_SSN]',
+                "Social Security numbers"
+            ),
+        ]
+
+        # Sensitive field names
+        self.sensitive_fields = {
+            "password", "passwd", "pwd", "secret", "token", "apikey", "api_key",
+            "apiKey", "auth", "authorization", "credential", "credentials",
+            "private_key", "privateKey", "access_token", "accessToken",
+            "refresh_token", "refreshToken", "session_id", "sessionId",
+            "encryption_key", "encryptionKey", "master_key", "masterKey"
+        }
+
+    def redact(self, text: str) -> str:
+        """Redact sensitive data from a string."""
+        if not isinstance(text, str):
+            return str(text)
+
+        result = text
+        for pattern in self.patterns:
+            result = pattern.pattern.sub(pattern.replacement, result)
+
+        return result
+
+    def redact_dict(self, data: Dict[str, Any], depth: int = 0) -> Dict[str, Any]:
+        """Redact sensitive data from a dictionary."""
+        if depth > 10:  # Prevent infinite recursion
+            return data
+
+        result = {}
+
+        for key, value in data.items():
+            key_lower = key.lower()
+
+            # Check if field name indicates sensitive data
+            if key_lower in self.sensitive_fields or key in self.sensitive_fields:
+                result[key] = "[REDACTED]"
+            elif any(s in key_lower for s in ["password", "secret", "token", "key", "credential", "auth"]):
+                result[key] = "[REDACTED]"
+            elif isinstance(value, str):
+                result[key] = self.redact(value)
+            elif isinstance(value, dict):
+                result[key] = self.redact_dict(value, depth + 1)
+            elif isinstance(value, list):
+                result[key] = [
+                    self.redact_dict(v, depth + 1) if isinstance(v, dict)
+                    else self.redact(v) if isinstance(v, str)
+                    else v
+                    for v in value
+                ]
+            else:
+                result[key] = value
+
+        return result
+
+    def redact_url(self, url: str) -> str:
+        """Redact sensitive parts of a URL."""
+        # Redact password in URL
+        url = re.sub(r'(https?://[^:]+:)[^@]+(@)', r'\1[REDACTED]\2', url)
+
+        # Redact sensitive query parameters
+        sensitive_params = ["token", "key", "secret", "password", "auth", "credential", "api_key", "apikey"]
+
+        for param in sensitive_params:
+            url = re.sub(
+                rf'([?&]{param}=)[^&]+',
+                rf'\1[REDACTED]',
+                url,
+                flags=re.I
+            )
+
+        return url
+
+
+# =============================================================================
+# Factory Functions
+# =============================================================================
+
+
+# Global instances
+_encryption_service: Optional[EncryptionService] = None
+_credential_manager: Optional[CredentialManager] = None
+_redactor: Optional[SensitiveDataRedactor] = None
+
+
+def get_encryption_service() -> EncryptionService:
+    """Get the global encryption service instance."""
+    global _encryption_service
+    if _encryption_service is None:
+        _encryption_service = EncryptionService()
+    return _encryption_service
+
+
+def get_credential_manager() -> CredentialManager:
+    """Get the global credential manager instance."""
+    global _credential_manager
+    if _credential_manager is None:
+        _credential_manager = CredentialManager(get_encryption_service())
+        _credential_manager.load()
+    return _credential_manager
+
+
+def get_redactor() -> SensitiveDataRedactor:
+    """Get the global redactor instance."""
+    global _redactor
+    if _redactor is None:
+        _redactor = SensitiveDataRedactor()
+    return _redactor
+
+
+def encrypt(value: str) -> str:
+    """Encrypt a string value."""
+    return get_encryption_service().encrypt(value)
+
+
+def decrypt(value: str) -> str:
+    """Decrypt an encrypted string value."""
+    return get_encryption_service().decrypt(value)
+
+
+def redact(text: str) -> str:
+    """Redact sensitive data from text."""
+    return get_redactor().redact(text)
+
+
+def redact_dict(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Redact sensitive data from a dictionary."""
+    return get_redactor().redact_dict(data)

@@ -11,6 +11,11 @@ class AgentOS {
         this.currentUser = null;
         this.isAuthenticated = false;
 
+        // Security utilities
+        this.crypto = window.secureCrypto || new SecureCrypto();
+        this.secureStorage = window.secureStorage || new SecureStorage(this.crypto);
+        this.redactor = window.redactor || new SensitiveDataRedactor();
+
         // Debug settings
         this.debugMode = localStorage.getItem('debugMode') === 'true';
         this.debugLogs = [];
@@ -20,19 +25,43 @@ class AgentOS {
         this.currentDebugTab = 'logs';
         this.debugPanelMinimized = false;
 
-        // Settings
+        // Settings (loaded asynchronously for encrypted values)
         this.settings = {
             debug_mode: this.debugMode,
             verbose_logging: localStorage.getItem('verboseLogging') === 'true',
             auto_reconnect: localStorage.getItem('autoReconnect') !== 'false',
             sound_notifications: localStorage.getItem('soundNotifications') === 'true',
             dark_theme: localStorage.getItem('darkTheme') !== 'false',
-            ollama_endpoint: localStorage.getItem('ollamaEndpoint') || 'http://localhost:11434',
-            llama_cpp_endpoint: localStorage.getItem('llamaCppEndpoint') || 'http://localhost:8080',
+            ollama_endpoint: 'http://localhost:11434',
+            llama_cpp_endpoint: 'http://localhost:8080',
             default_model: localStorage.getItem('defaultModel') || 'llama3.2:3b'
         };
 
+        // Initialize with encrypted settings
+        this._initSecureSettings();
         this.init();
+    }
+
+    /**
+     * Initialize secure settings asynchronously
+     */
+    async _initSecureSettings() {
+        try {
+            // Migrate any existing plain text sensitive values
+            await this.secureStorage.migrateToEncrypted();
+
+            // Load encrypted settings
+            const ollamaEndpoint = await this.secureStorage.getItem('ollamaEndpoint');
+            const llamaCppEndpoint = await this.secureStorage.getItem('llamaCppEndpoint');
+
+            if (ollamaEndpoint) this.settings.ollama_endpoint = ollamaEndpoint;
+            if (llamaCppEndpoint) this.settings.llama_cpp_endpoint = llamaCppEndpoint;
+
+            // Refresh UI if settings page is visible
+            this.loadSettings();
+        } catch (error) {
+            console.error('Failed to load secure settings:', error);
+        }
     }
 
     init() {
@@ -1961,10 +1990,13 @@ class AgentOS {
     }
 
     addDebugLog(level, message) {
+        // Redact sensitive data before logging
+        const safeMessage = this.redactor ? this.redactor.redact(message) : message;
+
         const entry = {
             time: new Date().toLocaleTimeString(),
             level,
-            message
+            message: safeMessage
         };
 
         this.debugLogs.unshift(entry);
@@ -1979,6 +2011,15 @@ class AgentOS {
 
     addNetworkLog(entry) {
         entry.time = new Date().toLocaleTimeString();
+
+        // Redact sensitive data from URL and any error messages
+        if (this.redactor) {
+            entry.url = this.redactor.redactUrl(entry.url);
+            if (entry.error) {
+                entry.error = this.redactor.redact(entry.error);
+            }
+        }
+
         this.networkLogs.unshift(entry);
         if (this.networkLogs.length > this.maxLogs) {
             this.networkLogs.pop();
@@ -2089,6 +2130,9 @@ class AgentOS {
         const container = document.getElementById('debug-state-view');
         if (!container) return;
 
+        // Redact sensitive data from settings before display
+        const safeSettings = this.redactor ? this.redactor.redactObject({...this.settings}) : this.settings;
+
         const state = {
             currentView: this.currentView,
             isAuthenticated: this.isAuthenticated,
@@ -2096,7 +2140,8 @@ class AgentOS {
             wsConnected: this.ws?.readyState === WebSocket.OPEN,
             conversationId: this.conversationId || 'none',
             debugMode: this.debugMode,
-            settings: this.settings
+            encryptionEnabled: this.crypto?.isSupported || false,
+            settings: safeSettings
         };
 
         container.innerHTML = Object.entries(state).map(([key, value]) => `
@@ -2151,14 +2196,21 @@ class AgentOS {
     }
 
     exportDebugLogs() {
+        // Redact sensitive data before export
+        const safeSettings = this.redactor ? this.redactor.redactObject({...this.settings}) : this.settings;
+
         const data = {
             timestamp: new Date().toISOString(),
-            logs: this.debugLogs,
-            network: this.networkLogs,
+            logs: this.debugLogs, // Already redacted when added
+            network: this.networkLogs, // Already redacted when added
             state: {
                 currentView: this.currentView,
                 isAuthenticated: this.isAuthenticated,
-                settings: this.settings
+                settings: safeSettings
+            },
+            security: {
+                encryption_enabled: this.crypto?.isSupported || false,
+                redaction_enabled: !!this.redactor
             }
         };
 
@@ -2196,15 +2248,24 @@ class AgentOS {
         if (defaultModel) defaultModel.value = this.settings.default_model;
     }
 
-    updateSetting(key, value) {
+    async updateSetting(key, value) {
         this.settings[key] = value;
 
-        // Persist to localStorage
-        const storageKey = key.replace(/_/g, '').replace(/([A-Z])/g, (m) => m.toLowerCase());
+        // Convert key format
         const camelKey = key.replace(/_([a-z])/g, (m, c) => c.toUpperCase());
-        localStorage.setItem(camelKey, value);
 
-        this.addDebugLog('info', `Setting updated: ${key} = ${value}`);
+        // Use secure storage for sensitive settings
+        const sensitiveKeys = ['ollama_endpoint', 'llama_cpp_endpoint', 'api_key', 'token', 'secret'];
+        const isSensitive = sensitiveKeys.some(k => key.toLowerCase().includes(k.replace(/_/g, '')));
+
+        if (isSensitive && this.secureStorage) {
+            await this.secureStorage.setItem(camelKey, value);
+            // Log without revealing the actual value
+            this.addDebugLog('info', `Setting updated: ${key} = [ENCRYPTED]`);
+        } else {
+            localStorage.setItem(camelKey, value);
+            this.addDebugLog('info', `Setting updated: ${key} = ${value}`);
+        }
 
         // Handle specific settings
         if (key === 'dark_theme') {
