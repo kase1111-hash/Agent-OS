@@ -87,7 +87,7 @@ def create_app(config: Optional[WebConfig] = None) -> Any:
             "Install them with: pip install fastapi uvicorn[standard]"
         )
 
-    from fastapi import FastAPI
+    from fastapi import FastAPI, Request
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.staticfiles import StaticFiles
     from fastapi.templating import Jinja2Templates
@@ -176,15 +176,14 @@ def create_app(config: Optional[WebConfig] = None) -> Any:
 
     # Root endpoint
     @app.get("/")
-    async def root():
+    async def root(request: Request):
         """Serve the main application page."""
-        from fastapi import Request
         from fastapi.responses import HTMLResponse
 
         if templates:
             return templates.TemplateResponse(
                 "index.html",
-                {"request": Request, "title": "Agent OS"},
+                {"request": request, "title": "Agent OS"},
             )
         else:
             # Fallback to static HTML
