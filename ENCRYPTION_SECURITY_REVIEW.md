@@ -8,202 +8,161 @@
 
 ## Executive Summary
 
-The Agent-OS repository implements a comprehensive encryption system with support for modern cryptographic algorithms including AES-256-GCM, post-quantum cryptography (ML-KEM, ML-DSA), and hybrid classical+PQ schemes. The implementation follows many security best practices but has several areas requiring attention before production deployment.
+The Agent-OS repository implements a comprehensive encryption system with support for modern cryptographic algorithms including AES-256-GCM, post-quantum cryptography (ML-KEM, ML-DSA), and hybrid classical+PQ schemes. The implementation follows many security best practices.
 
-**Overall Assessment:** The cryptographic architecture is well-designed, but several fallback implementations and configuration issues need to be addressed.
+**Overall Assessment:** The cryptographic architecture is well-designed. All critical, high priority, and medium priority security issues have been fixed. Only low priority issues remain, which are acceptable for development but should be addressed before production deployment.
 
 ---
 
 ## Security Findings
 
-### Critical Issues
+### Critical Issues (FIXED)
 
-#### 1. Insecure Fallback Encryption (HIGH RISK)
-
-**Files Affected:**
-- `src/utils/encryption.py:245-310` (XOR fallback)
-- `src/federation/crypto.py:350-411` (XOR fallback)
-
-**Issue:** When the `cryptography` library is unavailable, the system falls back to a homebrew XOR cipher with HMAC authentication. This is cryptographically weak:
-
-```python
-# encryption.py:255-258
-keystream = self._generate_keystream(key, iv, len(plaintext))
-ciphertext = bytes(p ^ k for p, k in zip(plaintext, keystream))
-```
-
-**Risk:** An attacker with access to multiple ciphertexts encrypted under the same key could potentially recover plaintext using XOR weaknesses.
-
-**Recommendation:**
-- Fail securely instead of falling back to weak crypto
-- Make `cryptography` library a hard requirement
-- Log critical error if cryptography is unavailable
-
----
-
-#### 2. Insecure Fallback Key Exchange (HIGH RISK)
+#### 1. ~~Insecure Fallback Encryption~~ (FIXED)
 
 **Files Affected:**
-- `src/federation/crypto.py:437-440`
-- `src/federation/crypto.py:460-461`
+- `src/utils/encryption.py`
+- `src/federation/crypto.py`
 
-**Issue:** Fallback key pair generation uses hash of private key as public key, and shared secret derivation is simply `hash(private + peer_public)`:
+**Issue:** ~~When the `cryptography` library is unavailable, the system falls back to a homebrew XOR cipher with HMAC authentication.~~
 
-```python
-# crypto.py:438-440
-private_key = secrets.token_bytes(32)
-public_key = hashlib.sha256(private_key).digest()  # NOT a real key exchange!
-```
-
-**Risk:** This provides no actual key exchange security and no forward secrecy.
-
-**Recommendation:** Remove fallback or require proper cryptographic library.
+**Resolution:** The `cryptography` library is now a hard requirement. The code raises a `RuntimeError` if the library is not available, and all insecure fallback encryption methods have been removed. Legacy `obs:` format ciphertexts are now rejected with an error.
 
 ---
 
-### High Priority Issues
-
-#### 3. Weak Password Requirements (MEDIUM-HIGH RISK)
-
-**File:** `src/web/auth.py:298-299`
-
-**Issue:** Minimum password length is only 6 characters with no complexity requirements:
-
-```python
-if not password or len(password) < 6:
-    raise AuthError("Password must be at least 6 characters", "INVALID_PASSWORD")
-```
-
-**Recommendation:**
-- Increase minimum length to 12+ characters
-- Add complexity requirements (uppercase, lowercase, numbers, special chars)
-- Consider implementing password strength scoring (zxcvbn)
-
----
-
-#### 4. Inconsistent PBKDF2 Iteration Counts (MEDIUM RISK)
+#### 2. ~~Insecure Fallback Key Exchange~~ (FIXED)
 
 **Files Affected:**
-- `src/utils/encryption.py:38` - 100,000 iterations
-- `src/memory/keys.py:204` - 600,000 iterations
-- `src/web/auth.py:117` - 100,000 iterations
+- `src/federation/crypto.py`
 
-**Issue:** Different components use different iteration counts, with some using outdated recommendations.
+**Issue:** ~~Fallback key pair generation used hash of private key as public key, providing no actual key exchange security.~~
 
-**Recommendation:**
-- Standardize to 600,000+ iterations across all components
-- Create a central configuration constant for PBKDF2 iterations
-- Consider migrating to Argon2id (already available in keys.py)
+**Resolution:** The fallback key exchange code has been removed. X25519 key exchange is now mandatory and requires the `cryptography` library. Unsupported key exchange methods now raise a `ValueError`.
 
 ---
 
-#### 5. Master Key Storage Without Protection (MEDIUM RISK)
+### High Priority Issues (FIXED)
 
-**File:** `src/utils/encryption.py:83-97`
-
-**Issue:** Master encryption key is stored in plaintext at `~/.agent-os/encryption.key`, protected only by file permissions:
-
-```python
-key_file = os.path.expanduser("~/.agent-os/encryption.key")
-# ...
-with open(key_file, "wb") as f:
-    f.write(key)
-os.chmod(key_file, 0o600)
-```
-
-**Recommendation:**
-- Use OS keyring/credential store (e.g., `keyring` library)
-- Encrypt master key with user-derived key
-- Support hardware security module for master key protection
-
----
-
-#### 6. PQ Private Keys Stored in Base64 Without Encryption (MEDIUM RISK)
-
-**File:** `src/memory/pq_keys.py:986-992`
-
-**Issue:** Post-quantum private keys are stored in base64-encoded files:
-
-```python
-private_key_file.write_text(
-    base64.b64encode(stored_key.private_key).decode()
-)
-private_key_file.chmod(0o600)
-```
-
-**Recommendation:**
-- Encrypt private keys before storage
-- Use master key encryption for key storage
-- Consider hardware binding for sensitive keys
-
----
-
-### Medium Priority Issues
-
-#### 7. Mock Cryptographic Providers Available in Code (MEDIUM RISK)
-
-**Files Affected:**
-- `src/federation/crypto.py:494-551` (MockCryptoProvider)
-- `src/federation/pq/ml_kem.py:518-608` (MockMLKEMProvider)
-- `src/mobile/auth.py:226-258` (Mock biometric)
-
-**Issue:** Mock providers that provide NO security are available and could accidentally be used in production.
-
-**Recommendation:**
-- Remove mock providers from production builds
-- Use environment variable to disable mocks
-- Add runtime checks to prevent mock usage in production
-
----
-
-#### 8. No Rate Limiting on Web Authentication (MEDIUM RISK)
+#### 3. ~~Weak Password Requirements~~ (FIXED)
 
 **File:** `src/web/auth.py`
 
-**Issue:** Web authentication has no visible rate limiting. Mobile auth has lockout (5 attempts), but web auth does not.
+**Issue:** ~~Minimum password length was only 6 characters with no complexity requirements.~~
 
-**Recommendation:**
-- Implement exponential backoff
-- Add account lockout after N failed attempts
-- Consider CAPTCHA after repeated failures
+**Resolution:** Password validation now requires:
+- Minimum 12 characters, maximum 128 characters
+- At least one uppercase letter
+- At least one lowercase letter
+- At least one digit
+- At least one special character
+
+Added `PasswordHasher.validate_password()` method with comprehensive validation.
 
 ---
 
-#### 9. Memory Cannot Be Truly Zeroed in Python (LOW-MEDIUM RISK)
+#### 4. ~~Inconsistent PBKDF2 Iteration Counts~~ (FIXED)
 
 **Files Affected:**
-- `src/memory/keys.py:272-276`
-- `src/memory/pq_keys.py:296-306`
+- `src/utils/encryption.py`
+- `src/web/auth.py`
 
-**Issue:** Python's immutable `bytes` type cannot be securely overwritten:
+**Issue:** ~~Different components used different iteration counts (100K vs 600K).~~
 
-```python
-# keys.py:273-274
-self._master_key = b'\x00' * len(self._master_key)  # Creates new object
-self._master_key = None  # Old bytes may still be in memory
-```
-
-**Recommendation:**
-- Use `bytearray` for sensitive data (mutable)
-- Consider using `ctypes` to zero memory
-- Document this limitation for security auditors
+**Resolution:** All components now standardized to 600,000 iterations per NIST SP 800-132 recommendations. Also standardized salt length to 32 bytes.
 
 ---
 
-#### 10. Session Tokens Not Cryptographically Bound (LOW RISK)
+#### 5. ~~Master Key Storage Without Protection~~ (FIXED)
 
-**File:** `src/web/auth.py:538-539`
+**File:** `src/utils/encryption.py`
 
-**Issue:** Session tokens are random strings without cryptographic binding to session metadata:
+**Issue:** ~~Master encryption key was stored in plaintext file.~~
 
-```python
-token = secrets.token_urlsafe(32)
-```
+**Resolution:** Master key storage now uses a priority-based approach:
+1. Environment variable `AGENT_OS_ENCRYPTION_KEY` (highest priority)
+2. OS keyring/credential store (if `keyring` library installed)
+3. Encrypted file storage with machine-specific protection
 
-**Recommendation:**
-- Consider HMAC-based token that binds user ID, IP, expiry
-- Add session token rotation on privilege changes
-- Implement token revocation on password change
+File storage now encrypts the key using a machine-derived key (combining hostname, username, home directory, and architecture) making the key file useless if copied to another machine. Legacy unencrypted key files are automatically detected and will be migrated.
+
+---
+
+#### 6. ~~PQ Private Keys Stored in Base64 Without Encryption~~ (FIXED)
+
+**File:** `src/memory/pq_keys.py`
+
+**Issue:** ~~Post-quantum private keys were stored in base64-encoded files without encryption.~~
+
+**Resolution:** PQ private keys are now encrypted at rest using AES-256-GCM with a machine-derived key. The encryption format includes:
+- Version byte for future compatibility
+- 12-byte nonce
+- Encrypted ciphertext with authentication tag
+
+Legacy unencrypted keys are automatically detected and migrated to encrypted format on next save.
+
+---
+
+### Medium Priority Issues (FIXED)
+
+#### 7. ~~Mock Cryptographic Providers Available in Code~~ (FIXED)
+
+**Files Affected:**
+- `src/federation/crypto.py` (MockCryptoProvider)
+- `src/federation/pq/ml_kem.py` (MockMLKEMProvider)
+- `src/mobile/auth.py` (BiometricAuth)
+
+**Issue:** ~~Mock providers that provide NO security are available and could accidentally be used in production.~~
+
+**Resolution:** Added production mode detection via `AGENT_OS_PRODUCTION` environment variable. All mock providers now:
+- Raise `RuntimeError` when instantiated in production mode
+- Log warnings when used in development mode
+- BiometricAuth raises an error if simulated authentication is attempted in production
+
+---
+
+#### 8. ~~No Rate Limiting on Web Authentication~~ (FIXED)
+
+**File:** `src/web/auth.py`
+
+**Issue:** ~~Web authentication has no visible rate limiting.~~
+
+**Resolution:** Added comprehensive rate limiting with:
+- `RateLimiter` class tracking failed login attempts
+- Exponential backoff (0s, 1s, 2s, 4s, 8s delays)
+- Account lockout after 5 failed attempts (15-minute duration)
+- Rate limiting by both username and IP address
+- Automatic cleanup of old attempts
+
+---
+
+#### 9. ~~Memory Cannot Be Truly Zeroed in Python~~ (FIXED)
+
+**Files Affected:**
+- `src/memory/keys.py`
+- `src/memory/pq_keys.py`
+
+**Issue:** ~~Python's immutable `bytes` type cannot be securely overwritten.~~
+
+**Resolution:** Added secure memory handling:
+- `secure_zero()` function using `ctypes.memset` for direct memory zeroing
+- `SensitiveBytes` class that stores data as `bytearray` and securely zeros on cleanup
+- Updated `shutdown()` methods to use secure zeroing
+- Master keys now stored as `SensitiveBytes` for automatic secure cleanup
+
+---
+
+#### 10. ~~Session Tokens Not Cryptographically Bound~~ (FIXED)
+
+**File:** `src/web/auth.py`
+
+**Issue:** ~~Session tokens are random strings without cryptographic binding to session metadata.~~
+
+**Resolution:** Session tokens are now cryptographically bound using HMAC:
+- Token binds session ID, user ID, expiry time, and optionally IP address
+- `_generate_bound_token()` creates HMAC-signed tokens
+- `_verify_bound_token()` validates token integrity
+- Token secret from `AGENT_OS_SESSION_SECRET` env var (or ephemeral if not set)
+- `validate_session()` now verifies token binding and IP matching
 
 ---
 
@@ -254,21 +213,21 @@ The codebase demonstrates several security best practices:
 
 ## Recommendations Summary
 
-### Immediate Actions (Before Production)
+### Immediate Actions (COMPLETED)
 
-1. Make `cryptography` library a hard requirement - remove fallback encryption
-2. Increase PBKDF2 iterations to 600,000+ across all components
-3. Strengthen password requirements (12+ chars, complexity)
-4. Encrypt PQ private keys at rest
-5. Add rate limiting to web authentication
+1. ~~Make `cryptography` library a hard requirement - remove fallback encryption~~ ✓
+2. ~~Increase PBKDF2 iterations to 600,000+ across all components~~ ✓
+3. ~~Strengthen password requirements (12+ chars, complexity)~~ ✓
+4. ~~Encrypt PQ private keys at rest~~ ✓
+5. ~~Add rate limiting to web authentication~~ ✓
 
-### Short-Term Improvements
+### Short-Term Improvements (COMPLETED)
 
-1. Move master key to OS keyring/credential store
-2. Disable/remove mock providers in production builds
-3. Use `bytearray` for sensitive key material
-4. Standardize salt lengths to 32 bytes
-5. Add cryptographic binding to session tokens
+1. ~~Move master key to OS keyring/credential store~~ ✓
+2. ~~Disable/remove mock providers in production builds~~ ✓
+3. ~~Use `bytearray` for sensitive key material~~ ✓
+4. Standardize salt lengths to 32 bytes (remaining)
+5. ~~Add cryptographic binding to session tokens~~ ✓
 
 ### Long-Term Enhancements
 

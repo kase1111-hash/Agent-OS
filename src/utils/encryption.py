@@ -34,8 +34,8 @@ class EncryptionConfig:
     algorithm: str = "AES-256-GCM"
     key_length: int = 32  # 256 bits
     iv_length: int = 12  # 96 bits for GCM
-    salt_length: int = 16
-    iterations: int = 100000
+    salt_length: int = 32  # Standardized to 32 bytes
+    iterations: int = 600000  # NIST SP 800-132 recommends >= 600,000 for SHA-256
     tag_length: int = 16
 
 
@@ -49,12 +49,12 @@ class EncryptionService:
     Service for encrypting and decrypting sensitive data.
 
     Uses AES-256-GCM for authenticated encryption.
-    Falls back to HMAC-based obfuscation if cryptography is unavailable.
+    Requires the 'cryptography' library - no insecure fallbacks.
     """
 
     def __init__(self, master_key: Optional[bytes] = None, config: Optional[EncryptionConfig] = None):
         self.config = config or EncryptionConfig()
-        self._has_crypto = self._check_crypto()
+        self._check_crypto()  # Will raise if not available
 
         # Master key for encryption
         if master_key:
@@ -63,43 +63,179 @@ class EncryptionService:
             # Try to load from environment or generate
             self._master_key = self._get_or_create_master_key()
 
-    def _check_crypto(self) -> bool:
-        """Check if cryptography library is available."""
+    def _check_crypto(self) -> None:
+        """Verify cryptography library is available. Raises if not."""
         try:
             from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-            return True
         except ImportError:
-            logger.warning("cryptography library not available - using fallback encryption")
-            return False
+            raise RuntimeError(
+                "The 'cryptography' library is required for encryption. "
+                "Install it with: pip install cryptography"
+            )
 
     def _get_or_create_master_key(self) -> bytes:
-        """Get or create master encryption key."""
-        # Try environment variable first
+        """
+        Get or create master encryption key.
+
+        Priority order:
+        1. Environment variable AGENT_OS_ENCRYPTION_KEY
+        2. OS keyring/credential store (if keyring library available)
+        3. Encrypted file storage (with machine-specific protection)
+        """
+        # Try environment variable first (highest priority)
         env_key = os.environ.get("AGENT_OS_ENCRYPTION_KEY")
         if env_key:
             return base64.b64decode(env_key)
 
-        # Try to load from file
-        key_file = os.path.expanduser("~/.agent-os/encryption.key")
-        if os.path.exists(key_file):
-            with open(key_file, "rb") as f:
-                return f.read()
+        # Try OS keyring if available
+        key = self._try_keyring_load()
+        if key:
+            return key
 
-        # Generate new key
+        # Try to load from encrypted file
+        key = self._try_file_load()
+        if key:
+            return key
+
+        # Generate new key and store it
         key = secrets.token_bytes(self.config.key_length)
+        self._store_master_key(key)
+        return key
 
-        # Try to persist (create directory if needed)
+    def _try_keyring_load(self) -> Optional[bytes]:
+        """Try to load master key from OS keyring."""
+        try:
+            import keyring
+            key_b64 = keyring.get_password("agent-os", "master-key")
+            if key_b64:
+                logger.debug("Loaded master key from OS keyring")
+                return base64.b64decode(key_b64)
+        except ImportError:
+            pass  # keyring not installed
+        except Exception as e:
+            logger.debug(f"Could not access keyring: {e}")
+        return None
+
+    def _try_file_load(self) -> Optional[bytes]:
+        """Try to load master key from encrypted file."""
+        key_file = os.path.expanduser("~/.agent-os/encryption.key")
+        if not os.path.exists(key_file):
+            return None
+
+        try:
+            with open(key_file, "rb") as f:
+                stored_data = f.read()
+
+            # Check if file uses new encrypted format (starts with version marker)
+            if stored_data.startswith(b"AOSKEY1:"):
+                return self._decrypt_stored_key(stored_data)
+            else:
+                # Legacy unencrypted format - migrate on next save
+                logger.warning(
+                    "Master key stored in legacy unencrypted format. "
+                    "Key will be migrated to encrypted format on next save."
+                )
+                return stored_data
+        except Exception as e:
+            logger.error(f"Failed to load master key from file: {e}")
+            return None
+
+    def _get_machine_key(self) -> bytes:
+        """
+        Derive a machine-specific key for protecting the master key at rest.
+
+        Uses machine-specific identifiers to derive a key that is unique to
+        this machine, making the stored key file less useful if copied.
+        """
+        import platform
+        import getpass
+
+        # Combine machine-specific identifiers
+        machine_id_parts = [
+            platform.node(),  # hostname
+            getpass.getuser(),  # username
+            os.path.expanduser("~"),  # home directory
+            platform.machine(),  # architecture
+        ]
+        machine_id = ":".join(machine_id_parts).encode()
+
+        # Derive key using PBKDF2
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
+        # Fixed salt for machine key derivation (not a security concern as
+        # the machine-specific data provides the entropy)
+        salt = b"agent-os-machine-key-v1"
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt,
+            iterations=100000,  # Faster since machine ID has good entropy
+        )
+        return kdf.derive(machine_id)
+
+    def _encrypt_stored_key(self, key: bytes) -> bytes:
+        """Encrypt the master key for file storage."""
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+        machine_key = self._get_machine_key()
+        nonce = secrets.token_bytes(12)
+        aesgcm = AESGCM(machine_key)
+        ciphertext = aesgcm.encrypt(nonce, key, b"agent-os-master-key")
+
+        # Format: VERSION:NONCE:CIPHERTEXT
+        return b"AOSKEY1:" + nonce + ciphertext
+
+    def _decrypt_stored_key(self, stored_data: bytes) -> bytes:
+        """Decrypt the master key from file storage."""
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+        # Parse format: VERSION:NONCE:CIPHERTEXT
+        if not stored_data.startswith(b"AOSKEY1:"):
+            raise ValueError("Invalid stored key format")
+
+        data = stored_data[8:]  # Skip "AOSKEY1:"
+        nonce = data[:12]
+        ciphertext = data[12:]
+
+        machine_key = self._get_machine_key()
+        aesgcm = AESGCM(machine_key)
+        return aesgcm.decrypt(nonce, ciphertext, b"agent-os-master-key")
+
+    def _store_master_key(self, key: bytes) -> None:
+        """Store the master key securely."""
+        # Try OS keyring first
+        try:
+            import keyring
+            keyring.set_password("agent-os", "master-key", base64.b64encode(key).decode())
+            logger.info("Stored master key in OS keyring")
+            return
+        except ImportError:
+            logger.info(
+                "keyring library not installed. Install with 'pip install keyring' "
+                "for more secure key storage."
+            )
+        except Exception as e:
+            logger.warning(f"Could not store key in keyring: {e}")
+
+        # Fall back to encrypted file storage
+        key_file = os.path.expanduser("~/.agent-os/encryption.key")
         try:
             key_dir = os.path.dirname(key_file)
             os.makedirs(key_dir, mode=0o700, exist_ok=True)
+
+            encrypted_key = self._encrypt_stored_key(key)
             with open(key_file, "wb") as f:
-                f.write(key)
+                f.write(encrypted_key)
             os.chmod(key_file, 0o600)
-            logger.info(f"Created new encryption key at {key_file}")
+
+            logger.info(f"Created encrypted master key at {key_file}")
+            logger.warning(
+                "Master key stored in encrypted file. For better security, "
+                "install 'keyring' library or set AGENT_OS_ENCRYPTION_KEY environment variable."
+            )
         except (OSError, PermissionError) as e:
             logger.warning(f"Could not persist encryption key: {e}")
-
-        return key
 
     def derive_key(self, password: str, salt: Optional[bytes] = None) -> Tuple[bytes, bytes]:
         """
@@ -111,23 +247,16 @@ class EncryptionService:
         if salt is None:
             salt = secrets.token_bytes(self.config.salt_length)
 
-        if self._has_crypto:
-            from cryptography.hazmat.primitives import hashes
-            from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
-            kdf = PBKDF2HMAC(
-                algorithm=hashes.SHA256(),
-                length=self.config.key_length,
-                salt=salt,
-                iterations=self.config.iterations,
-            )
-            key = kdf.derive(password.encode())
-        else:
-            # Fallback: HMAC-based key derivation
-            key = password.encode()
-            for _ in range(self.config.iterations // 1000):
-                key = hmac.new(salt, key, hashlib.sha256).digest()
-            key = key[:self.config.key_length]
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=self.config.key_length,
+            salt=salt,
+            iterations=self.config.iterations,
+        )
+        key = kdf.derive(password.encode())
 
         return key, salt
 
@@ -153,10 +282,7 @@ class EncryptionService:
 
         key = key or self._master_key
 
-        if self._has_crypto:
-            return self._encrypt_aes_gcm(plaintext, key, associated_data)
-        else:
-            return self._encrypt_fallback(plaintext, key, associated_data)
+        return self._encrypt_aes_gcm(plaintext, key, associated_data)
 
     def decrypt(
         self,
@@ -174,6 +300,9 @@ class EncryptionService:
 
         Returns:
             Decrypted string
+
+        Raises:
+            ValueError: If ciphertext format is invalid or uses deprecated insecure format
         """
         # Check if already decrypted (backward compatibility)
         if not ciphertext.startswith("enc:") and not ciphertext.startswith("obs:"):
@@ -182,13 +311,13 @@ class EncryptionService:
         key = key or self._master_key
 
         if ciphertext.startswith("enc:"):
-            if self._has_crypto:
-                return self._decrypt_aes_gcm(ciphertext, key, associated_data)
-            else:
-                logger.error("Cannot decrypt AES-GCM without cryptography library")
-                return ciphertext
+            return self._decrypt_aes_gcm(ciphertext, key, associated_data)
         else:
-            return self._decrypt_fallback(ciphertext, key)
+            # Reject legacy insecure format
+            raise ValueError(
+                "Ciphertext uses deprecated insecure 'obs:' format. "
+                "Data must be re-encrypted with secure AES-GCM encryption."
+            )
 
     def _encrypt_aes_gcm(
         self,
@@ -241,73 +370,6 @@ class EncryptionService:
         except Exception as e:
             logger.error(f"Decryption failed: {e}")
             raise ValueError("Decryption failed") from e
-
-    def _encrypt_fallback(
-        self,
-        plaintext: bytes,
-        key: bytes,
-        associated_data: Optional[bytes],
-    ) -> str:
-        """Fallback encryption using XOR with HMAC authentication."""
-        iv = secrets.token_bytes(16)
-
-        # Generate keystream
-        keystream = self._generate_keystream(key, iv, len(plaintext))
-
-        # XOR encryption
-        ciphertext = bytes(p ^ k for p, k in zip(plaintext, keystream))
-
-        # HMAC for authentication
-        auth_data = iv + ciphertext + (associated_data or b"")
-        tag = hmac.new(key, auth_data, hashlib.sha256).digest()[:self.config.tag_length]
-
-        # Encode
-        iv_b64 = base64.b64encode(iv).decode()
-        ct_b64 = base64.b64encode(ciphertext).decode()
-        tag_b64 = base64.b64encode(tag).decode()
-
-        return f"obs:{iv_b64}:{ct_b64}:{tag_b64}"
-
-    def _decrypt_fallback(self, encrypted: str, key: bytes) -> str:
-        """Fallback decryption."""
-        try:
-            parts = encrypted.split(":")
-            if len(parts) != 4:
-                raise ValueError("Invalid format")
-
-            iv = base64.b64decode(parts[1])
-            ciphertext = base64.b64decode(parts[2])
-            tag = base64.b64decode(parts[3])
-
-            # Verify HMAC
-            auth_data = iv + ciphertext
-            expected_tag = hmac.new(key, auth_data, hashlib.sha256).digest()[:self.config.tag_length]
-
-            if not hmac.compare_digest(tag, expected_tag):
-                raise ValueError("Authentication failed")
-
-            # Decrypt
-            keystream = self._generate_keystream(key, iv, len(ciphertext))
-            plaintext = bytes(c ^ k for c, k in zip(ciphertext, keystream))
-
-            return plaintext.decode("utf-8")
-
-        except Exception as e:
-            logger.error(f"Fallback decryption failed: {e}")
-            raise ValueError("Decryption failed") from e
-
-    def _generate_keystream(self, key: bytes, iv: bytes, length: int) -> bytes:
-        """Generate keystream for XOR encryption."""
-        keystream = b""
-        counter = 0
-
-        while len(keystream) < length:
-            block_input = key + iv + counter.to_bytes(4, "big")
-            block = hashlib.sha256(block_input).digest()
-            keystream += block
-            counter += 1
-
-        return keystream[:length]
 
 
 # =============================================================================

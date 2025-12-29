@@ -20,6 +20,7 @@ import base64
 import hashlib
 import hmac
 import logging
+import os
 import secrets
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -28,6 +29,16 @@ from enum import Enum
 from typing import Any, Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+
+def _is_production_mode() -> bool:
+    """Check if running in production mode.
+
+    Production mode is enabled when AGENT_OS_PRODUCTION is set to
+    '1', 'true', or 'yes' (case-insensitive).
+    """
+    env_value = os.environ.get("AGENT_OS_PRODUCTION", "").lower()
+    return env_value in ("1", "true", "yes")
 
 
 # =============================================================================
@@ -521,9 +532,16 @@ class MockMLKEMProvider(MLKEMProvider):
 
     WARNING: This is NOT cryptographically secure and should
     only be used for testing and development.
+
+    This provider is disabled in production mode (AGENT_OS_PRODUCTION=1).
     """
 
     def __init__(self):
+        if _is_production_mode():
+            raise RuntimeError(
+                "MockMLKEMProvider is disabled in production mode. "
+                "Set AGENT_OS_PRODUCTION=0 for development/testing."
+            )
         logger.warning("Using MockMLKEMProvider - NOT SECURE FOR PRODUCTION")
         self._shared_secrets: Dict[str, bytes] = {}
 

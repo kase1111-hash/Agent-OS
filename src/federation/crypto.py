@@ -25,6 +25,16 @@ from .identity import KeyPair, KeyType, PrivateKey, PublicKey
 logger = logging.getLogger(__name__)
 
 
+def _is_production_mode() -> bool:
+    """Check if running in production mode.
+
+    Production mode is enabled when AGENT_OS_PRODUCTION is set to
+    '1', 'true', or 'yes' (case-insensitive).
+    """
+    env_value = os.environ.get("AGENT_OS_PRODUCTION", "").lower()
+    return env_value in ("1", "true", "yes")
+
+
 # =============================================================================
 # Constants
 # =============================================================================
@@ -269,20 +279,23 @@ class CryptoProvider(ABC):
 class DefaultCryptoProvider(CryptoProvider):
     """
     Default cryptographic provider using cryptography library.
+
+    Requires the 'cryptography' library - no insecure fallbacks.
     """
 
     def __init__(self, cipher_suite: CipherSuite = CipherSuite.AES_256_GCM):
         self.cipher_suite = cipher_suite
-        self._has_crypto = self._check_crypto()
+        self._check_crypto()  # Will raise if not available
 
-    def _check_crypto(self) -> bool:
-        """Check if cryptography library is available."""
+    def _check_crypto(self) -> None:
+        """Verify cryptography library is available. Raises if not."""
         try:
             import cryptography
-            return True
         except ImportError:
-            logger.warning("cryptography library not installed, using fallback")
-            return False
+            raise RuntimeError(
+                "The 'cryptography' library is required for federation crypto. "
+                "Install it with: pip install cryptography"
+            )
 
     def encrypt(
         self,
@@ -290,12 +303,10 @@ class DefaultCryptoProvider(CryptoProvider):
         key: SessionKey,
         associated_data: Optional[bytes] = None,
     ) -> Tuple[bytes, bytes, Optional[bytes]]:
-        """Encrypt data."""
-        if self._has_crypto and self.cipher_suite == CipherSuite.AES_256_GCM:
-            return self._encrypt_aes_gcm(plaintext, key.key_data, associated_data)
-
-        # Fallback: simple XOR with HMAC
-        return self._encrypt_fallback(plaintext, key.key_data, associated_data)
+        """Encrypt data using AES-256-GCM."""
+        if self.cipher_suite != CipherSuite.AES_256_GCM:
+            raise ValueError(f"Unsupported cipher suite: {self.cipher_suite}")
+        return self._encrypt_aes_gcm(plaintext, key.key_data, associated_data)
 
     def decrypt(
         self,
@@ -305,12 +316,10 @@ class DefaultCryptoProvider(CryptoProvider):
         auth_tag: Optional[bytes] = None,
         associated_data: Optional[bytes] = None,
     ) -> bytes:
-        """Decrypt data."""
-        if self._has_crypto and self.cipher_suite == CipherSuite.AES_256_GCM:
-            return self._decrypt_aes_gcm(ciphertext, nonce, key.key_data, auth_tag, associated_data)
-
-        # Fallback
-        return self._decrypt_fallback(ciphertext, nonce, key.key_data, auth_tag, associated_data)
+        """Decrypt data using AES-256-GCM."""
+        if self.cipher_suite != CipherSuite.AES_256_GCM:
+            raise ValueError(f"Unsupported cipher suite: {self.cipher_suite}")
+        return self._decrypt_aes_gcm(ciphertext, nonce, key.key_data, auth_tag, associated_data)
 
     def _encrypt_aes_gcm(
         self,
@@ -347,97 +356,31 @@ class DefaultCryptoProvider(CryptoProvider):
 
         return aesgcm.decrypt(nonce, full_ciphertext, associated_data)
 
-    def _encrypt_fallback(
-        self,
-        plaintext: bytes,
-        key: bytes,
-        associated_data: Optional[bytes],
-    ) -> Tuple[bytes, bytes, bytes]:
-        """Simple fallback encryption."""
-        nonce = secrets.token_bytes(16)
-
-        # Generate keystream from key and nonce
-        keystream = self._generate_keystream(key, nonce, len(plaintext))
-
-        # XOR plaintext with keystream
-        ciphertext = bytes(p ^ k for p, k in zip(plaintext, keystream))
-
-        # Generate HMAC for authentication
-        auth_data = ciphertext + nonce + (associated_data or b"")
-        auth_tag = hmac.new(key, auth_data, hashlib.sha256).digest()
-
-        return ciphertext, nonce, auth_tag
-
-    def _decrypt_fallback(
-        self,
-        ciphertext: bytes,
-        nonce: bytes,
-        key: bytes,
-        auth_tag: Optional[bytes],
-        associated_data: Optional[bytes],
-    ) -> bytes:
-        """Simple fallback decryption."""
-        # Verify HMAC
-        auth_data = ciphertext + nonce + (associated_data or b"")
-        expected_tag = hmac.new(key, auth_data, hashlib.sha256).digest()
-
-        if auth_tag and not hmac.compare_digest(auth_tag, expected_tag):
-            raise ValueError("Authentication failed")
-
-        # Generate keystream
-        keystream = self._generate_keystream(key, nonce, len(ciphertext))
-
-        # XOR ciphertext with keystream
-        plaintext = bytes(c ^ k for c, k in zip(ciphertext, keystream))
-
-        return plaintext
-
-    def _generate_keystream(
-        self,
-        key: bytes,
-        nonce: bytes,
-        length: int,
-    ) -> bytes:
-        """Generate keystream for XOR encryption."""
-        keystream = b""
-        counter = 0
-
-        while len(keystream) < length:
-            block_input = key + nonce + counter.to_bytes(4, "big")
-            block = hashlib.sha256(block_input).digest()
-            keystream += block
-            counter += 1
-
-        return keystream[:length]
-
     def generate_key_pair(
         self,
         method: KeyExchangeMethod = KeyExchangeMethod.X25519,
     ) -> Tuple[bytes, bytes]:
-        """Generate key exchange key pair."""
-        if self._has_crypto and method == KeyExchangeMethod.X25519:
-            from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-            from cryptography.hazmat.primitives import serialization
+        """Generate key exchange key pair using X25519."""
+        if method != KeyExchangeMethod.X25519:
+            raise ValueError(f"Unsupported key exchange method: {method}")
 
-            private_key = X25519PrivateKey.generate()
-            public_key = private_key.public_key()
+        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+        from cryptography.hazmat.primitives import serialization
 
-            private_bytes = private_key.private_bytes(
-                encoding=serialization.Encoding.Raw,
-                format=serialization.PrivateFormat.Raw,
-                encryption_algorithm=serialization.NoEncryption(),
-            )
-            public_bytes = public_key.public_bytes(
-                encoding=serialization.Encoding.Raw,
-                format=serialization.PublicFormat.Raw,
-            )
+        private_key = X25519PrivateKey.generate()
+        public_key = private_key.public_key()
 
-            return public_bytes, private_bytes
+        private_bytes = private_key.private_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PrivateFormat.Raw,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        public_bytes = public_key.public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
 
-        # Fallback: generate random bytes
-        private_key = secrets.token_bytes(32)
-        public_key = hashlib.sha256(private_key).digest()
-        return public_key, private_key
+        return public_bytes, private_bytes
 
     def derive_shared_secret(
         self,
@@ -445,20 +388,19 @@ class DefaultCryptoProvider(CryptoProvider):
         peer_public_key: bytes,
         method: KeyExchangeMethod = KeyExchangeMethod.X25519,
     ) -> bytes:
-        """Derive shared secret."""
-        if self._has_crypto and method == KeyExchangeMethod.X25519:
-            from cryptography.hazmat.primitives.asymmetric.x25519 import (
-                X25519PrivateKey,
-                X25519PublicKey,
-            )
+        """Derive shared secret using X25519 key exchange."""
+        if method != KeyExchangeMethod.X25519:
+            raise ValueError(f"Unsupported key exchange method: {method}")
 
-            priv = X25519PrivateKey.from_private_bytes(private_key)
-            pub = X25519PublicKey.from_public_bytes(peer_public_key)
+        from cryptography.hazmat.primitives.asymmetric.x25519 import (
+            X25519PrivateKey,
+            X25519PublicKey,
+        )
 
-            return priv.exchange(pub)
+        priv = X25519PrivateKey.from_private_bytes(private_key)
+        pub = X25519PublicKey.from_public_bytes(peer_public_key)
 
-        # Fallback: simple hash combination
-        return hashlib.sha256(private_key + peer_public_key).digest()
+        return priv.exchange(pub)
 
     def derive_session_key(
         self,
@@ -468,22 +410,16 @@ class DefaultCryptoProvider(CryptoProvider):
         key_length: int = 32,
     ) -> bytes:
         """Derive session key using HKDF."""
-        if self._has_crypto:
-            from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-            from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+        from cryptography.hazmat.primitives import hashes
 
-            hkdf = HKDF(
-                algorithm=hashes.SHA256(),
-                length=key_length,
-                salt=salt,
-                info=info,
-            )
-            return hkdf.derive(shared_secret)
-
-        # Fallback: simple HMAC-based derivation
-        prk = hmac.new(salt, shared_secret, hashlib.sha256).digest()
-        okm = hmac.new(prk, info + b"\x01", hashlib.sha256).digest()
-        return okm[:key_length]
+        hkdf = HKDF(
+            algorithm=hashes.SHA256(),
+            length=key_length,
+            salt=salt,
+            info=info,
+        )
+        return hkdf.derive(shared_secret)
 
 
 # =============================================================================
@@ -494,7 +430,18 @@ class DefaultCryptoProvider(CryptoProvider):
 class MockCryptoProvider(CryptoProvider):
     """
     Mock crypto provider for testing.
+
+    WARNING: This provider is NOT cryptographically secure.
+    It is disabled in production mode (AGENT_OS_PRODUCTION=1).
     """
+
+    def __init__(self):
+        if _is_production_mode():
+            raise RuntimeError(
+                "MockCryptoProvider is disabled in production mode. "
+                "Set AGENT_OS_PRODUCTION=0 for development/testing."
+            )
+        logger.warning("Using MockCryptoProvider - NOT SECURE FOR PRODUCTION")
 
     def encrypt(
         self,
