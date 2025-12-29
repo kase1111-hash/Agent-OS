@@ -25,6 +25,16 @@ from .identity import KeyPair, KeyType, PrivateKey, PublicKey
 logger = logging.getLogger(__name__)
 
 
+def _is_production_mode() -> bool:
+    """Check if running in production mode.
+
+    Production mode is enabled when AGENT_OS_PRODUCTION is set to
+    '1', 'true', or 'yes' (case-insensitive).
+    """
+    env_value = os.environ.get("AGENT_OS_PRODUCTION", "").lower()
+    return env_value in ("1", "true", "yes")
+
+
 # =============================================================================
 # Constants
 # =============================================================================
@@ -420,7 +430,18 @@ class DefaultCryptoProvider(CryptoProvider):
 class MockCryptoProvider(CryptoProvider):
     """
     Mock crypto provider for testing.
+
+    WARNING: This provider is NOT cryptographically secure.
+    It is disabled in production mode (AGENT_OS_PRODUCTION=1).
     """
+
+    def __init__(self):
+        if _is_production_mode():
+            raise RuntimeError(
+                "MockCryptoProvider is disabled in production mode. "
+                "Set AGENT_OS_PRODUCTION=0 for development/testing."
+            )
+        logger.warning("Using MockCryptoProvider - NOT SECURE FOR PRODUCTION")
 
     def encrypt(
         self,

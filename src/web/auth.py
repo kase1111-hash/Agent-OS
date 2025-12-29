@@ -8,6 +8,7 @@ Provides:
 - Role-based access control
 """
 
+import base64
 import hashlib
 import hmac
 import json
@@ -21,7 +22,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +111,125 @@ class Session:
             "last_activity": self.last_activity.isoformat(),
             "is_active": self.is_active,
         }
+
+
+@dataclass
+class LoginAttempt:
+    """Record of a login attempt for rate limiting."""
+    identifier: str  # Username or IP address
+    attempt_time: datetime
+    success: bool
+
+
+class RateLimiter:
+    """Rate limiter for authentication attempts.
+
+    Implements:
+    - Exponential backoff after failed attempts
+    - Account lockout after max failures
+    """
+
+    MAX_ATTEMPTS = 5  # Max failed attempts before lockout
+    LOCKOUT_DURATION = timedelta(minutes=15)  # Lockout duration
+    ATTEMPT_WINDOW = timedelta(minutes=15)  # Window to count failed attempts
+
+    # Exponential backoff delays (in seconds) after each failed attempt
+    BACKOFF_DELAYS = [0, 1, 2, 4, 8]  # 0s, 1s, 2s, 4s, 8s
+
+    def __init__(self):
+        self._attempts: Dict[str, List[LoginAttempt]] = {}
+        self._lockouts: Dict[str, datetime] = {}
+        self._lock = threading.Lock()
+
+    def is_locked_out(self, identifier: str) -> Tuple[bool, Optional[int]]:
+        """Check if identifier is locked out.
+
+        Args:
+            identifier: Username or IP address
+
+        Returns:
+            Tuple of (is_locked, seconds_remaining)
+        """
+        with self._lock:
+            if identifier not in self._lockouts:
+                return False, None
+
+            lockout_end = self._lockouts[identifier]
+            if datetime.now() >= lockout_end:
+                del self._lockouts[identifier]
+                return False, None
+
+            remaining = int((lockout_end - datetime.now()).total_seconds())
+            return True, remaining
+
+    def get_backoff_delay(self, identifier: str) -> int:
+        """Get required backoff delay in seconds.
+
+        Args:
+            identifier: Username or IP address
+
+        Returns:
+            Delay in seconds before next attempt is allowed
+        """
+        with self._lock:
+            recent_failures = self._get_recent_failures(identifier)
+            if recent_failures >= len(self.BACKOFF_DELAYS):
+                return self.BACKOFF_DELAYS[-1]
+            return self.BACKOFF_DELAYS[recent_failures]
+
+    def record_attempt(self, identifier: str, success: bool) -> None:
+        """Record a login attempt.
+
+        Args:
+            identifier: Username or IP address
+            success: Whether the attempt was successful
+        """
+        with self._lock:
+            attempt = LoginAttempt(
+                identifier=identifier,
+                attempt_time=datetime.now(),
+                success=success,
+            )
+
+            if identifier not in self._attempts:
+                self._attempts[identifier] = []
+
+            self._attempts[identifier].append(attempt)
+            self._cleanup_old_attempts(identifier)
+
+            if success:
+                # Clear lockout and failed attempts on success
+                if identifier in self._lockouts:
+                    del self._lockouts[identifier]
+                self._attempts[identifier] = [a for a in self._attempts[identifier] if a.success]
+            else:
+                # Check if lockout should be applied
+                failures = self._get_recent_failures(identifier)
+                if failures >= self.MAX_ATTEMPTS:
+                    self._lockouts[identifier] = datetime.now() + self.LOCKOUT_DURATION
+                    logger.warning(f"Account locked out: {identifier} (too many failed attempts)")
+
+    def _get_recent_failures(self, identifier: str) -> int:
+        """Get count of recent failed attempts (within window)."""
+        if identifier not in self._attempts:
+            return 0
+
+        cutoff = datetime.now() - self.ATTEMPT_WINDOW
+        return sum(
+            1 for a in self._attempts[identifier]
+            if not a.success and a.attempt_time > cutoff
+        )
+
+    def _cleanup_old_attempts(self, identifier: str) -> None:
+        """Remove attempts older than the window."""
+        if identifier not in self._attempts:
+            return
+
+        cutoff = datetime.now() - self.ATTEMPT_WINDOW
+        self._attempts[identifier] = [
+            a for a in self._attempts[identifier]
+            if a.attempt_time > cutoff
+        ]
 
 
 class PasswordHasher:
@@ -212,7 +332,13 @@ class UserStore:
     SQLite-based user account store.
 
     Provides CRUD operations for user accounts and sessions.
+    Session tokens are cryptographically bound to session metadata
+    (user ID, IP, expiry) using HMAC.
     """
+
+    # Token secret is generated per-instance and should be stored securely
+    # in production (e.g., from environment variable or keyring)
+    _TOKEN_SECRET_ENV = "AGENT_OS_SESSION_SECRET"
 
     def __init__(self, db_path: Optional[Path] = None):
         """
@@ -225,6 +351,111 @@ class UserStore:
         self._lock = threading.Lock()
         self._connection: Optional[sqlite3.Connection] = None
         self._initialized = False
+        self._rate_limiter = RateLimiter()
+
+        # Session token signing secret
+        env_secret = os.environ.get(self._TOKEN_SECRET_ENV)
+        if env_secret:
+            self._token_secret = env_secret.encode()
+        else:
+            # Generate random secret for this instance
+            # Note: In production, this should be persistent
+            self._token_secret = secrets.token_bytes(32)
+            logger.warning(
+                f"No {self._TOKEN_SECRET_ENV} set - using ephemeral session secret. "
+                "Sessions will not survive restarts."
+            )
+
+    def _generate_bound_token(
+        self,
+        session_id: str,
+        user_id: str,
+        expires_at: datetime,
+        ip_address: Optional[str] = None,
+    ) -> str:
+        """
+        Generate a cryptographically bound session token.
+
+        The token includes an HMAC that binds it to the session metadata,
+        preventing token theft/replay attacks.
+
+        Args:
+            session_id: Unique session ID
+            user_id: User ID
+            expires_at: Token expiration time
+            ip_address: Optional client IP (bound to token if provided)
+
+        Returns:
+            Base64-encoded token with embedded HMAC
+        """
+        # Create binding data
+        binding_data = f"{session_id}:{user_id}:{expires_at.isoformat()}"
+        if ip_address:
+            binding_data += f":{ip_address}"
+
+        # Generate random component
+        random_component = secrets.token_bytes(16)
+
+        # Generate HMAC over binding data + random component
+        message = binding_data.encode() + random_component
+        signature = hmac.new(
+            self._token_secret,
+            message,
+            hashlib.sha256
+        ).digest()
+
+        # Token format: random_component || signature (both in base64)
+        token_bytes = random_component + signature
+        return base64.urlsafe_b64encode(token_bytes).decode()
+
+    def _verify_bound_token(
+        self,
+        token: str,
+        session_id: str,
+        user_id: str,
+        expires_at: datetime,
+        ip_address: Optional[str] = None,
+    ) -> bool:
+        """
+        Verify a cryptographically bound session token.
+
+        Args:
+            token: The session token to verify
+            session_id: Expected session ID
+            user_id: Expected user ID
+            expires_at: Expected expiration time
+            ip_address: Expected client IP (if bound)
+
+        Returns:
+            True if token is valid and matches binding data
+        """
+        try:
+            token_bytes = base64.urlsafe_b64decode(token.encode())
+
+            if len(token_bytes) != 48:  # 16 random + 32 signature
+                return False
+
+            random_component = token_bytes[:16]
+            provided_signature = token_bytes[16:]
+
+            # Recreate binding data
+            binding_data = f"{session_id}:{user_id}:{expires_at.isoformat()}"
+            if ip_address:
+                binding_data += f":{ip_address}"
+
+            # Recompute expected signature
+            message = binding_data.encode() + random_component
+            expected_signature = hmac.new(
+                self._token_secret,
+                message,
+                hashlib.sha256
+            ).digest()
+
+            return hmac.compare_digest(provided_signature, expected_signature)
+
+        except Exception as e:
+            logger.warning(f"Token verification failed: {e}")
+            return False
 
     def initialize(self) -> bool:
         """Initialize the user store."""
@@ -399,31 +630,68 @@ class UserStore:
         logger.info(f"Created user: {username} ({user_id})")
         return user
 
-    def authenticate(self, username: str, password: str) -> Optional[User]:
+    def authenticate(
+        self,
+        username: str,
+        password: str,
+        ip_address: Optional[str] = None,
+    ) -> Tuple[Optional[User], Optional[str]]:
         """
         Authenticate a user with username and password.
+
+        Includes rate limiting with exponential backoff and account lockout.
 
         Args:
             username: Username or email
             password: Plain text password
+            ip_address: Optional client IP for rate limiting
 
         Returns:
-            User if authentication successful, None otherwise
+            Tuple of (User, None) if successful, (None, error_message) otherwise
         """
+        # Check rate limiting by username
+        is_locked, remaining = self._rate_limiter.is_locked_out(username)
+        if is_locked:
+            logger.warning(f"Login attempt for locked account: {username}")
+            return None, f"Account temporarily locked. Try again in {remaining} seconds."
+
+        # Also check by IP if provided
+        if ip_address:
+            ip_locked, ip_remaining = self._rate_limiter.is_locked_out(ip_address)
+            if ip_locked:
+                logger.warning(f"Login attempt from locked IP: {ip_address}")
+                return None, f"Too many failed attempts. Try again in {ip_remaining} seconds."
+
         # Try to find user by username or email
         user = self.get_user_by_username(username)
         if not user:
             user = self.get_user_by_email(username)
 
         if not user:
-            return None
+            # Record failed attempt even for non-existent users (timing attack prevention)
+            self._rate_limiter.record_attempt(username, success=False)
+            if ip_address:
+                self._rate_limiter.record_attempt(ip_address, success=False)
+            return None, "Invalid username or password"
 
         if not user.is_active:
-            return None
+            self._rate_limiter.record_attempt(username, success=False)
+            if ip_address:
+                self._rate_limiter.record_attempt(ip_address, success=False)
+            return None, "Account is inactive"
 
         # Verify password
         if not PasswordHasher.verify_password(password, user.password_hash, user.salt):
-            return None
+            self._rate_limiter.record_attempt(username, success=False)
+            if ip_address:
+                self._rate_limiter.record_attempt(ip_address, success=False)
+            logger.warning(f"Failed login attempt for user: {username}")
+            return None, "Invalid username or password"
+
+        # Success - record and clear any lockouts
+        self._rate_limiter.record_attempt(username, success=True)
+        if ip_address:
+            self._rate_limiter.record_attempt(ip_address, success=True)
 
         # Update last login
         with self._lock:
@@ -434,7 +702,8 @@ class UserStore:
             self._connection.commit()
 
         user.last_login = datetime.now()
-        return user
+        logger.info(f"Successful login for user: {username}")
+        return user, None
 
     def get_user(self, user_id: str) -> Optional[User]:
         """Get a user by ID."""
@@ -569,23 +838,37 @@ class UserStore:
         duration_hours: int = 24,
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
+        bind_to_ip: bool = True,
     ) -> Session:
         """
         Create a new session for a user.
+
+        The session token is cryptographically bound to the session metadata
+        (user ID, session ID, expiry, and optionally IP address) using HMAC.
+        This prevents token theft and replay attacks.
 
         Args:
             user_id: User ID
             duration_hours: Session duration in hours
             ip_address: Client IP address
             user_agent: Client user agent
+            bind_to_ip: Whether to bind token to IP address
 
         Returns:
             Created Session
         """
         session_id = f"sess_{secrets.token_hex(16)}"
-        token = secrets.token_urlsafe(32)
         now = datetime.now()
         expires_at = now + timedelta(hours=duration_hours)
+
+        # Generate cryptographically bound token
+        bound_ip = ip_address if bind_to_ip else None
+        token = self._generate_bound_token(
+            session_id=session_id,
+            user_id=user_id,
+            expires_at=expires_at,
+            ip_address=bound_ip,
+        )
 
         session = Session(
             session_id=session_id,
@@ -640,12 +923,22 @@ class UserStore:
 
         return session
 
-    def validate_session(self, token: str) -> Optional[User]:
+    def validate_session(
+        self,
+        token: str,
+        ip_address: Optional[str] = None,
+        verify_binding: bool = True,
+    ) -> Optional[User]:
         """
         Validate a session token and return the associated user.
 
+        Verifies the cryptographic binding of the token to ensure it
+        hasn't been tampered with or stolen.
+
         Args:
             token: Session token
+            ip_address: Client IP (for binding verification)
+            verify_binding: Whether to verify token binding (default: True)
 
         Returns:
             User if session is valid, None otherwise
@@ -653,6 +946,31 @@ class UserStore:
         session = self.get_session_by_token(token)
         if not session or not session.is_valid:
             return None
+
+        # Verify cryptographic binding if enabled
+        if verify_binding and session.expires_at:
+            # Use stored IP if available for verification
+            bound_ip = session.ip_address if session.ip_address else None
+
+            # If caller provided IP, use that for stricter verification
+            if ip_address and session.ip_address:
+                # Check if IP matches the bound IP
+                if ip_address != session.ip_address:
+                    logger.warning(
+                        f"Session IP mismatch: expected {session.ip_address}, "
+                        f"got {ip_address}"
+                    )
+                    return None
+
+            if not self._verify_bound_token(
+                token=token,
+                session_id=session.session_id,
+                user_id=session.user_id,
+                expires_at=session.expires_at,
+                ip_address=bound_ip,
+            ):
+                logger.warning(f"Session token binding verification failed")
+                return None
 
         user = self.get_user(session.user_id)
         if not user or not user.is_active:

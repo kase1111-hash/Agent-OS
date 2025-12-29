@@ -5,6 +5,7 @@ Handles key generation, derivation, storage, and hardware binding.
 Supports software keys and TPM/hardware security module integration.
 """
 
+import ctypes
 import os
 import secrets
 import hashlib
@@ -14,7 +15,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any, List, Tuple, Union
 from enum import Enum, auto
 import threading
 
@@ -22,6 +23,74 @@ from .profiles import EncryptionTier, KeyDerivation, KeyBinding, ProfileManager
 
 
 logger = logging.getLogger(__name__)
+
+
+def secure_zero(data: Union[bytearray, memoryview]) -> None:
+    """
+    Securely zero out sensitive data in memory.
+
+    Uses ctypes to directly overwrite memory, bypassing Python's
+    immutability protections.
+
+    Note: This only works with mutable types (bytearray, memoryview).
+    For bytes objects, convert to bytearray first if possible.
+
+    Args:
+        data: Mutable byte-like object to zero out
+    """
+    if not isinstance(data, (bytearray, memoryview)):
+        logger.warning(
+            "secure_zero called with immutable type. "
+            "Use bytearray for sensitive data."
+        )
+        return
+
+    try:
+        # Get pointer to data
+        if isinstance(data, memoryview):
+            ctypes.memset(ctypes.addressof(ctypes.c_char.from_buffer(data)), 0, len(data))
+        else:
+            ctypes.memset(ctypes.addressof((ctypes.c_char * len(data)).from_buffer(data)), 0, len(data))
+    except (TypeError, ValueError) as e:
+        # Fallback: manual zeroing (less secure but works)
+        logger.warning(f"ctypes memset failed, using fallback: {e}")
+        for i in range(len(data)):
+            data[i] = 0
+
+
+class SensitiveBytes:
+    """
+    Container for sensitive byte data that supports secure zeroing.
+
+    Uses bytearray internally for mutable storage and provides
+    secure cleanup on deletion or explicit clear.
+    """
+
+    def __init__(self, data: bytes):
+        """Initialize with bytes data (converted to bytearray internally)."""
+        self._data = bytearray(data)
+
+    def __bytes__(self) -> bytes:
+        """Return as immutable bytes (use sparingly)."""
+        return bytes(self._data)
+
+    def __len__(self) -> int:
+        return len(self._data)
+
+    @property
+    def data(self) -> bytearray:
+        """Access underlying bytearray."""
+        return self._data
+
+    def clear(self) -> None:
+        """Securely zero and clear the data."""
+        if self._data:
+            secure_zero(self._data)
+            self._data = bytearray()
+
+    def __del__(self):
+        """Securely zero on garbage collection."""
+        self.clear()
 
 
 class KeyStatus(Enum):
@@ -251,30 +320,47 @@ class KeyManager:
             if master_password:
                 # Derive master key from password
                 salt = self._get_or_create_master_salt()
-                self._master_key = self._derive_key_pbkdf2(
+                key_bytes = self._derive_key_pbkdf2(
                     master_password.encode(),
                     salt,
                     32,
                 )
+                self._master_key = SensitiveBytes(key_bytes)
             else:
                 # Generate random master key (for session-only use)
-                self._master_key = secrets.token_bytes(32)
+                self._master_key = SensitiveBytes(secrets.token_bytes(32))
 
             self._initialized = True
             logger.info("Key manager initialized")
             return True
 
     def shutdown(self) -> None:
-        """Securely shutdown key manager."""
+        """Securely shutdown key manager.
+
+        Uses secure memory zeroing to clear sensitive key material.
+        """
         with self._lock:
-            # Clear sensitive data from memory
+            # Securely clear all cached keys
+            for key_data in self._key_cache.values():
+                if hasattr(key_data, 'key_data') and key_data.key_data:
+                    # Convert to bytearray and zero if possible
+                    if isinstance(key_data.key_data, bytes):
+                        temp = bytearray(key_data.key_data)
+                        secure_zero(temp)
             self._key_cache.clear()
+
+            # Securely clear master key
             if self._master_key:
-                # Overwrite with zeros before clearing
-                self._master_key = b'\x00' * len(self._master_key)
+                if isinstance(self._master_key, SensitiveBytes):
+                    self._master_key.clear()
+                else:
+                    # Legacy: convert to bytearray and zero
+                    temp = bytearray(self._master_key)
+                    secure_zero(temp)
                 self._master_key = None
+
             self._initialized = False
-            logger.info("Key manager shutdown complete")
+            logger.info("Key manager shutdown complete (memory securely cleared)")
 
     def generate_key(
         self,

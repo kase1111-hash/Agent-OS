@@ -11,6 +11,7 @@ import asyncio
 import hashlib
 import hmac
 import logging
+import os
 import secrets
 import time
 from dataclasses import dataclass, field
@@ -19,6 +20,16 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+
+def _is_production_mode() -> bool:
+    """Check if running in production mode.
+
+    Production mode is enabled when AGENT_OS_PRODUCTION is set to
+    '1', 'true', or 'yes' (case-insensitive).
+    """
+    env_value = os.environ.get("AGENT_OS_PRODUCTION", "").lower()
+    return env_value in ("1", "true", "yes")
 
 
 class AuthState(str, Enum):
@@ -187,6 +198,10 @@ class BiometricAuth:
     - Face ID (iOS)
     - Touch ID (iOS)
     - Fingerprint (Android)
+
+    WARNING: This implementation simulates biometric authentication.
+    In production mode (AGENT_OS_PRODUCTION=1), simulated authentication
+    is disabled and requires real OS biometric integration.
     """
 
     def __init__(self, biometric_type: BiometricType = BiometricType.NONE):
@@ -198,6 +213,13 @@ class BiometricAuth:
         self.biometric_type = biometric_type
         self._is_enrolled = False
         self._auth_callbacks: List[Callable[[bool], None]] = []
+        self._production_mode = _is_production_mode()
+
+        if self._production_mode and biometric_type != BiometricType.NONE:
+            logger.warning(
+                "BiometricAuth running in production mode - "
+                "simulated authentication is disabled"
+            )
 
     @property
     def is_available(self) -> bool:
@@ -231,15 +253,30 @@ class BiometricAuth:
 
         Returns:
             True if authentication successful
+
+        Raises:
+            RuntimeError: If called in production mode without real OS integration
         """
         if not self.is_available or not self._is_enrolled:
             return False
 
-        # Simulate biometric prompt
+        if self._production_mode:
+            # In production mode, simulated biometrics are not allowed
+            # Real OS integration would be required here
+            logger.error(
+                "Simulated biometric authentication is disabled in production. "
+                "Real OS biometric integration is required."
+            )
+            raise RuntimeError(
+                "Simulated biometric authentication is disabled in production mode. "
+                "Real OS biometric integration is required."
+            )
+
+        # Simulate biometric prompt (development/testing only)
         await asyncio.sleep(0.1)
 
-        # In production, this would trigger OS biometric prompt
-        success = True  # Mock success
+        # In development, simulate success
+        success = True
 
         for callback in self._auth_callbacks:
             try:

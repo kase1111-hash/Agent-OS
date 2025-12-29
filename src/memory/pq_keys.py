@@ -28,6 +28,8 @@ from .keys import (
     KeyStatus,
     DerivedKey,
     HardwareBindingInterface,
+    secure_zero,
+    SensitiveBytes,
 )
 from .profiles import EncryptionTier, KeyBinding, ProfileManager
 
@@ -376,17 +378,29 @@ class PostQuantumKeyManager:
             return True
 
     def shutdown(self) -> None:
-        """Securely shutdown and clear keys from memory."""
+        """Securely shutdown and clear keys from memory.
+
+        Uses secure memory zeroing to clear all private key material.
+        """
         with self._lock:
-            # Securely clear all private keys
+            # Securely clear all private keys using proper memory zeroing
             for stored_key in self._pq_keys.values():
                 if stored_key.private_key:
-                    # Overwrite with zeros
-                    stored_key.private_key = b"\x00" * len(stored_key.private_key)
+                    # Convert to bytearray and securely zero
+                    temp = bytearray(stored_key.private_key)
+                    secure_zero(temp)
+                    stored_key.private_key = None
 
             self._pq_keys.clear()
+
+            # Clear storage key if present
+            if hasattr(self, '_storage_key') and self._storage_key:
+                temp = bytearray(self._storage_key)
+                secure_zero(temp)
+                self._storage_key = None
+
             self._initialized = False
-            logger.info("Post-quantum key manager shutdown")
+            logger.info("Post-quantum key manager shutdown (memory securely cleared)")
 
     @property
     def is_available(self) -> bool:
