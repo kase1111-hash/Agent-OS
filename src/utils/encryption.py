@@ -49,12 +49,12 @@ class EncryptionService:
     Service for encrypting and decrypting sensitive data.
 
     Uses AES-256-GCM for authenticated encryption.
-    Falls back to HMAC-based obfuscation if cryptography is unavailable.
+    Requires the 'cryptography' library - no insecure fallbacks.
     """
 
     def __init__(self, master_key: Optional[bytes] = None, config: Optional[EncryptionConfig] = None):
         self.config = config or EncryptionConfig()
-        self._has_crypto = self._check_crypto()
+        self._check_crypto()  # Will raise if not available
 
         # Master key for encryption
         if master_key:
@@ -63,14 +63,15 @@ class EncryptionService:
             # Try to load from environment or generate
             self._master_key = self._get_or_create_master_key()
 
-    def _check_crypto(self) -> bool:
-        """Check if cryptography library is available."""
+    def _check_crypto(self) -> None:
+        """Verify cryptography library is available. Raises if not."""
         try:
             from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-            return True
         except ImportError:
-            logger.warning("cryptography library not available - using fallback encryption")
-            return False
+            raise RuntimeError(
+                "The 'cryptography' library is required for encryption. "
+                "Install it with: pip install cryptography"
+            )
 
     def _get_or_create_master_key(self) -> bytes:
         """Get or create master encryption key."""
@@ -111,23 +112,16 @@ class EncryptionService:
         if salt is None:
             salt = secrets.token_bytes(self.config.salt_length)
 
-        if self._has_crypto:
-            from cryptography.hazmat.primitives import hashes
-            from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
-            kdf = PBKDF2HMAC(
-                algorithm=hashes.SHA256(),
-                length=self.config.key_length,
-                salt=salt,
-                iterations=self.config.iterations,
-            )
-            key = kdf.derive(password.encode())
-        else:
-            # Fallback: HMAC-based key derivation
-            key = password.encode()
-            for _ in range(self.config.iterations // 1000):
-                key = hmac.new(salt, key, hashlib.sha256).digest()
-            key = key[:self.config.key_length]
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=self.config.key_length,
+            salt=salt,
+            iterations=self.config.iterations,
+        )
+        key = kdf.derive(password.encode())
 
         return key, salt
 
@@ -153,10 +147,7 @@ class EncryptionService:
 
         key = key or self._master_key
 
-        if self._has_crypto:
-            return self._encrypt_aes_gcm(plaintext, key, associated_data)
-        else:
-            return self._encrypt_fallback(plaintext, key, associated_data)
+        return self._encrypt_aes_gcm(plaintext, key, associated_data)
 
     def decrypt(
         self,
@@ -174,6 +165,9 @@ class EncryptionService:
 
         Returns:
             Decrypted string
+
+        Raises:
+            ValueError: If ciphertext format is invalid or uses deprecated insecure format
         """
         # Check if already decrypted (backward compatibility)
         if not ciphertext.startswith("enc:") and not ciphertext.startswith("obs:"):
@@ -182,13 +176,13 @@ class EncryptionService:
         key = key or self._master_key
 
         if ciphertext.startswith("enc:"):
-            if self._has_crypto:
-                return self._decrypt_aes_gcm(ciphertext, key, associated_data)
-            else:
-                logger.error("Cannot decrypt AES-GCM without cryptography library")
-                return ciphertext
+            return self._decrypt_aes_gcm(ciphertext, key, associated_data)
         else:
-            return self._decrypt_fallback(ciphertext, key)
+            # Reject legacy insecure format
+            raise ValueError(
+                "Ciphertext uses deprecated insecure 'obs:' format. "
+                "Data must be re-encrypted with secure AES-GCM encryption."
+            )
 
     def _encrypt_aes_gcm(
         self,
@@ -241,73 +235,6 @@ class EncryptionService:
         except Exception as e:
             logger.error(f"Decryption failed: {e}")
             raise ValueError("Decryption failed") from e
-
-    def _encrypt_fallback(
-        self,
-        plaintext: bytes,
-        key: bytes,
-        associated_data: Optional[bytes],
-    ) -> str:
-        """Fallback encryption using XOR with HMAC authentication."""
-        iv = secrets.token_bytes(16)
-
-        # Generate keystream
-        keystream = self._generate_keystream(key, iv, len(plaintext))
-
-        # XOR encryption
-        ciphertext = bytes(p ^ k for p, k in zip(plaintext, keystream))
-
-        # HMAC for authentication
-        auth_data = iv + ciphertext + (associated_data or b"")
-        tag = hmac.new(key, auth_data, hashlib.sha256).digest()[:self.config.tag_length]
-
-        # Encode
-        iv_b64 = base64.b64encode(iv).decode()
-        ct_b64 = base64.b64encode(ciphertext).decode()
-        tag_b64 = base64.b64encode(tag).decode()
-
-        return f"obs:{iv_b64}:{ct_b64}:{tag_b64}"
-
-    def _decrypt_fallback(self, encrypted: str, key: bytes) -> str:
-        """Fallback decryption."""
-        try:
-            parts = encrypted.split(":")
-            if len(parts) != 4:
-                raise ValueError("Invalid format")
-
-            iv = base64.b64decode(parts[1])
-            ciphertext = base64.b64decode(parts[2])
-            tag = base64.b64decode(parts[3])
-
-            # Verify HMAC
-            auth_data = iv + ciphertext
-            expected_tag = hmac.new(key, auth_data, hashlib.sha256).digest()[:self.config.tag_length]
-
-            if not hmac.compare_digest(tag, expected_tag):
-                raise ValueError("Authentication failed")
-
-            # Decrypt
-            keystream = self._generate_keystream(key, iv, len(ciphertext))
-            plaintext = bytes(c ^ k for c, k in zip(ciphertext, keystream))
-
-            return plaintext.decode("utf-8")
-
-        except Exception as e:
-            logger.error(f"Fallback decryption failed: {e}")
-            raise ValueError("Decryption failed") from e
-
-    def _generate_keystream(self, key: bytes, iv: bytes, length: int) -> bytes:
-        """Generate keystream for XOR encryption."""
-        keystream = b""
-        counter = 0
-
-        while len(keystream) < length:
-            block_input = key + iv + counter.to_bytes(4, "big")
-            block = hashlib.sha256(block_input).digest()
-            keystream += block
-            counter += 1
-
-        return keystream[:length]
 
 
 # =============================================================================

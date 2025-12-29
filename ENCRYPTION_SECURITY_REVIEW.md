@@ -10,54 +10,34 @@
 
 The Agent-OS repository implements a comprehensive encryption system with support for modern cryptographic algorithms including AES-256-GCM, post-quantum cryptography (ML-KEM, ML-DSA), and hybrid classical+PQ schemes. The implementation follows many security best practices but has several areas requiring attention before production deployment.
 
-**Overall Assessment:** The cryptographic architecture is well-designed, but several fallback implementations and configuration issues need to be addressed.
+**Overall Assessment:** The cryptographic architecture is well-designed. Critical fallback vulnerabilities have been fixed; remaining issues are configuration-related.
 
 ---
 
 ## Security Findings
 
-### Critical Issues
+### Critical Issues (FIXED)
 
-#### 1. Insecure Fallback Encryption (HIGH RISK)
+#### 1. ~~Insecure Fallback Encryption~~ (FIXED)
 
 **Files Affected:**
-- `src/utils/encryption.py:245-310` (XOR fallback)
-- `src/federation/crypto.py:350-411` (XOR fallback)
+- `src/utils/encryption.py`
+- `src/federation/crypto.py`
 
-**Issue:** When the `cryptography` library is unavailable, the system falls back to a homebrew XOR cipher with HMAC authentication. This is cryptographically weak:
+**Issue:** ~~When the `cryptography` library is unavailable, the system falls back to a homebrew XOR cipher with HMAC authentication.~~
 
-```python
-# encryption.py:255-258
-keystream = self._generate_keystream(key, iv, len(plaintext))
-ciphertext = bytes(p ^ k for p, k in zip(plaintext, keystream))
-```
-
-**Risk:** An attacker with access to multiple ciphertexts encrypted under the same key could potentially recover plaintext using XOR weaknesses.
-
-**Recommendation:**
-- Fail securely instead of falling back to weak crypto
-- Make `cryptography` library a hard requirement
-- Log critical error if cryptography is unavailable
+**Resolution:** The `cryptography` library is now a hard requirement. The code raises a `RuntimeError` if the library is not available, and all insecure fallback encryption methods have been removed. Legacy `obs:` format ciphertexts are now rejected with an error.
 
 ---
 
-#### 2. Insecure Fallback Key Exchange (HIGH RISK)
+#### 2. ~~Insecure Fallback Key Exchange~~ (FIXED)
 
 **Files Affected:**
-- `src/federation/crypto.py:437-440`
-- `src/federation/crypto.py:460-461`
+- `src/federation/crypto.py`
 
-**Issue:** Fallback key pair generation uses hash of private key as public key, and shared secret derivation is simply `hash(private + peer_public)`:
+**Issue:** ~~Fallback key pair generation used hash of private key as public key, providing no actual key exchange security.~~
 
-```python
-# crypto.py:438-440
-private_key = secrets.token_bytes(32)
-public_key = hashlib.sha256(private_key).digest()  # NOT a real key exchange!
-```
-
-**Risk:** This provides no actual key exchange security and no forward secrecy.
-
-**Recommendation:** Remove fallback or require proper cryptographic library.
+**Resolution:** The fallback key exchange code has been removed. X25519 key exchange is now mandatory and requires the `cryptography` library. Unsupported key exchange methods now raise a `ValueError`.
 
 ---
 
