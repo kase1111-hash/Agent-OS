@@ -237,6 +237,7 @@ class PasswordHasher:
 
     ITERATIONS = 600000  # NIST SP 800-132 recommends >= 600,000 for SHA-256
     HASH_LENGTH = 32
+    SALT_LENGTH = 32  # Standardized 32-byte salt (64 hex chars)
     MIN_PASSWORD_LENGTH = 12
     MAX_PASSWORD_LENGTH = 128
 
@@ -295,7 +296,7 @@ class PasswordHasher:
             Tuple of (password_hash, salt)
         """
         if salt is None:
-            salt = secrets.token_hex(16)
+            salt = secrets.token_hex(cls.SALT_LENGTH)  # 32 bytes = 64 hex chars
 
         password_bytes = password.encode('utf-8')
         salt_bytes = salt.encode('utf-8')

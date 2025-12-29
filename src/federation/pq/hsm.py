@@ -52,6 +52,16 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 logger = logging.getLogger(__name__)
 
 
+def _is_production_mode() -> bool:
+    """Check if running in production mode.
+
+    Production mode is enabled when AGENT_OS_PRODUCTION is set to
+    '1', 'true', or 'yes' (case-insensitive).
+    """
+    env_value = os.environ.get("AGENT_OS_PRODUCTION", "").lower()
+    return env_value in ("1", "true", "yes")
+
+
 # =============================================================================
 # Constants and Enums
 # =============================================================================
@@ -438,9 +448,22 @@ class SoftwareHSMProvider(HSMProvider):
 
     WARNING: This is NOT secure for production use!
     It simulates HSM behavior but stores keys in memory/files.
+
+    This provider is disabled in production mode (AGENT_OS_PRODUCTION=1).
+    Use a real HSM (PKCS#11, TPM, Cloud HSM) for production deployments.
     """
 
     def __init__(self, config: HSMConfig):
+        if _is_production_mode():
+            raise RuntimeError(
+                "SoftwareHSMProvider is disabled in production mode. "
+                "Use a real HSM (PKCS#11, TPM, or Cloud HSM) for production. "
+                "Set AGENT_OS_PRODUCTION=0 for development/testing."
+            )
+        logger.warning(
+            "Using SoftwareHSMProvider - NOT SECURE FOR PRODUCTION. "
+            "Use a real HSM for production deployments."
+        )
         super().__init__(config)
         self._keys: Dict[str, Tuple[HSMKeyHandle, bytes, bytes]] = {}  # handle -> (metadata, public, private)
         self._master_key: Optional[bytes] = None

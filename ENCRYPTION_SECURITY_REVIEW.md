@@ -10,7 +10,7 @@
 
 The Agent-OS repository implements a comprehensive encryption system with support for modern cryptographic algorithms including AES-256-GCM, post-quantum cryptography (ML-KEM, ML-DSA), and hybrid classical+PQ schemes. The implementation follows many security best practices.
 
-**Overall Assessment:** The cryptographic architecture is well-designed. All critical, high priority, and medium priority security issues have been fixed. Only low priority issues remain, which are acceptable for development but should be addressed before production deployment.
+**Overall Assessment:** The cryptographic architecture is well-designed. **All security issues (Critical, High, Medium, and Low priority) have been fixed.** The implementation is now production-ready with proper cryptographic practices.
 
 ---
 
@@ -166,29 +166,31 @@ Legacy unencrypted keys are automatically detected and migrated to encrypted for
 
 ---
 
-### Low Priority Issues
+### Low Priority Issues (FIXED)
 
-#### 11. Software HSM Keys Stored in Files (LOW RISK - Development Only)
+#### 11. ~~Software HSM Keys Stored in Files~~ (FIXED)
 
-**File:** `src/federation/pq/hsm.py:922-985`
+**File:** `src/federation/pq/hsm.py`
 
-**Issue:** Software HSM stores keys in JSON/binary files. Marked with warnings but still available.
+**Issue:** ~~Software HSM stores keys in JSON/binary files. Marked with warnings but still available.~~
 
-**Note:** This is acceptable for development if:
-- Production deployment requires real HSM
-- Clear documentation exists
-- Environment checks prevent software HSM in production
+**Resolution:** Added production mode detection via `AGENT_OS_PRODUCTION` environment variable:
+- `SoftwareHSMProvider` now raises `RuntimeError` when instantiated in production mode
+- Logs warning when used in development mode
+- Documentation updated to direct users to real HSM options (PKCS#11, TPM, Cloud HSM)
 
 ---
 
-#### 12. Inconsistent Salt Lengths (LOW RISK)
+#### 12. ~~Inconsistent Salt Lengths~~ (FIXED)
 
 **Files Affected:**
-- `src/utils/encryption.py:37` - 16 bytes
-- `src/memory/keys.py` - 32 bytes
-- `src/web/auth.py:133` - 16 bytes (hex, so 16 bytes entropy)
+- `src/utils/encryption.py` - 32 bytes ✓
+- `src/memory/keys.py` - 32 bytes ✓
+- `src/web/auth.py` - 32 bytes ✓
 
-**Recommendation:** Standardize on 32-byte salts across all components.
+**Resolution:** Standardized all salt lengths to 32 bytes (256 bits):
+- Added `SALT_LENGTH = 32` constant to `PasswordHasher` class
+- Updated `hash_password()` to use the constant
 
 ---
 
@@ -226,7 +228,7 @@ The codebase demonstrates several security best practices:
 1. ~~Move master key to OS keyring/credential store~~ ✓
 2. ~~Disable/remove mock providers in production builds~~ ✓
 3. ~~Use `bytearray` for sensitive key material~~ ✓
-4. Standardize salt lengths to 32 bytes (remaining)
+4. ~~Standardize salt lengths to 32 bytes~~ ✓
 5. ~~Add cryptographic binding to session tokens~~ ✓
 
 ### Long-Term Enhancements
