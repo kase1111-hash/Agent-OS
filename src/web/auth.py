@@ -13,6 +13,7 @@ import hmac
 import json
 import logging
 import os
+import re
 import secrets
 import sqlite3
 import threading
@@ -114,8 +115,52 @@ class Session:
 class PasswordHasher:
     """Secure password hashing using PBKDF2-SHA256."""
 
-    ITERATIONS = 100000
+    ITERATIONS = 600000  # NIST SP 800-132 recommends >= 600,000 for SHA-256
     HASH_LENGTH = 32
+    MIN_PASSWORD_LENGTH = 12
+    MAX_PASSWORD_LENGTH = 128
+
+    @classmethod
+    def validate_password(cls, password: str) -> tuple[bool, str]:
+        """
+        Validate password meets security requirements.
+
+        Requirements:
+        - At least 12 characters
+        - At most 128 characters
+        - At least one uppercase letter
+        - At least one lowercase letter
+        - At least one digit
+        - At least one special character
+
+        Args:
+            password: Password to validate
+
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+        if not password:
+            return False, "Password is required"
+
+        if len(password) < cls.MIN_PASSWORD_LENGTH:
+            return False, f"Password must be at least {cls.MIN_PASSWORD_LENGTH} characters"
+
+        if len(password) > cls.MAX_PASSWORD_LENGTH:
+            return False, f"Password must be at most {cls.MAX_PASSWORD_LENGTH} characters"
+
+        if not re.search(r'[A-Z]', password):
+            return False, "Password must contain at least one uppercase letter"
+
+        if not re.search(r'[a-z]', password):
+            return False, "Password must contain at least one lowercase letter"
+
+        if not re.search(r'\d', password):
+            return False, "Password must contain at least one digit"
+
+        if not re.search(r'[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\;\'`~]', password):
+            return False, "Password must contain at least one special character"
+
+        return True, ""
 
     @classmethod
     def hash_password(cls, password: str, salt: Optional[str] = None) -> tuple[str, str]:
@@ -295,8 +340,9 @@ class UserStore:
             raise AuthError("Username must be at most 50 characters", "INVALID_USERNAME")
 
         # Validate password
-        if not password or len(password) < 6:
-            raise AuthError("Password must be at least 6 characters", "INVALID_PASSWORD")
+        is_valid, error_msg = PasswordHasher.validate_password(password)
+        if not is_valid:
+            raise AuthError(error_msg, "INVALID_PASSWORD")
 
         # Check for existing username
         if self.get_user_by_username(username):
@@ -464,8 +510,9 @@ class UserStore:
 
     def change_password(self, user_id: str, new_password: str) -> bool:
         """Change a user's password."""
-        if len(new_password) < 6:
-            raise AuthError("Password must be at least 6 characters", "INVALID_PASSWORD")
+        is_valid, error_msg = PasswordHasher.validate_password(new_password)
+        if not is_valid:
+            raise AuthError(error_msg, "INVALID_PASSWORD")
 
         password_hash, salt = PasswordHasher.hash_password(new_password)
 

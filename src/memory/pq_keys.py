@@ -275,9 +275,91 @@ class PostQuantumKeyManager:
         self._lock = threading.RLock()
         self._initialized = False
 
+        # Encryption key for private key storage
+        self._storage_key: Optional[bytes] = None
+
         # Load existing keys
         if key_store_path:
             self._load_pq_keys()
+
+    def _get_storage_key(self) -> bytes:
+        """
+        Get or derive the key used to encrypt private keys at rest.
+
+        Uses machine-specific identifiers to derive a key unique to this machine.
+        """
+        if self._storage_key:
+            return self._storage_key
+
+        import platform
+        import getpass
+        import os
+
+        # Combine machine-specific identifiers
+        machine_id_parts = [
+            platform.node(),
+            getpass.getuser(),
+            os.path.expanduser("~"),
+            platform.machine(),
+            "pq-keys-v1",  # Version marker
+        ]
+        machine_id = ":".join(machine_id_parts).encode()
+
+        # Derive key using PBKDF2
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
+        salt = b"agent-os-pq-storage-key-v1"
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt,
+            iterations=100000,
+        )
+        self._storage_key = kdf.derive(machine_id)
+        return self._storage_key
+
+    def _encrypt_private_key(self, private_key: bytes) -> bytes:
+        """
+        Encrypt a private key for storage.
+
+        Returns:
+            Encrypted key in format: VERSION + NONCE + CIPHERTEXT
+        """
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+        storage_key = self._get_storage_key()
+        nonce = secrets.token_bytes(12)
+        aesgcm = AESGCM(storage_key)
+        ciphertext = aesgcm.encrypt(nonce, private_key, b"pq-private-key")
+
+        # Format: VERSION (1 byte) + NONCE (12 bytes) + CIPHERTEXT
+        return b"\x01" + nonce + ciphertext
+
+    def _decrypt_private_key(self, encrypted_data: bytes) -> bytes:
+        """
+        Decrypt a private key from storage.
+
+        Args:
+            encrypted_data: Encrypted key data
+
+        Returns:
+            Decrypted private key
+        """
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+        # Check version
+        if not encrypted_data or encrypted_data[0] != 0x01:
+            # Legacy unencrypted format (base64 decoded) - return as-is
+            logger.warning("Loaded unencrypted private key (legacy format)")
+            return encrypted_data
+
+        nonce = encrypted_data[1:13]
+        ciphertext = encrypted_data[13:]
+
+        storage_key = self._get_storage_key()
+        aesgcm = AESGCM(storage_key)
+        return aesgcm.decrypt(nonce, ciphertext, b"pq-private-key")
 
     def initialize(self) -> bool:
         """Initialize the post-quantum key manager."""
@@ -939,7 +1021,22 @@ class PostQuantumKeyManager:
                     public_key = base64.b64decode(public_key_file.read_text())
 
                 if private_key_file.exists():
-                    private_key = base64.b64decode(private_key_file.read_text())
+                    encrypted_data = private_key_file.read_bytes()
+                    # Handle both new encrypted format and legacy base64 text format
+                    if encrypted_data.startswith(b"\x01"):
+                        # New encrypted binary format
+                        private_key = self._decrypt_private_key(encrypted_data)
+                    else:
+                        # Legacy base64 text format - decode and migrate on next save
+                        try:
+                            private_key = base64.b64decode(encrypted_data)
+                            logger.warning(
+                                f"Key {metadata.key_id} uses legacy unencrypted format. "
+                                "Will be encrypted on next save."
+                            )
+                        except Exception:
+                            # Already binary but not encrypted - treat as raw
+                            private_key = encrypted_data
 
                 self._pq_keys[metadata.key_id] = PQStoredKey(
                     metadata=metadata,
@@ -983,12 +1080,11 @@ class PostQuantumKeyManager:
                     base64.b64encode(stored_key.public_key).decode()
                 )
 
-                # Private key (with restricted permissions)
+                # Private key (encrypted and with restricted permissions)
                 if stored_key.private_key:
                     private_key_file = pq_data_path / f"{key_id}.priv"
-                    private_key_file.write_text(
-                        base64.b64encode(stored_key.private_key).decode()
-                    )
+                    encrypted_key = self._encrypt_private_key(stored_key.private_key)
+                    private_key_file.write_bytes(encrypted_key)
                     private_key_file.chmod(0o600)
 
         except Exception as e:

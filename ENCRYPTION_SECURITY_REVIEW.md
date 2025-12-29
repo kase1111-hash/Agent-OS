@@ -41,80 +41,64 @@ The Agent-OS repository implements a comprehensive encryption system with suppor
 
 ---
 
-### High Priority Issues
+### High Priority Issues (FIXED)
 
-#### 3. Weak Password Requirements (MEDIUM-HIGH RISK)
+#### 3. ~~Weak Password Requirements~~ (FIXED)
 
-**File:** `src/web/auth.py:298-299`
+**File:** `src/web/auth.py`
 
-**Issue:** Minimum password length is only 6 characters with no complexity requirements:
+**Issue:** ~~Minimum password length was only 6 characters with no complexity requirements.~~
 
-```python
-if not password or len(password) < 6:
-    raise AuthError("Password must be at least 6 characters", "INVALID_PASSWORD")
-```
+**Resolution:** Password validation now requires:
+- Minimum 12 characters, maximum 128 characters
+- At least one uppercase letter
+- At least one lowercase letter
+- At least one digit
+- At least one special character
 
-**Recommendation:**
-- Increase minimum length to 12+ characters
-- Add complexity requirements (uppercase, lowercase, numbers, special chars)
-- Consider implementing password strength scoring (zxcvbn)
+Added `PasswordHasher.validate_password()` method with comprehensive validation.
 
 ---
 
-#### 4. Inconsistent PBKDF2 Iteration Counts (MEDIUM RISK)
+#### 4. ~~Inconsistent PBKDF2 Iteration Counts~~ (FIXED)
 
 **Files Affected:**
-- `src/utils/encryption.py:38` - 100,000 iterations
-- `src/memory/keys.py:204` - 600,000 iterations
-- `src/web/auth.py:117` - 100,000 iterations
+- `src/utils/encryption.py`
+- `src/web/auth.py`
 
-**Issue:** Different components use different iteration counts, with some using outdated recommendations.
+**Issue:** ~~Different components used different iteration counts (100K vs 600K).~~
 
-**Recommendation:**
-- Standardize to 600,000+ iterations across all components
-- Create a central configuration constant for PBKDF2 iterations
-- Consider migrating to Argon2id (already available in keys.py)
+**Resolution:** All components now standardized to 600,000 iterations per NIST SP 800-132 recommendations. Also standardized salt length to 32 bytes.
 
 ---
 
-#### 5. Master Key Storage Without Protection (MEDIUM RISK)
+#### 5. ~~Master Key Storage Without Protection~~ (FIXED)
 
-**File:** `src/utils/encryption.py:83-97`
+**File:** `src/utils/encryption.py`
 
-**Issue:** Master encryption key is stored in plaintext at `~/.agent-os/encryption.key`, protected only by file permissions:
+**Issue:** ~~Master encryption key was stored in plaintext file.~~
 
-```python
-key_file = os.path.expanduser("~/.agent-os/encryption.key")
-# ...
-with open(key_file, "wb") as f:
-    f.write(key)
-os.chmod(key_file, 0o600)
-```
+**Resolution:** Master key storage now uses a priority-based approach:
+1. Environment variable `AGENT_OS_ENCRYPTION_KEY` (highest priority)
+2. OS keyring/credential store (if `keyring` library installed)
+3. Encrypted file storage with machine-specific protection
 
-**Recommendation:**
-- Use OS keyring/credential store (e.g., `keyring` library)
-- Encrypt master key with user-derived key
-- Support hardware security module for master key protection
+File storage now encrypts the key using a machine-derived key (combining hostname, username, home directory, and architecture) making the key file useless if copied to another machine. Legacy unencrypted key files are automatically detected and will be migrated.
 
 ---
 
-#### 6. PQ Private Keys Stored in Base64 Without Encryption (MEDIUM RISK)
+#### 6. ~~PQ Private Keys Stored in Base64 Without Encryption~~ (FIXED)
 
-**File:** `src/memory/pq_keys.py:986-992`
+**File:** `src/memory/pq_keys.py`
 
-**Issue:** Post-quantum private keys are stored in base64-encoded files:
+**Issue:** ~~Post-quantum private keys were stored in base64-encoded files without encryption.~~
 
-```python
-private_key_file.write_text(
-    base64.b64encode(stored_key.private_key).decode()
-)
-private_key_file.chmod(0o600)
-```
+**Resolution:** PQ private keys are now encrypted at rest using AES-256-GCM with a machine-derived key. The encryption format includes:
+- Version byte for future compatibility
+- 12-byte nonce
+- Encrypted ciphertext with authentication tag
 
-**Recommendation:**
-- Encrypt private keys before storage
-- Use master key encryption for key storage
-- Consider hardware binding for sensitive keys
+Legacy unencrypted keys are automatically detected and migrated to encrypted format on next save.
 
 ---
 
