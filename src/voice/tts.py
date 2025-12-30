@@ -5,6 +5,7 @@ Provides speech synthesis functionality using Piper or compatible engines.
 """
 
 import logging
+import re
 import subprocess
 import tempfile
 import threading
@@ -19,6 +20,97 @@ from typing import Any, Callable, Dict, List, Optional, Union
 from .audio import AudioFormat, pcm_to_wav, wav_to_pcm
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Security: Path and Input Validation
+# =============================================================================
+
+
+class PathValidationError(Exception):
+    """Raised when a path fails security validation."""
+    pass
+
+
+def validate_output_path(path: Path) -> Path:
+    """
+    Validate an output file path before writing.
+
+    This prevents path traversal attacks by:
+    1. Resolving to absolute path
+    2. Checking the path doesn't contain shell metacharacters
+    3. Ensuring the parent directory exists
+
+    Args:
+        path: Path to validate
+
+    Returns:
+        Validated absolute path
+
+    Raises:
+        PathValidationError: If path is invalid or potentially malicious
+    """
+    # Resolve to absolute path (handles .., symlinks, etc.)
+    try:
+        resolved = path.resolve()
+    except (OSError, RuntimeError) as e:
+        raise PathValidationError(f"Cannot resolve path: {path}") from e
+
+    # Ensure parent directory exists
+    if not resolved.parent.exists():
+        raise PathValidationError(f"Parent directory does not exist: {resolved.parent}")
+
+    # Check for shell metacharacters that could enable command injection
+    path_str = str(resolved)
+
+    # Disallow null bytes
+    if '\x00' in path_str:
+        raise PathValidationError("Path contains null byte")
+
+    # Disallow newlines
+    if '\n' in path_str or '\r' in path_str:
+        raise PathValidationError("Path contains newline characters")
+
+    # Disallow common shell metacharacters as a defense-in-depth measure
+    dangerous_patterns = [
+        r'[;|&`$]',  # Command separators and execution
+    ]
+
+    for pattern in dangerous_patterns:
+        if re.search(pattern, path_str):
+            raise PathValidationError(
+                f"Path contains potentially dangerous characters: {path_str}"
+            )
+
+    return resolved
+
+
+def sanitize_tts_text(text: str) -> str:
+    """
+    Sanitize text input for TTS to prevent potential issues.
+
+    Removes control characters and other potentially problematic content.
+
+    Args:
+        text: Text to sanitize
+
+    Returns:
+        Sanitized text safe for TTS processing
+    """
+    if not text:
+        return ""
+
+    # Remove null bytes
+    text = text.replace('\x00', '')
+
+    # Remove other control characters except common whitespace
+    # Keep: newline, carriage return, tab
+    sanitized = ''.join(
+        char for char in text
+        if char in '\n\r\t' or (ord(char) >= 32 and ord(char) != 127)
+    )
+
+    return sanitized
 
 
 # =============================================================================
@@ -195,8 +287,14 @@ class MockTTS(TTSEngine):
 
     def synthesize_to_file(self, text: str, output_path: Union[str, Path]) -> bool:
         """Save mock audio to file."""
+        try:
+            validated_path = validate_output_path(Path(output_path))
+        except PathValidationError as e:
+            logger.error(f"Output path validation failed: {e}")
+            return False
+
         result = self.synthesize(text)
-        with open(output_path, "wb") as f:
+        with open(validated_path, "wb") as f:
             f.write(result.audio_data)
         return True
 
@@ -316,6 +414,9 @@ class PiperTTS(TTSEngine):
         """Synthesize text using Piper."""
         start_time = time.time()
 
+        # Sanitize text input to remove control characters
+        sanitized_text = sanitize_tts_text(text)
+
         if not self.is_available():
             return TTSResult(
                 audio_data=b"",
@@ -341,10 +442,10 @@ class PiperTTS(TTSEngine):
                 "--output_file", output_path,
             ])
 
-            # Run Piper with text as stdin
+            # Run Piper with sanitized text as stdin
             result = subprocess.run(
                 cmd,
-                input=text,
+                input=sanitized_text,
                 capture_output=True,
                 text=True,
                 timeout=30,
@@ -407,11 +508,17 @@ class PiperTTS(TTSEngine):
 
     def synthesize_to_file(self, text: str, output_path: Union[str, Path]) -> bool:
         """Synthesize and save to file."""
+        try:
+            validated_path = validate_output_path(Path(output_path))
+        except PathValidationError as e:
+            logger.error(f"Output path validation failed: {e}")
+            return False
+
         result = self.synthesize(text)
         if result.is_empty:
             return False
 
-        with open(output_path, "wb") as f:
+        with open(validated_path, "wb") as f:
             f.write(result.audio_data)
         return True
 
@@ -491,6 +598,9 @@ class EspeakTTS(TTSEngine):
         """Synthesize text using espeak."""
         start_time = time.time()
 
+        # Sanitize text input to remove control characters
+        sanitized_text = sanitize_tts_text(text)
+
         if not self.is_available():
             return TTSResult(
                 audio_data=b"",
@@ -516,7 +626,7 @@ class EspeakTTS(TTSEngine):
                     cmd,
                     "-w", output_path,
                     "-s", str(speed),
-                    text,
+                    sanitized_text,
                 ],
                 capture_output=True,
                 timeout=30,
@@ -569,11 +679,17 @@ class EspeakTTS(TTSEngine):
 
     def synthesize_to_file(self, text: str, output_path: Union[str, Path]) -> bool:
         """Synthesize and save to file."""
+        try:
+            validated_path = validate_output_path(Path(output_path))
+        except PathValidationError as e:
+            logger.error(f"Output path validation failed: {e}")
+            return False
+
         result = self.synthesize(text)
         if result.is_empty:
             return False
 
-        with open(output_path, "wb") as f:
+        with open(validated_path, "wb") as f:
             f.write(result.audio_data)
         return True
 

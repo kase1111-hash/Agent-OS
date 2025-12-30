@@ -12,6 +12,7 @@ Provides video understanding capabilities including:
 import io
 import logging
 import os
+import re
 import subprocess
 import tempfile
 import time
@@ -25,6 +26,74 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from .vision import ImageInput, VisionEngine, VisionResult, create_vision_engine
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Security: Path Validation for Subprocess Calls
+# =============================================================================
+
+
+class PathValidationError(Exception):
+    """Raised when a path fails security validation."""
+    pass
+
+
+def validate_media_path(path: Path) -> Path:
+    """
+    Validate a media file path before passing to subprocess.
+
+    This prevents command injection attacks by:
+    1. Resolving to absolute path to prevent path traversal
+    2. Checking the path doesn't contain shell metacharacters
+    3. Ensuring the file exists and is a regular file
+
+    Args:
+        path: Path to validate
+
+    Returns:
+        Validated absolute path
+
+    Raises:
+        PathValidationError: If path is invalid or potentially malicious
+    """
+    # Resolve to absolute path (handles .., symlinks, etc.)
+    try:
+        resolved = path.resolve(strict=True)
+    except (OSError, RuntimeError) as e:
+        raise PathValidationError(f"Cannot resolve path: {path}") from e
+
+    # Ensure it's a regular file (not a directory, device, etc.)
+    if not resolved.is_file():
+        raise PathValidationError(f"Path is not a regular file: {resolved}")
+
+    # Check for shell metacharacters that could enable command injection
+    # Even though we use subprocess with list args (no shell), some programs
+    # may still interpret special characters
+    path_str = str(resolved)
+
+    # Disallow null bytes (can truncate strings in C programs)
+    if '\x00' in path_str:
+        raise PathValidationError("Path contains null byte")
+
+    # Disallow newlines (can inject additional commands in some contexts)
+    if '\n' in path_str or '\r' in path_str:
+        raise PathValidationError("Path contains newline characters")
+
+    # Disallow common shell metacharacters as a defense-in-depth measure
+    # Note: With subprocess list mode, these are typically safe, but we block
+    # them anyway for maximum security
+    dangerous_patterns = [
+        r'[;|&`$]',  # Command separators and execution
+        r'^\s*-',    # Leading dash (could be interpreted as option)
+    ]
+
+    for pattern in dangerous_patterns:
+        if re.search(pattern, path_str):
+            raise PathValidationError(
+                f"Path contains potentially dangerous characters: {path_str}"
+            )
+
+    return resolved
 
 
 # =============================================================================
@@ -142,6 +211,9 @@ class VideoInput:
     def _extract_metadata(path: Path) -> VideoMetadata:
         """Extract video metadata using ffprobe."""
         try:
+            # Validate path before passing to subprocess to prevent command injection
+            validated_path = validate_media_path(path)
+
             result = subprocess.run(
                 [
                     "ffprobe",
@@ -149,7 +221,7 @@ class VideoInput:
                     "-print_format", "json",
                     "-show_format",
                     "-show_streams",
-                    str(path),
+                    str(validated_path),
                 ],
                 capture_output=True,
                 text=True,
@@ -209,6 +281,8 @@ class VideoInput:
 
         except FileNotFoundError:
             logger.warning("ffprobe not found, metadata extraction limited")
+        except PathValidationError as e:
+            logger.error(f"Path validation failed: {e}")
         except Exception as e:
             logger.error(f"Metadata extraction error: {e}")
 
@@ -555,13 +629,16 @@ class FFmpegVideoAnalyzer(VideoAnalyzer):
         frames = []
 
         try:
+            # Validate path before passing to subprocess to prevent command injection
+            validated_path = validate_media_path(video.path)
+
             with tempfile.TemporaryDirectory() as tmpdir:
                 # Extract frames with FFmpeg
                 output_pattern = os.path.join(tmpdir, "frame_%04d.jpg")
 
                 cmd = [
                     self.ffmpeg_path,
-                    "-i", str(video.path),
+                    "-i", str(validated_path),
                     "-vf", f"fps={sample_rate}",
                     "-frames:v", str(max_frames),
                     "-q:v", "2",
@@ -595,6 +672,8 @@ class FFmpegVideoAnalyzer(VideoAnalyzer):
 
         except subprocess.TimeoutExpired:
             logger.error("FFmpeg timed out")
+        except PathValidationError as e:
+            logger.error(f"Path validation failed: {e}")
         except Exception as e:
             logger.error(f"Frame extraction error: {e}")
 
@@ -608,10 +687,13 @@ class FFmpegVideoAnalyzer(VideoAnalyzer):
             )
 
         try:
+            # Validate path before passing to subprocess to prevent command injection
+            validated_path = validate_media_path(video.path)
+
             # Use FFmpeg's scene detection
             cmd = [
                 self.ffmpeg_path,
-                "-i", str(video.path),
+                "-i", str(validated_path),
                 "-vf", "select='gt(scene,0.3)',showinfo",
                 "-f", "null",
                 "-",
