@@ -23,6 +23,81 @@ except ImportError:
     YAML_AVAILABLE = False
 
 import json
+import ipaddress
+from urllib.parse import urlparse
+
+
+# =============================================================================
+# Security: Endpoint Validation
+# =============================================================================
+
+
+class SSRFProtectionError(Exception):
+    """Raised when a URL fails SSRF protection validation."""
+    pass
+
+
+def validate_model_endpoint(url: str) -> str:
+    """
+    Validate a model endpoint URL to prevent SSRF attacks.
+
+    Args:
+        url: The URL to validate
+
+    Returns:
+        The validated URL
+
+    Raises:
+        SSRFProtectionError: If the URL fails validation
+    """
+    if not url:
+        raise SSRFProtectionError("Empty URL")
+
+    try:
+        parsed = urlparse(url)
+    except Exception as e:
+        raise SSRFProtectionError(f"Invalid URL format: {e}")
+
+    # Validate scheme
+    if parsed.scheme not in ('http', 'https'):
+        raise SSRFProtectionError(f"Invalid URL scheme: {parsed.scheme}")
+
+    # Validate host exists
+    if not parsed.hostname:
+        raise SSRFProtectionError("URL has no hostname")
+
+    hostname = parsed.hostname.lower()
+
+    # Check for suspicious internal hostnames
+    suspicious_patterns = [
+        'metadata.',           # Cloud metadata services
+        '169.254.',            # AWS metadata IP range
+        'internal.',           # Internal services
+    ]
+
+    for pattern in suspicious_patterns:
+        if pattern in hostname:
+            raise SSRFProtectionError(f"Suspicious hostname pattern: {hostname}")
+
+    # Reject .internal, .local, .corp, .lan TLDs (except localhost)
+    if hostname not in ('localhost', '127.0.0.1', '::1'):
+        suspicious_tlds = ['.internal', '.local', '.corp', '.lan']
+        for tld in suspicious_tlds:
+            if hostname.endswith(tld):
+                raise SSRFProtectionError(f"Suspicious hostname pattern: {hostname}")
+
+    # Check for IP addresses
+    try:
+        ip = ipaddress.ip_address(hostname)
+        # Allow localhost/loopback for local services
+        if not ip.is_loopback:
+            if ip.is_link_local or ip.is_multicast or ip.is_reserved:
+                raise SSRFProtectionError(f"Reserved IP address not allowed: {hostname}")
+    except ValueError:
+        # Not an IP address, it's a hostname - that's fine
+        pass
+
+    return url
 
 
 logger = logging.getLogger(__name__)
@@ -43,6 +118,15 @@ class ModelConfig:
     timeout_ms: int = 30000         # Request timeout
     system_prompt: Optional[str] = None  # Default system prompt
     extra_params: Dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self):
+        """Validate endpoint URL after initialization."""
+        # SECURITY: Validate endpoint URL to prevent SSRF attacks
+        try:
+            self.endpoint = validate_model_endpoint(self.endpoint)
+        except SSRFProtectionError as e:
+            logger.error(f"Invalid model endpoint: {e}")
+            raise ValueError(f"Invalid model endpoint URL: {e}") from e
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ModelConfig":
