@@ -27,6 +27,163 @@ router = APIRouter()
 
 
 # =============================================================================
+# Security Utilities
+# =============================================================================
+
+import ipaddress
+import re
+from urllib.parse import urlparse
+
+
+class PathTraversalError(Exception):
+    """Raised when a path traversal attack is detected."""
+    pass
+
+
+class SSRFProtectionError(Exception):
+    """Raised when a URL fails SSRF protection validation."""
+    pass
+
+
+def validate_filename_in_directory(filename: str, base_directory: Path) -> Path:
+    """
+    Validate that a filename resolves to a path within the base directory.
+
+    Prevents path traversal attacks by ensuring the resolved path
+    doesn't escape the intended directory.
+
+    Args:
+        filename: The filename to validate
+        base_directory: The directory the file must remain within
+
+    Returns:
+        The validated absolute path
+
+    Raises:
+        PathTraversalError: If the path escapes the base directory
+    """
+    # Reject obviously malicious filenames
+    if not filename:
+        raise PathTraversalError("Empty filename")
+
+    # Check for null bytes
+    if '\x00' in filename:
+        raise PathTraversalError("Filename contains null byte")
+
+    # Check for path traversal patterns
+    if '..' in filename:
+        raise PathTraversalError("Filename contains path traversal sequence")
+
+    # Check for absolute paths
+    if filename.startswith('/') or filename.startswith('\\'):
+        raise PathTraversalError("Filename is an absolute path")
+
+    # On Windows, also check for drive letters
+    if len(filename) >= 2 and filename[1] == ':':
+        raise PathTraversalError("Filename contains drive letter")
+
+    # Construct the full path
+    filepath = base_directory / filename
+
+    # Resolve to absolute path and ensure it stays within base directory
+    try:
+        resolved_base = base_directory.resolve()
+        resolved_path = filepath.resolve()
+    except (OSError, RuntimeError) as e:
+        raise PathTraversalError(f"Cannot resolve path: {e}")
+
+    # Verify the resolved path is within the base directory
+    try:
+        resolved_path.relative_to(resolved_base)
+    except ValueError:
+        raise PathTraversalError(
+            f"Path escapes base directory: {resolved_path} is not within {resolved_base}"
+        )
+
+    return resolved_path
+
+
+def _is_private_ip(ip_str: str) -> bool:
+    """Check if an IP address is private, loopback, or otherwise internal."""
+    try:
+        ip = ipaddress.ip_address(ip_str)
+        return (
+            ip.is_private or
+            ip.is_loopback or
+            ip.is_link_local or
+            ip.is_multicast or
+            ip.is_reserved or
+            ip.is_unspecified
+        )
+    except ValueError:
+        return False
+
+
+def validate_api_endpoint(url: str, allow_localhost: bool = True) -> str:
+    """
+    Validate an API endpoint URL to prevent SSRF attacks.
+
+    Args:
+        url: The URL to validate
+        allow_localhost: Whether to allow localhost URLs (for local services)
+
+    Returns:
+        The validated URL
+
+    Raises:
+        SSRFProtectionError: If the URL fails validation
+    """
+    if not url:
+        raise SSRFProtectionError("Empty URL")
+
+    try:
+        parsed = urlparse(url)
+    except Exception as e:
+        raise SSRFProtectionError(f"Invalid URL format: {e}")
+
+    # Validate scheme
+    if parsed.scheme not in ('http', 'https'):
+        raise SSRFProtectionError(f"Invalid URL scheme: {parsed.scheme}")
+
+    # Validate host exists
+    if not parsed.hostname:
+        raise SSRFProtectionError("URL has no hostname")
+
+    hostname = parsed.hostname.lower()
+
+    # Check for suspicious internal hostnames
+    suspicious_patterns = [
+        r'^metadata\.',           # Cloud metadata services
+        r'^169\.254\.',           # AWS metadata IP range
+        r'^internal\.',           # Internal services
+        r'\.internal$',
+        r'\.local$',
+        r'\.corp$',
+        r'\.lan$',
+    ]
+
+    for pattern in suspicious_patterns:
+        if re.search(pattern, hostname):
+            raise SSRFProtectionError(f"Suspicious hostname pattern: {hostname}")
+
+    # Check for IP addresses
+    try:
+        ip = ipaddress.ip_address(hostname)
+        if not allow_localhost and ip.is_loopback:
+            raise SSRFProtectionError("Localhost not allowed")
+        if ip.is_private and not ip.is_loopback:
+            raise SSRFProtectionError(f"Private IP address not allowed: {hostname}")
+        if ip.is_link_local or ip.is_multicast or ip.is_reserved:
+            raise SSRFProtectionError(f"Reserved IP address not allowed: {hostname}")
+    except ValueError:
+        # Not an IP address, it's a hostname - check for localhost
+        if not allow_localhost and hostname in ('localhost', '127.0.0.1', '::1'):
+            raise SSRFProtectionError("Localhost not allowed")
+
+    return url
+
+
+# =============================================================================
 # Models
 # =============================================================================
 
@@ -264,8 +421,28 @@ class ImageGenerator:
 
     def __init__(self):
         self._diffusers_available = False
-        self._comfyui_endpoint = os.environ.get("COMFYUI_ENDPOINT")
-        self._a1111_endpoint = os.environ.get("A1111_ENDPOINT")
+        self._comfyui_endpoint = None
+        self._a1111_endpoint = None
+
+        # Validate and set ComfyUI endpoint if configured
+        comfyui_env = os.environ.get("COMFYUI_ENDPOINT")
+        if comfyui_env:
+            try:
+                # Allow localhost since these are typically local services
+                self._comfyui_endpoint = validate_api_endpoint(comfyui_env, allow_localhost=True)
+            except SSRFProtectionError as e:
+                logger.error(f"Invalid COMFYUI_ENDPOINT configuration: {e}")
+                # Don't set the endpoint - it fails validation
+
+        # Validate and set A1111 endpoint if configured
+        a1111_env = os.environ.get("A1111_ENDPOINT")
+        if a1111_env:
+            try:
+                # Allow localhost since these are typically local services
+                self._a1111_endpoint = validate_api_endpoint(a1111_env, allow_localhost=True)
+            except SSRFProtectionError as e:
+                logger.error(f"Invalid A1111_ENDPOINT configuration: {e}")
+                # Don't set the endpoint - it fails validation
 
         # Check for diffusers
         try:
@@ -678,8 +855,16 @@ async def get_image(image_id: str):
     for job in store.jobs.values():
         for img in job.images:
             if img.get("id") == image_id:
-                # Return the image file
-                filepath = store.output_dir / img["filename"]
+                # Return the image file - validate filename to prevent path traversal
+                try:
+                    filepath = validate_filename_in_directory(
+                        img["filename"],
+                        store.output_dir
+                    )
+                except PathTraversalError as e:
+                    logger.warning(f"Path traversal attempt blocked: {e}")
+                    raise HTTPException(status_code=400, detail="Invalid filename")
+
                 if filepath.exists():
                     return StreamingResponse(
                         open(filepath, "rb"),
