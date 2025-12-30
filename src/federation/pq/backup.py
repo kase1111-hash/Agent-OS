@@ -726,35 +726,42 @@ class KeyBackupManager:
             )
 
     def _encrypt(self, plaintext: bytes, key: bytes, nonce: bytes) -> bytes:
-        """Encrypt with AES-256-GCM."""
+        """Encrypt with AES-256-GCM.
+
+        Raises:
+            ImportError: If the cryptography library is not available.
+                        This is a security-critical function and MUST NOT
+                        fall back to insecure alternatives.
+        """
         try:
             from cryptography.hazmat.primitives.ciphers.aead import AESGCM
             aesgcm = AESGCM(key)
             return aesgcm.encrypt(nonce, plaintext, None)
         except ImportError:
-            # Fallback to XOR (NOT SECURE - for testing only)
-            logger.warning("cryptography not available, using insecure fallback")
-            key_stream = hashlib.sha256(key + nonce).digest() * (len(plaintext) // 32 + 1)
-            ciphertext = bytes(a ^ b for a, b in zip(plaintext, key_stream))
-            tag = hmac.new(key, nonce + ciphertext, hashlib.sha256).digest()[:16]
-            return ciphertext + tag
+            # SECURITY: Fail securely - do NOT use insecure fallbacks
+            raise ImportError(
+                "The 'cryptography' library is required for secure key backup. "
+                "Install with: pip install cryptography"
+            )
 
     def _decrypt(self, ciphertext: bytes, key: bytes, nonce: bytes) -> bytes:
-        """Decrypt with AES-256-GCM."""
+        """Decrypt with AES-256-GCM.
+
+        Raises:
+            ImportError: If the cryptography library is not available.
+                        This is a security-critical function and MUST NOT
+                        fall back to insecure alternatives.
+        """
         try:
             from cryptography.hazmat.primitives.ciphers.aead import AESGCM
             aesgcm = AESGCM(key)
             return aesgcm.decrypt(nonce, ciphertext, None)
         except ImportError:
-            # Fallback (NOT SECURE)
-            logger.warning("cryptography not available, using insecure fallback")
-            tag = ciphertext[-16:]
-            ciphertext = ciphertext[:-16]
-            expected_tag = hmac.new(key, nonce + ciphertext, hashlib.sha256).digest()[:16]
-            if not hmac.compare_digest(tag, expected_tag):
-                raise ValueError("Decryption failed: tag mismatch")
-            key_stream = hashlib.sha256(key + nonce).digest() * (len(ciphertext) // 32 + 1)
-            return bytes(a ^ b for a, b in zip(ciphertext, key_stream))
+            # SECURITY: Fail securely - do NOT use insecure fallbacks
+            raise ImportError(
+                "The 'cryptography' library is required for secure key backup. "
+                "Install with: pip install cryptography"
+            )
 
     def _save_backup(self, backup: KeyBackup) -> None:
         """Save backup to disk."""

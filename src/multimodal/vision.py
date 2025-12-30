@@ -9,9 +9,11 @@ Provides image understanding capabilities using:
 
 import base64
 import io
+import ipaddress
 import json
 import logging
 import os
+import re
 import subprocess
 import tempfile
 from abc import ABC, abstractmethod
@@ -20,8 +22,133 @@ from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Security: URL Validation for SSRF Prevention
+# =============================================================================
+
+
+class SSRFProtectionError(Exception):
+    """Raised when a URL fails SSRF protection validation."""
+    pass
+
+
+def validate_api_url(url: str, allow_localhost: bool = True) -> str:
+    """
+    Validate a URL to prevent Server-Side Request Forgery (SSRF) attacks.
+
+    This function blocks requests to:
+    - Internal/private IP ranges (10.x.x.x, 172.16-31.x.x, 192.168.x.x)
+    - Link-local addresses (169.254.x.x)
+    - Loopback addresses (127.x.x.x) unless allow_localhost is True
+    - IPv6 internal addresses
+    - Non-HTTP(S) schemes
+
+    Args:
+        url: URL to validate
+        allow_localhost: If True, allow localhost/127.0.0.1 (for local Ollama)
+
+    Returns:
+        The validated URL
+
+    Raises:
+        SSRFProtectionError: If the URL is potentially dangerous
+    """
+    if not url:
+        raise SSRFProtectionError("URL cannot be empty")
+
+    try:
+        parsed = urlparse(url)
+    except Exception as e:
+        raise SSRFProtectionError(f"Invalid URL format: {e}")
+
+    # Only allow HTTP and HTTPS schemes
+    if parsed.scheme not in ("http", "https"):
+        raise SSRFProtectionError(
+            f"Invalid URL scheme: {parsed.scheme}. Only http/https allowed."
+        )
+
+    # Get the hostname
+    hostname = parsed.hostname
+    if not hostname:
+        raise SSRFProtectionError("URL must have a valid hostname")
+
+    # Check for localhost variants
+    localhost_names = {"localhost", "localhost.localdomain", "127.0.0.1", "::1"}
+    is_localhost = hostname.lower() in localhost_names
+
+    if is_localhost:
+        if allow_localhost:
+            return url
+        else:
+            raise SSRFProtectionError(
+                "Localhost URLs are not allowed in this context"
+            )
+
+    # Try to resolve hostname to IP and check if it's internal
+    try:
+        # Check if it's already an IP address
+        ip = ipaddress.ip_address(hostname)
+        _check_ip_safety(ip)
+    except ValueError:
+        # It's a hostname, not an IP - check for suspicious patterns
+        # Block hostnames that might resolve to internal IPs
+        suspicious_patterns = [
+            r"^10\.",
+            r"^192\.168\.",
+            r"^172\.(1[6-9]|2[0-9]|3[0-1])\.",
+            r"^127\.",
+            r"^169\.254\.",
+            r"^0\.",
+            r"metadata",  # Cloud metadata services
+            r"internal",
+            r"\.local$",
+            r"\.internal$",
+            r"\.corp$",
+            r"\.lan$",
+        ]
+
+        hostname_lower = hostname.lower()
+        for pattern in suspicious_patterns:
+            if re.search(pattern, hostname_lower):
+                raise SSRFProtectionError(
+                    f"Hostname matches suspicious pattern: {hostname}"
+                )
+
+    return url
+
+
+def _check_ip_safety(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> None:
+    """
+    Check if an IP address is safe (not internal/private).
+
+    Raises:
+        SSRFProtectionError: If the IP is internal/private
+    """
+    # Check for private/internal addresses
+    if ip.is_private:
+        raise SSRFProtectionError(f"Private IP addresses are not allowed: {ip}")
+
+    if ip.is_loopback:
+        raise SSRFProtectionError(f"Loopback addresses are not allowed: {ip}")
+
+    if ip.is_link_local:
+        raise SSRFProtectionError(f"Link-local addresses are not allowed: {ip}")
+
+    if ip.is_multicast:
+        raise SSRFProtectionError(f"Multicast addresses are not allowed: {ip}")
+
+    if ip.is_reserved:
+        raise SSRFProtectionError(f"Reserved addresses are not allowed: {ip}")
+
+    # Check for IPv6-specific cases
+    if isinstance(ip, ipaddress.IPv6Address):
+        if ip.is_site_local:
+            raise SSRFProtectionError(f"Site-local IPv6 addresses are not allowed: {ip}")
 
 
 # =============================================================================
@@ -615,7 +742,16 @@ class LLaVAVision(VisionEngine):
     ):
         super().__init__(model)
         self.use_ollama = use_ollama
-        self.api_base = api_base or "http://localhost:11434"
+
+        # Validate api_base URL to prevent SSRF attacks
+        # Allow localhost by default since Ollama typically runs locally
+        raw_api_base = api_base or "http://localhost:11434"
+        try:
+            self.api_base = validate_api_url(raw_api_base, allow_localhost=True)
+        except SSRFProtectionError as e:
+            logger.error(f"Invalid API base URL: {e}")
+            raise ValueError(f"Invalid api_base URL: {e}") from e
+
         self._model_name = self._get_ollama_model_name()
 
     def _get_ollama_model_name(self) -> str:

@@ -5,6 +5,7 @@ Provides speech recognition functionality using Whisper or compatible engines.
 """
 
 import logging
+import re
 import subprocess
 import tempfile
 import threading
@@ -20,6 +21,70 @@ import json
 from .audio import AudioBuffer, pcm_to_wav, AudioFormat
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Security: Path Validation for Subprocess Calls
+# =============================================================================
+
+
+class PathValidationError(Exception):
+    """Raised when a path fails security validation."""
+    pass
+
+
+def validate_audio_path(path: Path) -> Path:
+    """
+    Validate an audio file path before passing to subprocess.
+
+    This prevents command injection attacks by:
+    1. Resolving to absolute path to prevent path traversal
+    2. Checking the path doesn't contain shell metacharacters
+    3. Ensuring the file exists and is a regular file
+
+    Args:
+        path: Path to validate
+
+    Returns:
+        Validated absolute path
+
+    Raises:
+        PathValidationError: If path is invalid or potentially malicious
+    """
+    # Resolve to absolute path (handles .., symlinks, etc.)
+    try:
+        resolved = path.resolve(strict=True)
+    except (OSError, RuntimeError) as e:
+        raise PathValidationError(f"Cannot resolve path: {path}") from e
+
+    # Ensure it's a regular file (not a directory, device, etc.)
+    if not resolved.is_file():
+        raise PathValidationError(f"Path is not a regular file: {resolved}")
+
+    # Check for shell metacharacters that could enable command injection
+    path_str = str(resolved)
+
+    # Disallow null bytes (can truncate strings in C programs)
+    if '\x00' in path_str:
+        raise PathValidationError("Path contains null byte")
+
+    # Disallow newlines (can inject additional commands in some contexts)
+    if '\n' in path_str or '\r' in path_str:
+        raise PathValidationError("Path contains newline characters")
+
+    # Disallow common shell metacharacters as a defense-in-depth measure
+    dangerous_patterns = [
+        r'[;|&`$]',  # Command separators and execution
+        r'^\s*-',    # Leading dash (could be interpreted as option)
+    ]
+
+    for pattern in dangerous_patterns:
+        if re.search(pattern, path_str):
+            raise PathValidationError(
+                f"Path contains potentially dangerous characters: {path_str}"
+            )
+
+    return resolved
 
 
 # =============================================================================
@@ -358,20 +423,23 @@ class WhisperSTT(STTEngine):
 
         start_time = time.time()
 
-        # Build command
-        cmd = [
-            self.whisper_path,
-            "-m", self.model_path,
-            "-f", str(file_path),
-            "-l", self.config.language.value,
-            "--output-json",
-            "-nt",  # No timestamps in output
-        ]
-
-        if self.config.translate:
-            cmd.append("--translate")
-
         try:
+            # Validate path before passing to subprocess to prevent command injection
+            validated_path = validate_audio_path(Path(file_path))
+
+            # Build command
+            cmd = [
+                self.whisper_path,
+                "-m", self.model_path,
+                "-f", str(validated_path),
+                "-l", self.config.language.value,
+                "--output-json",
+                "-nt",  # No timestamps in output
+            ]
+
+            if self.config.translate:
+                cmd.append("--translate")
+
             result = subprocess.run(
                 cmd,
                 capture_output=True,
@@ -401,6 +469,13 @@ class WhisperSTT(STTEngine):
             self._notify_callbacks(stt_result)
             return stt_result
 
+        except PathValidationError as e:
+            logger.error(f"Path validation failed: {e}")
+            return STTResult(
+                text="",
+                confidence=0.0,
+                metadata={"error": f"Invalid audio path: {e}"},
+            )
         except subprocess.TimeoutExpired:
             logger.error("Whisper transcription timed out")
             return STTResult(

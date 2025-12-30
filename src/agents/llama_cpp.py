@@ -39,6 +39,82 @@ except ImportError:
     HTTPX_AVAILABLE = False
 
 
+# =============================================================================
+# Security: Endpoint Validation
+# =============================================================================
+
+import ipaddress
+from urllib.parse import urlparse
+
+
+class SSRFProtectionError(Exception):
+    """Raised when a URL fails SSRF protection validation."""
+    pass
+
+
+def validate_llama_endpoint(url: str) -> str:
+    """
+    Validate a Llama.cpp server endpoint URL to prevent SSRF attacks.
+
+    Args:
+        url: The URL to validate
+
+    Returns:
+        The validated URL
+
+    Raises:
+        SSRFProtectionError: If the URL fails validation
+    """
+    if not url:
+        raise SSRFProtectionError("Empty URL")
+
+    try:
+        parsed = urlparse(url)
+    except Exception as e:
+        raise SSRFProtectionError(f"Invalid URL format: {e}")
+
+    # Validate scheme
+    if parsed.scheme not in ('http', 'https'):
+        raise SSRFProtectionError(f"Invalid URL scheme: {parsed.scheme}")
+
+    # Validate host exists
+    if not parsed.hostname:
+        raise SSRFProtectionError("URL has no hostname")
+
+    hostname = parsed.hostname.lower()
+
+    # Check for suspicious internal hostnames
+    suspicious_patterns = [
+        'metadata.',           # Cloud metadata services
+        '169.254.',            # AWS metadata IP range
+        'internal.',           # Internal services
+    ]
+
+    for pattern in suspicious_patterns:
+        if pattern in hostname:
+            raise SSRFProtectionError(f"Suspicious hostname pattern: {hostname}")
+
+    # Reject .internal, .local, .corp, .lan TLDs (except localhost)
+    if hostname not in ('localhost', '127.0.0.1', '::1'):
+        suspicious_tlds = ['.internal', '.local', '.corp', '.lan']
+        for tld in suspicious_tlds:
+            if hostname.endswith(tld):
+                raise SSRFProtectionError(f"Suspicious hostname pattern: {hostname}")
+
+    # Check for IP addresses
+    try:
+        ip = ipaddress.ip_address(hostname)
+        # Allow localhost/loopback for local llama.cpp server
+        if not ip.is_loopback:
+            if ip.is_link_local or ip.is_multicast or ip.is_reserved:
+                raise SSRFProtectionError(f"Reserved IP address not allowed: {hostname}")
+    except ValueError:
+        # Not an IP address, it's a hostname - that's fine
+        pass
+
+    return url
+
+
 @dataclass
 class LlamaCppMessage:
     """A message in a Llama.cpp chat conversation."""
@@ -146,9 +222,19 @@ class LlamaCppClient:
             retry_count: Number of retries for failed requests
             retry_delay: Delay between retries in seconds
             verbose: Enable verbose logging
+
+        Raises:
+            SSRFProtectionError: If the endpoint URL fails SSRF validation
         """
         self.model_path = model_path
-        self.endpoint = endpoint.rstrip("/") if endpoint else None
+
+        # SECURITY: Validate endpoint URL to prevent SSRF attacks
+        if endpoint:
+            validated_endpoint = validate_llama_endpoint(endpoint)
+            self.endpoint = validated_endpoint.rstrip("/")
+        else:
+            self.endpoint = None
+
         self.n_ctx = n_ctx
         self.n_threads = n_threads
         self.n_gpu_layers = n_gpu_layers
@@ -165,7 +251,7 @@ class LlamaCppClient:
         self._model_info: Optional[LlamaCppModelInfo] = None
 
         # Determine mode
-        if endpoint:
+        if self.endpoint:
             self._mode = "server"
             if not HTTPX_AVAILABLE:
                 raise ImportError("httpx package required for server mode")

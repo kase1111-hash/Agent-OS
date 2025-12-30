@@ -31,8 +31,95 @@ from src.boundary import SmithClient, create_smith_client, BoundaryMode
 
 logger = logging.getLogger(__name__)
 
-# Ollama configuration
-OLLAMA_ENDPOINT = os.environ.get("OLLAMA_ENDPOINT", "http://localhost:11434")
+
+# =============================================================================
+# Security: Endpoint Validation
+# =============================================================================
+
+import ipaddress
+from urllib.parse import urlparse
+
+
+class SSRFProtectionError(Exception):
+    """Raised when a URL fails SSRF protection validation."""
+    pass
+
+
+def validate_ollama_endpoint(url: str) -> str:
+    """
+    Validate an Ollama endpoint URL to prevent SSRF attacks.
+
+    Args:
+        url: The URL to validate
+
+    Returns:
+        The validated URL
+
+    Raises:
+        SSRFProtectionError: If the URL fails validation
+    """
+    if not url:
+        raise SSRFProtectionError("Empty URL")
+
+    try:
+        parsed = urlparse(url)
+    except Exception as e:
+        raise SSRFProtectionError(f"Invalid URL format: {e}")
+
+    # Validate scheme
+    if parsed.scheme not in ('http', 'https'):
+        raise SSRFProtectionError(f"Invalid URL scheme: {parsed.scheme}")
+
+    # Validate host exists
+    if not parsed.hostname:
+        raise SSRFProtectionError("URL has no hostname")
+
+    hostname = parsed.hostname.lower()
+
+    # Check for suspicious internal hostnames
+    suspicious_patterns = [
+        'metadata.',           # Cloud metadata services
+        '169.254.',            # AWS metadata IP range
+        'internal.',           # Internal services
+    ]
+
+    for pattern in suspicious_patterns:
+        if pattern in hostname:
+            raise SSRFProtectionError(f"Suspicious hostname pattern: {hostname}")
+
+    # Reject .internal, .local, .corp, .lan TLDs (except localhost)
+    if hostname not in ('localhost', '127.0.0.1', '::1'):
+        suspicious_tlds = ['.internal', '.local', '.corp', '.lan']
+        for tld in suspicious_tlds:
+            if hostname.endswith(tld):
+                raise SSRFProtectionError(f"Suspicious hostname pattern: {hostname}")
+
+    # Check for IP addresses
+    try:
+        ip = ipaddress.ip_address(hostname)
+        # Allow localhost/loopback for local Ollama
+        if not ip.is_loopback:
+            if ip.is_private:
+                # Allow common private network ranges for local Ollama deployments
+                # but block link-local, multicast, reserved
+                pass
+            if ip.is_link_local or ip.is_multicast or ip.is_reserved:
+                raise SSRFProtectionError(f"Reserved IP address not allowed: {hostname}")
+    except ValueError:
+        # Not an IP address, it's a hostname - that's fine
+        pass
+
+    return url
+
+
+# Ollama configuration with SSRF protection
+_raw_ollama_endpoint = os.environ.get("OLLAMA_ENDPOINT", "http://localhost:11434")
+try:
+    OLLAMA_ENDPOINT = validate_ollama_endpoint(_raw_ollama_endpoint)
+except SSRFProtectionError as e:
+    logger.error(f"Invalid OLLAMA_ENDPOINT configuration: {e}")
+    OLLAMA_ENDPOINT = "http://localhost:11434"  # Fall back to safe default
+
 OLLAMA_TIMEOUT = float(os.environ.get("OLLAMA_TIMEOUT", "120"))
 
 # System prompt for the AI assistant

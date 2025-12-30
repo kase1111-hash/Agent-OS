@@ -22,6 +22,82 @@ except ImportError:
     httpx = None
 
 
+# =============================================================================
+# Security: Endpoint Validation
+# =============================================================================
+
+import ipaddress
+from urllib.parse import urlparse
+
+
+class SSRFProtectionError(Exception):
+    """Raised when a URL fails SSRF protection validation."""
+    pass
+
+
+def validate_ollama_endpoint(url: str) -> str:
+    """
+    Validate an Ollama API endpoint URL to prevent SSRF attacks.
+
+    Args:
+        url: The URL to validate
+
+    Returns:
+        The validated URL
+
+    Raises:
+        SSRFProtectionError: If the URL fails validation
+    """
+    if not url:
+        raise SSRFProtectionError("Empty URL")
+
+    try:
+        parsed = urlparse(url)
+    except Exception as e:
+        raise SSRFProtectionError(f"Invalid URL format: {e}")
+
+    # Validate scheme
+    if parsed.scheme not in ('http', 'https'):
+        raise SSRFProtectionError(f"Invalid URL scheme: {parsed.scheme}")
+
+    # Validate host exists
+    if not parsed.hostname:
+        raise SSRFProtectionError("URL has no hostname")
+
+    hostname = parsed.hostname.lower()
+
+    # Check for suspicious internal hostnames
+    suspicious_patterns = [
+        'metadata.',           # Cloud metadata services
+        '169.254.',            # AWS metadata IP range
+        'internal.',           # Internal services
+    ]
+
+    for pattern in suspicious_patterns:
+        if pattern in hostname:
+            raise SSRFProtectionError(f"Suspicious hostname pattern: {hostname}")
+
+    # Reject .internal, .local, .corp, .lan TLDs (except localhost)
+    if hostname not in ('localhost', '127.0.0.1', '::1'):
+        suspicious_tlds = ['.internal', '.local', '.corp', '.lan']
+        for tld in suspicious_tlds:
+            if hostname.endswith(tld):
+                raise SSRFProtectionError(f"Suspicious hostname pattern: {hostname}")
+
+    # Check for IP addresses
+    try:
+        ip = ipaddress.ip_address(hostname)
+        # Allow localhost/loopback for local Ollama
+        if not ip.is_loopback:
+            if ip.is_link_local or ip.is_multicast or ip.is_reserved:
+                raise SSRFProtectionError(f"Reserved IP address not allowed: {hostname}")
+    except ValueError:
+        # Not an IP address, it's a hostname - that's fine
+        pass
+
+    return url
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -131,11 +207,16 @@ class OllamaClient:
             timeout: Request timeout in seconds
             retry_count: Number of retries for failed requests
             retry_delay: Delay between retries in seconds
+
+        Raises:
+            SSRFProtectionError: If the endpoint URL fails SSRF validation
         """
         if not HTTPX_AVAILABLE:
             raise ImportError("httpx package required for Ollama integration")
 
-        self.endpoint = endpoint.rstrip("/")
+        # SECURITY: Validate endpoint URL to prevent SSRF attacks
+        validated_endpoint = validate_ollama_endpoint(endpoint)
+        self.endpoint = validated_endpoint.rstrip("/")
         self.timeout = timeout
         self.retry_count = retry_count
         self.retry_delay = retry_delay
