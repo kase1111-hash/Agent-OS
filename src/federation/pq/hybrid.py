@@ -672,16 +672,24 @@ class HybridSigner:
         return True
 
     def _ed25519_sign(self, message: bytes, private_key: bytes) -> bytes:
-        """Sign with Ed25519."""
+        """Sign with Ed25519.
+
+        Raises:
+            ImportError: If the cryptography library is not available.
+                        This is a security-critical function and MUST NOT
+                        fall back to insecure alternatives.
+        """
         if self._has_crypto:
             from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
             key = Ed25519PrivateKey.from_private_bytes(private_key)
             return key.sign(message)
 
-        # Mock fallback
-        return hmac.new(private_key, message, hashlib.sha256).digest() + \
-               hmac.new(private_key, message + b"\x01", hashlib.sha256).digest()
+        # SECURITY: Fail securely - do NOT use insecure mock fallbacks
+        raise ImportError(
+            "The 'cryptography' library is required for Ed25519 signing. "
+            "Install with: pip install cryptography"
+        )
 
     def _ed25519_verify(
         self,
@@ -689,7 +697,13 @@ class HybridSigner:
         signature: bytes,
         public_key: bytes,
     ) -> bool:
-        """Verify Ed25519 signature."""
+        """Verify Ed25519 signature.
+
+        Raises:
+            ImportError: If the cryptography library is not available.
+                        This is a security-critical function and MUST NOT
+                        fall back to insecure alternatives.
+        """
         if self._has_crypto:
             from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
@@ -700,11 +714,11 @@ class HybridSigner:
             except Exception:
                 return False
 
-        # Mock fallback verification
-        mock_private = hashlib.sha256(public_key).digest()  # Derive mock private
-        expected = hmac.new(mock_private, message, hashlib.sha256).digest() + \
-                   hmac.new(mock_private, message + b"\x01", hashlib.sha256).digest()
-        return hmac.compare_digest(signature[:64], expected[:64])
+        # SECURITY: Fail securely - do NOT use insecure mock fallbacks
+        raise ImportError(
+            "The 'cryptography' library is required for Ed25519 verification. "
+            "Install with: pip install cryptography"
+        )
 
 
 # =============================================================================
