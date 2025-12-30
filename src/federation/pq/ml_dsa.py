@@ -289,19 +289,40 @@ class MLDSAProvider(ABC):
 
 class DefaultMLDSAProvider(MLDSAProvider):
     """
-    Default ML-DSA provider using liboqs library when available.
+    Default ML-DSA provider using liboqs library.
 
-    Falls back to a deterministic mock implementation for testing
-    when liboqs is not installed.
+    SECURITY: This provider requires the liboqs library for secure
+    post-quantum digital signatures. It will NOT fall back to insecure
+    mock implementations.
+
+    Raises:
+        ImportError: If liboqs is not available
     """
 
-    def __init__(self):
+    def __init__(self, allow_mock: bool = False):
+        """Initialize the ML-DSA provider.
+
+        Args:
+            allow_mock: If True, allow insecure mock fallback (FOR TESTING ONLY).
+                       Default is False for security.
+
+        Raises:
+            ImportError: If liboqs is not available and allow_mock is False
+        """
         self._has_oqs = self._check_oqs()
+        self._allow_mock = allow_mock
+
         if self._has_oqs:
             logger.info("Using liboqs for ML-DSA operations")
-        else:
+        elif allow_mock:
             logger.warning(
-                "liboqs not installed, using mock ML-DSA (NOT SECURE FOR PRODUCTION)"
+                "SECURITY WARNING: Using mock ML-DSA - NOT SECURE FOR PRODUCTION. "
+                "Install liboqs for secure post-quantum signatures."
+            )
+        else:
+            raise ImportError(
+                "The 'liboqs' library is required for secure ML-DSA operations. "
+                "Install with: pip install liboqs-python"
             )
 
     def _check_oqs(self) -> bool:
@@ -333,7 +354,12 @@ class DefaultMLDSAProvider(MLDSAProvider):
         """Generate ML-DSA key pair."""
         if self._has_oqs:
             return self._generate_keypair_oqs(security_level)
-        return self._generate_keypair_mock(security_level)
+        if self._allow_mock:
+            return self._generate_keypair_mock(security_level)
+        raise ImportError(
+            "The 'liboqs' library is required for ML-DSA key generation. "
+            "Install with: pip install liboqs-python"
+        )
 
     def _generate_keypair_oqs(
         self, security_level: MLDSASecurityLevel
@@ -393,7 +419,12 @@ class DefaultMLDSAProvider(MLDSAProvider):
         """Sign a message."""
         if self._has_oqs:
             return self._sign_oqs(message, private_key)
-        return self._sign_mock(message, private_key)
+        if self._allow_mock:
+            return self._sign_mock(message, private_key)
+        raise ImportError(
+            "The 'liboqs' library is required for ML-DSA signing. "
+            "Install with: pip install liboqs-python"
+        )
 
     def _sign_oqs(
         self,
@@ -455,7 +486,12 @@ class DefaultMLDSAProvider(MLDSAProvider):
         """Verify a signature."""
         if self._has_oqs:
             return self._verify_oqs(message, signature, public_key)
-        return self._verify_mock(message, signature, public_key)
+        if self._allow_mock:
+            return self._verify_mock(message, signature, public_key)
+        raise ImportError(
+            "The 'liboqs' library is required for ML-DSA verification. "
+            "Install with: pip install liboqs-python"
+        )
 
     def _verify_oqs(
         self,

@@ -294,19 +294,40 @@ class MLKEMProvider(ABC):
 
 class DefaultMLKEMProvider(MLKEMProvider):
     """
-    Default ML-KEM provider using liboqs library when available.
+    Default ML-KEM provider using liboqs library.
 
-    Falls back to a deterministic mock implementation for testing
-    when liboqs is not installed.
+    SECURITY: This provider requires the liboqs library for secure
+    post-quantum key encapsulation. It will NOT fall back to insecure
+    mock implementations.
+
+    Raises:
+        ImportError: If liboqs is not available
     """
 
-    def __init__(self):
+    def __init__(self, allow_mock: bool = False):
+        """Initialize the ML-KEM provider.
+
+        Args:
+            allow_mock: If True, allow insecure mock fallback (FOR TESTING ONLY).
+                       Default is False for security.
+
+        Raises:
+            ImportError: If liboqs is not available and allow_mock is False
+        """
         self._has_oqs = self._check_oqs()
+        self._allow_mock = allow_mock
+
         if self._has_oqs:
             logger.info("Using liboqs for ML-KEM operations")
-        else:
+        elif allow_mock:
             logger.warning(
-                "liboqs not installed, using mock ML-KEM (NOT SECURE FOR PRODUCTION)"
+                "SECURITY WARNING: Using mock ML-KEM - NOT SECURE FOR PRODUCTION. "
+                "Install liboqs for secure post-quantum key encapsulation."
+            )
+        else:
+            raise ImportError(
+                "The 'liboqs' library is required for secure ML-KEM operations. "
+                "Install with: pip install liboqs-python"
             )
 
     def _check_oqs(self) -> bool:
@@ -338,7 +359,12 @@ class DefaultMLKEMProvider(MLKEMProvider):
         """Generate ML-KEM key pair."""
         if self._has_oqs:
             return self._generate_keypair_oqs(security_level)
-        return self._generate_keypair_mock(security_level)
+        if self._allow_mock:
+            return self._generate_keypair_mock(security_level)
+        raise ImportError(
+            "The 'liboqs' library is required for ML-KEM key generation. "
+            "Install with: pip install liboqs-python"
+        )
 
     def _generate_keypair_oqs(
         self, security_level: MLKEMSecurityLevel
@@ -398,7 +424,12 @@ class DefaultMLKEMProvider(MLKEMProvider):
         """Encapsulate to generate shared secret and ciphertext."""
         if self._has_oqs:
             return self._encapsulate_oqs(public_key)
-        return self._encapsulate_mock(public_key)
+        if self._allow_mock:
+            return self._encapsulate_mock(public_key)
+        raise ImportError(
+            "The 'liboqs' library is required for ML-KEM encapsulation. "
+            "Install with: pip install liboqs-python"
+        )
 
     def _encapsulate_oqs(
         self, public_key: MLKEMPublicKey
@@ -461,7 +492,12 @@ class DefaultMLKEMProvider(MLKEMProvider):
         """Decapsulate to recover shared secret."""
         if self._has_oqs:
             return self._decapsulate_oqs(ciphertext, private_key)
-        return self._decapsulate_mock(ciphertext, private_key)
+        if self._allow_mock:
+            return self._decapsulate_mock(ciphertext, private_key)
+        raise ImportError(
+            "The 'liboqs' library is required for ML-KEM decapsulation. "
+            "Install with: pip install liboqs-python"
+        )
 
     def _decapsulate_oqs(
         self,
