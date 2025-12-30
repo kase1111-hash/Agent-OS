@@ -10,6 +10,7 @@ Ensures agents run in controlled, sandboxed environments.
 """
 
 import os
+import re
 import sys
 import json
 import signal
@@ -20,12 +21,175 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Callable
+from typing import Optional, List, Dict, Any, Callable, Set
 from enum import Enum, auto
 import logging
 
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Security: Module and Class Name Validation
+# =============================================================================
+
+
+class ModuleValidationError(Exception):
+    """Raised when a module or class name fails validation."""
+    pass
+
+
+# Allowlist of trusted module prefixes for agent isolation
+# Only modules starting with these prefixes are allowed to be loaded
+TRUSTED_MODULE_PREFIXES: Set[str] = {
+    "src.agents.",           # Agent OS built-in agents
+    "agents.",               # Alternative agent path
+    "agent_os.agents.",      # Installed package agents
+}
+
+
+def validate_module_name(module: str) -> str:
+    """
+    Validate a Python module name to prevent code injection.
+
+    This ensures the module name:
+    1. Is a valid Python module path (alphanumeric, dots, underscores)
+    2. Does not contain dangerous patterns
+    3. Is in the trusted modules allowlist
+
+    Args:
+        module: Module name to validate (e.g., "src.agents.sage.agent")
+
+    Returns:
+        The validated module name
+
+    Raises:
+        ModuleValidationError: If the module name is invalid or not trusted
+    """
+    if not module:
+        raise ModuleValidationError("Module name cannot be empty")
+
+    # Check for valid Python module path pattern
+    # Valid: alphanumeric, underscores, dots (for submodules)
+    # Each component must start with letter or underscore, not digit
+    module_pattern = r"^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$"
+
+    if not re.match(module_pattern, module):
+        raise ModuleValidationError(
+            f"Invalid module name format: {module}. "
+            "Must be a valid Python module path (e.g., 'src.agents.sage')"
+        )
+
+    # Check for dangerous patterns that could indicate injection attempts
+    dangerous_patterns = [
+        r"__",           # Dunder attributes
+        r"\bos\b",       # os module
+        r"\bsys\b",      # sys module
+        r"\bsubprocess\b",  # subprocess module
+        r"\beval\b",     # eval function
+        r"\bexec\b",     # exec function
+        r"\bimport\b",   # import statement
+        r"\bopen\b",     # open function
+        r"\bfile\b",     # file operations
+        r"\bsocket\b",   # network operations
+        r"\bbuiltins\b", # builtins access
+    ]
+
+    module_lower = module.lower()
+    for pattern in dangerous_patterns:
+        if re.search(pattern, module_lower):
+            raise ModuleValidationError(
+                f"Module name contains dangerous pattern: {module}"
+            )
+
+    # Check against allowlist of trusted module prefixes
+    is_trusted = any(module.startswith(prefix) for prefix in TRUSTED_MODULE_PREFIXES)
+
+    if not is_trusted:
+        raise ModuleValidationError(
+            f"Module '{module}' is not in the trusted modules allowlist. "
+            f"Allowed prefixes: {', '.join(sorted(TRUSTED_MODULE_PREFIXES))}"
+        )
+
+    return module
+
+
+def validate_class_name(class_name: str) -> str:
+    """
+    Validate a Python class name to prevent code injection.
+
+    This ensures the class name:
+    1. Is a valid Python identifier
+    2. Does not contain dangerous patterns
+    3. Follows PEP 8 naming conventions (starts with uppercase)
+
+    Args:
+        class_name: Class name to validate (e.g., "SageAgent")
+
+    Returns:
+        The validated class name
+
+    Raises:
+        ModuleValidationError: If the class name is invalid
+    """
+    if not class_name:
+        raise ModuleValidationError("Class name cannot be empty")
+
+    # Check for valid Python identifier pattern
+    # Must start with letter or underscore, followed by alphanumeric/underscores
+    identifier_pattern = r"^[a-zA-Z_][a-zA-Z0-9_]*$"
+
+    if not re.match(identifier_pattern, class_name):
+        raise ModuleValidationError(
+            f"Invalid class name format: {class_name}. "
+            "Must be a valid Python identifier (e.g., 'MyAgent')"
+        )
+
+    # Check length limits (reasonable class names shouldn't be too long)
+    if len(class_name) > 100:
+        raise ModuleValidationError(
+            f"Class name too long: {len(class_name)} characters (max 100)"
+        )
+
+    # Check for dangerous patterns
+    dangerous_patterns = [
+        r"^__",          # Starts with dunder
+        r"__$",          # Ends with dunder
+        r"\bexec\b",     # exec
+        r"\beval\b",     # eval
+        r"\bimport\b",   # import
+    ]
+
+    for pattern in dangerous_patterns:
+        if re.search(pattern, class_name, re.IGNORECASE):
+            raise ModuleValidationError(
+                f"Class name contains dangerous pattern: {class_name}"
+            )
+
+    # Warn if doesn't follow PEP 8 (should start with uppercase for classes)
+    if not class_name[0].isupper():
+        logger.warning(
+            f"Class name '{class_name}' does not follow PEP 8 naming convention "
+            "(should start with uppercase letter)"
+        )
+
+    return class_name
+
+
+def add_trusted_module_prefix(prefix: str) -> None:
+    """
+    Add a module prefix to the trusted allowlist.
+
+    This should only be called during application initialization
+    with trusted module prefixes.
+
+    Args:
+        prefix: Module prefix to trust (e.g., "myapp.agents.")
+    """
+    if not prefix.endswith("."):
+        prefix = prefix + "."
+    TRUSTED_MODULE_PREFIXES.add(prefix)
+    logger.info(f"Added trusted module prefix: {prefix}")
 
 
 class IsolationLevel(Enum):
@@ -95,20 +259,33 @@ class ProcessIsolator:
 
         Args:
             agent_name: Agent name
-            agent_module: Python module containing agent
-            agent_class: Agent class name
+            agent_module: Python module containing agent (must be in trusted allowlist)
+            agent_class: Agent class name (must be valid Python identifier)
             config: Agent configuration
             limits: Resource limits
 
         Returns:
             IsolatedProcessInfo for the spawned process
+
+        Raises:
+            ModuleValidationError: If module or class name is invalid/untrusted
         """
         limits = limits or ResourceLimits()
 
-        # Build the wrapper script
+        # SECURITY: Validate module and class names to prevent code injection
+        # This is critical because they are interpolated into executable Python code
+        validated_module = validate_module_name(agent_module)
+        validated_class = validate_class_name(agent_class)
+
+        logger.debug(
+            f"Spawning agent '{agent_name}' from validated module "
+            f"'{validated_module}' class '{validated_class}'"
+        )
+
+        # Build the wrapper script with validated inputs
         wrapper_code = self._generate_wrapper(
-            agent_module,
-            agent_class,
+            validated_module,
+            validated_class,
             config,
         )
 
