@@ -307,10 +307,17 @@ class ConnectionManager:
     def boundary(self) -> SmithClient:
         """Get the boundary client, initializing if needed."""
         if self._boundary_client is None:
+            # Allow network access for local Ollama by default
+            # Can be disabled via AGENT_OS_BOUNDARY_NETWORK_ALLOWED=false
+            network_allowed = os.environ.get(
+                "AGENT_OS_BOUNDARY_NETWORK_ALLOWED", "true"
+            ).lower() in ("true", "1", "yes")
+
             self._boundary_client = create_smith_client(
                 embedded=True,
                 initial_mode=BoundaryMode.RESTRICTED,
                 fail_closed=True,
+                network_allowed=network_allowed,
             )
         return self._boundary_client
 
