@@ -130,7 +130,7 @@ jobs:
           cp benchmark_results.json .benchmark_baseline.json
 
       - name: Upload benchmark results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: benchmark-results
           path: benchmark_results.json
