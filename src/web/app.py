@@ -67,6 +67,11 @@ OPENAPI_TAGS = [
         "description": "System status, health checks, and configuration. "
         "Monitor system resources and component health.",
     },
+    {
+        "name": "Observability",
+        "description": "Metrics, tracing, and health monitoring endpoints. "
+        "Prometheus-compatible metrics export at /api/observability/metrics.",
+    },
 ]
 
 logger = logging.getLogger(__name__)
@@ -212,7 +217,16 @@ Most endpoints require authentication. Use one of these methods:
 
 ### Rate Limits
 
-Currently no rate limits are enforced for local deployments.
+Default rate limits (configurable via environment variables):
+- **60 requests/minute** per client
+- **1000 requests/hour** per client
+
+Rate limit headers are included in responses:
+- `X-RateLimit-Limit`: Maximum requests allowed
+- `X-RateLimit-Remaining`: Requests remaining in window
+- `X-RateLimit-Reset`: Unix timestamp when limit resets
+
+When rate limited, responses return HTTP 429 with `Retry-After` header.
 
 ### WebSocket Endpoints
 
@@ -256,6 +270,39 @@ Real-time streaming is available via WebSocket:
     # Store app state
     app.state.app_state = _app_state
 
+    # Set up rate limiting
+    if config.rate_limit_enabled:
+        try:
+            from .ratelimit import RateLimitMiddleware, create_limiter
+
+            limiter = create_limiter(
+                requests_per_minute=config.rate_limit_requests_per_minute,
+                requests_per_hour=config.rate_limit_requests_per_hour,
+                strategy=config.rate_limit_strategy,
+                use_redis=config.rate_limit_use_redis,
+                redis_url=config.rate_limit_redis_url,
+            )
+            app.add_middleware(
+                RateLimitMiddleware,
+                limiter=limiter,
+                exclude_paths=["/health", "/metrics", "/docs", "/redoc", "/openapi.json"],
+            )
+            logger.info(
+                f"Rate limiting enabled: {config.rate_limit_requests_per_minute}/min, "
+                f"{config.rate_limit_requests_per_hour}/hour ({config.rate_limit_strategy})"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to enable rate limiting: {e}")
+
+    # Set up observability (metrics and tracing middleware)
+    try:
+        from src.observability.middleware import setup_observability
+
+        setup_observability(app, enable_metrics=True, enable_tracing=True)
+        logger.info("Observability middleware enabled")
+    except ImportError:
+        logger.debug("Observability module not available, skipping middleware")
+
     # Include routers
     from .routes import agents, auth, chat, constitution, contracts, images, intent_log, memory, system, voice
 
@@ -269,6 +316,17 @@ Real-time streaming is available via WebSocket:
     app.include_router(memory.router, prefix="/api/memory", tags=["Memory"])
     app.include_router(system.router, prefix="/api/system", tags=["System"])
     app.include_router(voice.router, prefix="/api/voice", tags=["Voice"])
+
+    # Observability routes (metrics, health, tracing)
+    try:
+        from .routes import observability
+
+        app.include_router(
+            observability.router, prefix="/api/observability", tags=["Observability"]
+        )
+        logger.info("Observability routes enabled")
+    except ImportError:
+        logger.debug("Observability routes not available")
 
     # Root endpoint
     @app.get("/")
