@@ -35,3 +35,10 @@ isort>=5.13
 
 # Development
 ipython>=8.29
+
+# Image Generation (diffusers backend)
+diffusers>=0.30
+torch>=2.0
+transformers>=4.40
+accelerate>=1.0
+Pillow>=10.0
