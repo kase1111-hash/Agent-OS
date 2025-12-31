@@ -6,27 +6,27 @@ Coordinates agent invocations based on routing decisions.
 """
 
 import asyncio
+import logging
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, Future, as_completed
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, List, Dict, Any, Callable, Union
 from enum import Enum, auto
-import logging
+from typing import Any, Callable, Dict, List, Optional, Union
 
-from .router import RoutingDecision, RoutingStrategy, AgentRoute
-
+from .router import AgentRoute, RoutingDecision, RoutingStrategy
 
 logger = logging.getLogger(__name__)
 
 
 class FlowStatus(Enum):
     """Status of a flow execution."""
+
     PENDING = auto()
     RUNNING = auto()
     COMPLETED = auto()
-    PARTIAL = auto()    # Some agents succeeded, some failed
+    PARTIAL = auto()  # Some agents succeeded, some failed
     FAILED = auto()
     CANCELLED = auto()
     TIMEOUT = auto()
@@ -35,6 +35,7 @@ class FlowStatus(Enum):
 @dataclass
 class AgentResult:
     """Result from a single agent invocation."""
+
     agent_name: str
     success: bool
     output: Any
@@ -47,6 +48,7 @@ class AgentResult:
 @dataclass
 class FlowResult:
     """Result of complete flow execution."""
+
     request_id: str
     status: FlowStatus
     results: List[AgentResult]
@@ -195,9 +197,7 @@ class FlowController:
         futures: Dict[Future, AgentRoute] = {}
 
         for route in routes:
-            future = self._executor.submit(
-                self._invoke_agent, route, request, invoker, context
-            )
+            future = self._executor.submit(self._invoke_agent, route, request, invoker, context)
             futures[future] = route
 
         # Collect results as they complete
@@ -207,12 +207,14 @@ class FlowController:
                 result = future.result(timeout=route.timeout_ms / 1000)
                 results.append(result)
             except Exception as e:
-                results.append(AgentResult(
-                    agent_name=route.agent_name,
-                    success=False,
-                    output=None,
-                    error=str(e),
-                ))
+                results.append(
+                    AgentResult(
+                        agent_name=route.agent_name,
+                        success=False,
+                        output=None,
+                        error=str(e),
+                    )
+                )
 
         return results
 
@@ -399,17 +401,13 @@ class AsyncFlowController:
         start_time = time.time()
 
         if strategy == RoutingStrategy.PARALLEL:
-            results = await self._execute_parallel_async(
-                routes, request, invoker, context
-            )
+            results = await self._execute_parallel_async(routes, request, invoker, context)
         else:
             # For other strategies, run synchronously in executor
             loop = asyncio.get_event_loop()
             sync_controller = FlowController()
             result = await loop.run_in_executor(
-                None,
-                sync_controller.execute,
-                request_id, decision, request, invoker, context
+                None, sync_controller.execute, request_id, decision, request, invoker, context
             )
             sync_controller.shutdown()
             return result
@@ -438,9 +436,7 @@ class AsyncFlowController:
         tasks = []
 
         for route in routes:
-            task = asyncio.create_task(
-                self._invoke_agent_async(route, request, invoker, context)
-            )
+            task = asyncio.create_task(self._invoke_agent_async(route, request, invoker, context))
             tasks.append(task)
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -449,12 +445,14 @@ class AsyncFlowController:
         processed_results = []
         for i, result in enumerate(results):
             if isinstance(result, Exception):
-                processed_results.append(AgentResult(
-                    agent_name=routes[i].agent_name,
-                    success=False,
-                    output=None,
-                    error=str(result),
-                ))
+                processed_results.append(
+                    AgentResult(
+                        agent_name=routes[i].agent_name,
+                        success=False,
+                        output=None,
+                        error=str(result),
+                    )
+                )
             else:
                 processed_results.append(result)
 
@@ -481,9 +479,7 @@ class AsyncFlowController:
             # Run invoker in executor
             loop = asyncio.get_event_loop()
             output = await asyncio.wait_for(
-                loop.run_in_executor(
-                    None, invoker, route.agent_name, request, agent_context
-                ),
+                loop.run_in_executor(None, invoker, route.agent_name, request, agent_context),
                 timeout=timeout,
             )
 

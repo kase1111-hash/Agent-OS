@@ -107,9 +107,7 @@ class SystemRequirements:
     min_vram_gb: float = 0.0  # 0 means no GPU required
     recommended_vram_gb: float = 8.0
     required_commands: List[str] = field(default_factory=lambda: ["python3", "git"])
-    optional_commands: List[str] = field(
-        default_factory=lambda: ["docker", "nvidia-smi", "ollama"]
-    )
+    optional_commands: List[str] = field(default_factory=lambda: ["docker", "nvidia-smi", "ollama"])
 
 
 def detect_platform() -> Platform:

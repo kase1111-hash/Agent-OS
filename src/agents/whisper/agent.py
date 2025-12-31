@@ -8,18 +8,18 @@ The central routing agent that:
 - Enforces constitutional boundaries via Smith
 """
 
-from dataclasses import dataclass
-from datetime import datetime
-from typing import Optional, List, Dict, Any, Set, Callable
 import logging
 import time
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, Callable, Dict, List, Optional, Set
 
 from src.agents.interface import (
-    AgentInterface,
-    BaseAgent,
-    AgentState,
-    CapabilityType,
     AgentCapabilities,
+    AgentInterface,
+    AgentState,
+    BaseAgent,
+    CapabilityType,
     RequestValidationResult,
 )
 from src.messaging.models import (
@@ -28,13 +28,12 @@ from src.messaging.models import (
     MessageStatus,
 )
 
-from .intent import IntentClassifier, IntentClassification, IntentCategory
-from .router import RoutingEngine, RoutingDecision, RoutingAuditor
-from .context import ContextMinimizer
-from .flow import FlowController, FlowResult, AgentResult
-from .smith import SmithIntegration, SmithValidation
 from .aggregator import ResponseAggregator
-
+from .context import ContextMinimizer
+from .flow import AgentResult, FlowController, FlowResult
+from .intent import IntentCategory, IntentClassification, IntentClassifier
+from .router import RoutingAuditor, RoutingDecision, RoutingEngine
+from .smith import SmithIntegration, SmithValidation
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +41,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class WhisperMetrics:
     """Metrics for Whisper orchestrator."""
+
     requests_processed: int = 0
     requests_routed: int = 0
     requests_denied: int = 0
@@ -451,8 +451,8 @@ Security-sensitive requests are validated by Smith (Guardian) before processing.
             # Running average
             prev_avg = self._whisper_metrics.average_routing_time_ms
             self._whisper_metrics.average_routing_time_ms = (
-                (prev_avg * (count - 1) + elapsed_ms) / count
-            )
+                prev_avg * (count - 1) + elapsed_ms
+            ) / count
 
     def get_whisper_metrics(self) -> WhisperMetrics:
         """Get Whisper-specific metrics."""

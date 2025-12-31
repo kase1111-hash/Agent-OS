@@ -5,22 +5,20 @@ Abstract base class defining the mandatory interface for all Agent OS agents.
 Every agent in the system MUST implement this interface.
 """
 
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
-from typing import Optional, List, Dict, Any, Callable, Set
-import logging
-
 from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Set
 
+from src.core.models import Rule, ValidationResult
 from src.messaging.models import (
     FlowRequest,
     FlowResponse,
     MessageStatus,
 )
-from src.core.models import ValidationResult, Rule
-
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +26,13 @@ logger = logging.getLogger(__name__)
 # Import constitution loader (lazy to avoid circular imports)
 def _get_constitution_loader():
     from src.agents.constitution_loader import get_constitution_loader
+
     return get_constitution_loader()
 
 
 class AgentState(Enum):
     """Agent lifecycle states."""
+
     UNINITIALIZED = auto()
     INITIALIZING = auto()
     READY = auto()
@@ -44,31 +44,33 @@ class AgentState(Enum):
 
 class CapabilityType(Enum):
     """Types of capabilities an agent can have."""
-    REASONING = "reasoning"          # Complex reasoning and analysis
-    GENERATION = "generation"        # Content generation
-    RETRIEVAL = "retrieval"          # Memory/document retrieval
-    VALIDATION = "validation"        # Input validation and filtering
-    ROUTING = "routing"              # Intent routing and orchestration
-    MEMORY = "memory"                # Persistent memory management
-    TOOL_USE = "tool_use"            # Tool/function calling
-    CREATIVE = "creative"            # Creative content generation
-    CODE = "code"                    # Code generation/analysis
+
+    REASONING = "reasoning"  # Complex reasoning and analysis
+    GENERATION = "generation"  # Content generation
+    RETRIEVAL = "retrieval"  # Memory/document retrieval
+    VALIDATION = "validation"  # Input validation and filtering
+    ROUTING = "routing"  # Intent routing and orchestration
+    MEMORY = "memory"  # Persistent memory management
+    TOOL_USE = "tool_use"  # Tool/function calling
+    CREATIVE = "creative"  # Creative content generation
+    CODE = "code"  # Code generation/analysis
 
 
 @dataclass
 class AgentCapabilities:
     """Agent capabilities declaration."""
-    name: str                                # Agent name (e.g., "sage", "whisper")
-    version: str                             # Agent version
-    description: str                         # What this agent does
+
+    name: str  # Agent name (e.g., "sage", "whisper")
+    version: str  # Agent version
+    description: str  # What this agent does
     capabilities: Set[CapabilityType] = field(default_factory=set)
     supported_intents: List[str] = field(default_factory=list)  # Intent patterns handled
-    model: Optional[str] = None              # Model used (if any)
-    context_window: int = 4096               # Max context tokens
-    max_output_tokens: int = 2048            # Max output tokens
-    requires_constitution: bool = True       # Needs constitutional enforcement
-    requires_memory: bool = False            # Uses memory system
-    can_escalate: bool = True                # Can escalate to human
+    model: Optional[str] = None  # Model used (if any)
+    context_window: int = 4096  # Max context tokens
+    max_output_tokens: int = 2048  # Max output tokens
+    requires_constitution: bool = True  # Needs constitutional enforcement
+    requires_memory: bool = False  # Uses memory system
+    can_escalate: bool = True  # Can escalate to human
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -92,6 +94,7 @@ class AgentCapabilities:
 @dataclass
 class RequestValidationResult:
     """Result of validating an incoming request."""
+
     is_valid: bool
     errors: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
@@ -111,6 +114,7 @@ class RequestValidationResult:
 @dataclass
 class AgentMetrics:
     """Runtime metrics for an agent."""
+
     requests_processed: int = 0
     requests_succeeded: int = 0
     requests_failed: int = 0
@@ -181,9 +185,7 @@ class AgentInterface(ABC):
     def metrics(self) -> AgentMetrics:
         """Get agent metrics."""
         if self._start_time:
-            self._metrics.uptime_seconds = (
-                datetime.now() - self._start_time
-            ).total_seconds()
+            self._metrics.uptime_seconds = (datetime.now() - self._start_time).total_seconds()
         return self._metrics
 
     # ==========================================================================
@@ -298,8 +300,7 @@ class AgentInterface(ABC):
         # Check state
         if not self.is_ready:
             return self._create_error_response(
-                request,
-                f"Agent {self.name} is not ready (state: {self.state.name})"
+                request, f"Agent {self.name} is not ready (state: {self.state.name})"
             )
 
         try:
@@ -318,15 +319,12 @@ class AgentInterface(ABC):
             if not validation.is_valid:
                 self._metrics.requests_refused += 1
                 return self._create_refused_response(
-                    request,
-                    validation.errors,
-                    validation.escalation_reason
+                    request, validation.errors, validation.escalation_reason
                 )
 
             if validation.requires_escalation:
                 return self._create_escalation_response(
-                    request,
-                    validation.escalation_reason or "Escalation required"
+                    request, validation.escalation_reason or "Escalation required"
                 )
 
             # Use modified request if validation sanitized it
@@ -350,11 +348,13 @@ class AgentInterface(ABC):
 
         except Exception as e:
             self._metrics.requests_failed += 1
-            self._metrics.errors.append({
-                "timestamp": datetime.now().isoformat(),
-                "request_id": str(request.request_id),
-                "error": str(e),
-            })
+            self._metrics.errors.append(
+                {
+                    "timestamp": datetime.now().isoformat(),
+                    "request_id": str(request.request_id),
+                    "error": str(e),
+                }
+            )
 
             # Invoke error callbacks
             for callback in self._callbacks["on_error"]:
@@ -380,11 +380,7 @@ class AgentInterface(ABC):
         self._constitutional_rules = rules
         logger.info(f"Agent {self.name}: loaded {len(rules)} constitutional rules")
 
-    def register_callback(
-        self,
-        event: str,
-        callback: Callable
-    ) -> None:
+    def register_callback(self, event: str, callback: Callable) -> None:
         """
         Register a callback for agent events.
 
@@ -439,15 +435,10 @@ class AgentInterface(ABC):
         # Update average
         if self._metrics.requests_processed > 0:
             self._metrics.average_response_time_ms = (
-                self._metrics.total_inference_time_ms /
-                self._metrics.requests_processed
+                self._metrics.total_inference_time_ms / self._metrics.requests_processed
             )
 
-    def _create_error_response(
-        self,
-        request: FlowRequest,
-        error: str
-    ) -> FlowResponse:
+    def _create_error_response(self, request: FlowRequest, error: str) -> FlowResponse:
         """Create an error response."""
         return request.create_response(
             source=self.name,
@@ -457,10 +448,7 @@ class AgentInterface(ABC):
         )
 
     def _create_refused_response(
-        self,
-        request: FlowRequest,
-        errors: List[str],
-        reason: Optional[str] = None
+        self, request: FlowRequest, errors: List[str], reason: Optional[str] = None
     ) -> FlowResponse:
         """Create a refused response (constitutional violation)."""
         return request.create_response(
@@ -470,11 +458,7 @@ class AgentInterface(ABC):
             reasoning=reason or "; ".join(errors),
         )
 
-    def _create_escalation_response(
-        self,
-        request: FlowRequest,
-        reason: str
-    ) -> FlowResponse:
+    def _create_escalation_response(self, request: FlowRequest, reason: str) -> FlowResponse:
         """Create a response requiring human escalation."""
         response = request.create_response(
             source=self.name,
@@ -482,11 +466,13 @@ class AgentInterface(ABC):
             output="This request requires human approval.",
             reasoning=reason,
         )
-        response.next_actions.append({
-            "action": "escalate_to_human",
-            "reason": reason,
-            "request_id": str(request.request_id),
-        })
+        response.next_actions.append(
+            {
+                "action": "escalate_to_human",
+                "reason": reason,
+                "request_id": str(request.request_id),
+            }
+        )
         return response
 
     def _do_initialize(self, config: Dict[str, Any]) -> bool:
@@ -561,11 +547,10 @@ class BaseAgent(AgentInterface):
 
         # Check for prohibitions
         from src.core.models import RuleType
+
         for rule in applicable_rules:
             if rule.rule_type == RuleType.PROHIBITION:
-                result.add_error(
-                    f"Request may violate prohibition: {rule.content[:100]}"
-                )
+                result.add_error(f"Request may violate prohibition: {rule.content[:100]}")
 
         # Check for escalation requirements
         for rule in applicable_rules:

@@ -329,6 +329,7 @@ class DefaultMLDSAProvider(MLDSAProvider):
         """Check if liboqs is available."""
         try:
             import oqs
+
             # Check if Dilithium is available
             if "Dilithium3" in oqs.get_enabled_sig_mechanisms():
                 return True
@@ -336,9 +337,7 @@ class DefaultMLDSAProvider(MLDSAProvider):
         except ImportError:
             return False
 
-    def _get_oqs_algorithm(
-        self, security_level: MLDSASecurityLevel
-    ) -> str:
+    def _get_oqs_algorithm(self, security_level: MLDSASecurityLevel) -> str:
         """Map security level to liboqs algorithm name."""
         mapping = {
             MLDSASecurityLevel.ML_DSA_44: "Dilithium2",
@@ -361,9 +360,7 @@ class DefaultMLDSAProvider(MLDSAProvider):
             "Install with: pip install liboqs-python"
         )
 
-    def _generate_keypair_oqs(
-        self, security_level: MLDSASecurityLevel
-    ) -> MLDSAKeyPair:
+    def _generate_keypair_oqs(self, security_level: MLDSASecurityLevel) -> MLDSAKeyPair:
         """Generate key pair using liboqs."""
         import oqs
 
@@ -385,19 +382,13 @@ class DefaultMLDSAProvider(MLDSAProvider):
             security_level=security_level,
         )
 
-    def _generate_keypair_mock(
-        self, security_level: MLDSASecurityLevel
-    ) -> MLDSAKeyPair:
+    def _generate_keypair_mock(self, security_level: MLDSASecurityLevel) -> MLDSAKeyPair:
         """Generate mock key pair for testing."""
         params = ML_DSA_PARAMS[security_level]
 
         seed = secrets.token_bytes(32)
-        public_key_data = self._expand_seed(
-            seed, params["public_key_size"], b"public"
-        )
-        private_key_data = self._expand_seed(
-            seed, params["private_key_size"], b"private"
-        )
+        public_key_data = self._expand_seed(seed, params["public_key_size"], b"public")
+        private_key_data = self._expand_seed(seed, params["private_key_size"], b"private")
 
         return MLDSAKeyPair(
             public_key=MLDSAPublicKey(
@@ -466,9 +457,7 @@ class DefaultMLDSAProvider(MLDSAProvider):
         ).digest()
 
         # Expand to full signature size
-        signature_bytes = self._expand_seed(
-            sig_data, params["signature_size"], message[:32]
-        )
+        signature_bytes = self._expand_seed(sig_data, params["signature_size"], message[:32])
 
         return MLDSASignature(
             signature=signature_bytes,
@@ -539,7 +528,7 @@ class DefaultMLDSAProvider(MLDSAProvider):
                 expected_sig_data,
                 ML_DSA_PARAMS[signature.security_level]["signature_size"],
                 message[:32],
-            )[:64]
+            )[:64],
         )
 
     def _expand_seed(self, seed: bytes, length: int, domain: bytes) -> bytes:
@@ -547,9 +536,7 @@ class DefaultMLDSAProvider(MLDSAProvider):
         output = b""
         counter = 0
         while len(output) < length:
-            block = hashlib.sha256(
-                seed + domain + counter.to_bytes(4, "big")
-            ).digest()
+            block = hashlib.sha256(seed + domain + counter.to_bytes(4, "big")).digest()
             output += block
             counter += 1
         return output[:length]
@@ -582,9 +569,7 @@ class MockMLDSAProvider(MLDSAProvider):
         # Generate random keys
         seed = secrets.token_bytes(32)
         public_key_data = secrets.token_bytes(params["public_key_size"])
-        private_key_data = seed + secrets.token_bytes(
-            params["private_key_size"] - 32
-        )
+        private_key_data = seed + secrets.token_bytes(params["private_key_size"] - 32)
 
         keypair = MLDSAKeyPair(
             public_key=MLDSAPublicKey(
@@ -619,9 +604,7 @@ class MockMLDSAProvider(MLDSAProvider):
         ).digest()
 
         # Pad to full signature size
-        signature_bytes = sig_data + secrets.token_bytes(
-            params["signature_size"] - len(sig_data)
-        )
+        signature_bytes = sig_data + secrets.token_bytes(params["signature_size"] - len(sig_data))
 
         return MLDSASignature(
             signature=signature_bytes,

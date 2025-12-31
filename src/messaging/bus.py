@@ -14,24 +14,24 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
-from queue import Queue, Empty
+from queue import Empty, Queue
 from typing import (
+    Any,
+    Awaitable,
     Callable,
     Dict,
     List,
     Optional,
     Set,
     Union,
-    Any,
-    Awaitable,
 )
 from uuid import UUID, uuid4
 
 from .models import (
+    AuditLogEntry,
+    DeadLetterMessage,
     FlowRequest,
     FlowResponse,
-    DeadLetterMessage,
-    AuditLogEntry,
     MessageStatus,
 )
 
@@ -39,14 +39,14 @@ logger = logging.getLogger(__name__)
 
 # Type for message handlers
 MessageHandler = Callable[
-    [Union[FlowRequest, FlowResponse]],
-    Optional[Union[FlowResponse, Awaitable[FlowResponse]]]
+    [Union[FlowRequest, FlowResponse]], Optional[Union[FlowResponse, Awaitable[FlowResponse]]]
 ]
 
 
 @dataclass
 class Subscription:
     """Represents a subscription to a channel."""
+
     subscription_id: str
     channel: str
     handler: MessageHandler
@@ -63,6 +63,7 @@ class Subscription:
 @dataclass
 class ChannelStats:
     """Statistics for a message channel."""
+
     channel: str
     messages_published: int = 0
     messages_delivered: int = 0
@@ -373,8 +374,7 @@ class InMemoryMessageBus(MessageBus):
         with self._lock:
             if channel:
                 filtered = [
-                    e for e in self._audit_log
-                    if e.destination == channel or e.source == channel
+                    e for e in self._audit_log if e.destination == channel or e.source == channel
                 ]
                 return list(filtered[-limit:])
             return list(self._audit_log[-limit:])
@@ -397,7 +397,7 @@ class InMemoryMessageBus(MessageBus):
 
         # Trim if over limit
         if len(self._dead_letters) > self._max_dead_letters:
-            self._dead_letters = self._dead_letters[-self._max_dead_letters:]
+            self._dead_letters = self._dead_letters[-self._max_dead_letters :]
 
     def _log_audit(
         self,
@@ -430,7 +430,7 @@ class InMemoryMessageBus(MessageBus):
 
         # Trim if over limit
         if len(self._audit_log) > self._max_audit_entries:
-            self._audit_log = self._audit_log[-self._max_audit_entries:]
+            self._audit_log = self._audit_log[-self._max_audit_entries :]
 
     def get_subscriber_count(self, channel: str) -> int:
         """Get number of active subscribers for a channel."""

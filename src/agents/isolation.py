@@ -9,22 +9,21 @@ Provides process isolation for agents using:
 Ensures agents run in controlled, sandboxed environments.
 """
 
+import json
+import logging
+import multiprocessing
 import os
 import re
-import sys
-import json
 import signal
 import subprocess
-import multiprocessing
+import sys
 import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
-from typing import Optional, List, Dict, Any, Callable, Set
 from enum import Enum, auto
-import logging
-
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
@@ -36,15 +35,16 @@ logger = logging.getLogger(__name__)
 
 class ModuleValidationError(Exception):
     """Raised when a module or class name fails validation."""
+
     pass
 
 
 # Allowlist of trusted module prefixes for agent isolation
 # Only modules starting with these prefixes are allowed to be loaded
 TRUSTED_MODULE_PREFIXES: Set[str] = {
-    "src.agents.",           # Agent OS built-in agents
-    "agents.",               # Alternative agent path
-    "agent_os.agents.",      # Installed package agents
+    "src.agents.",  # Agent OS built-in agents
+    "agents.",  # Alternative agent path
+    "agent_os.agents.",  # Installed package agents
 }
 
 
@@ -82,25 +82,23 @@ def validate_module_name(module: str) -> str:
 
     # Check for dangerous patterns that could indicate injection attempts
     dangerous_patterns = [
-        r"__",           # Dunder attributes
-        r"\bos\b",       # os module
-        r"\bsys\b",      # sys module
+        r"__",  # Dunder attributes
+        r"\bos\b",  # os module
+        r"\bsys\b",  # sys module
         r"\bsubprocess\b",  # subprocess module
-        r"\beval\b",     # eval function
-        r"\bexec\b",     # exec function
-        r"\bimport\b",   # import statement
-        r"\bopen\b",     # open function
-        r"\bfile\b",     # file operations
-        r"\bsocket\b",   # network operations
-        r"\bbuiltins\b", # builtins access
+        r"\beval\b",  # eval function
+        r"\bexec\b",  # exec function
+        r"\bimport\b",  # import statement
+        r"\bopen\b",  # open function
+        r"\bfile\b",  # file operations
+        r"\bsocket\b",  # network operations
+        r"\bbuiltins\b",  # builtins access
     ]
 
     module_lower = module.lower()
     for pattern in dangerous_patterns:
         if re.search(pattern, module_lower):
-            raise ModuleValidationError(
-                f"Module name contains dangerous pattern: {module}"
-            )
+            raise ModuleValidationError(f"Module name contains dangerous pattern: {module}")
 
     # Check against allowlist of trusted module prefixes
     is_trusted = any(module.startswith(prefix) for prefix in TRUSTED_MODULE_PREFIXES)
@@ -147,24 +145,20 @@ def validate_class_name(class_name: str) -> str:
 
     # Check length limits (reasonable class names shouldn't be too long)
     if len(class_name) > 100:
-        raise ModuleValidationError(
-            f"Class name too long: {len(class_name)} characters (max 100)"
-        )
+        raise ModuleValidationError(f"Class name too long: {len(class_name)} characters (max 100)")
 
     # Check for dangerous patterns
     dangerous_patterns = [
-        r"^__",          # Starts with dunder
-        r"__$",          # Ends with dunder
-        r"\bexec\b",     # exec
-        r"\beval\b",     # eval
-        r"\bimport\b",   # import
+        r"^__",  # Starts with dunder
+        r"__$",  # Ends with dunder
+        r"\bexec\b",  # exec
+        r"\beval\b",  # eval
+        r"\bimport\b",  # import
     ]
 
     for pattern in dangerous_patterns:
         if re.search(pattern, class_name, re.IGNORECASE):
-            raise ModuleValidationError(
-                f"Class name contains dangerous pattern: {class_name}"
-            )
+            raise ModuleValidationError(f"Class name contains dangerous pattern: {class_name}")
 
     # Warn if doesn't follow PEP 8 (should start with uppercase for classes)
     if not class_name[0].isupper():
@@ -194,27 +188,30 @@ def add_trusted_module_prefix(prefix: str) -> None:
 
 class IsolationLevel(Enum):
     """Process isolation levels."""
-    NONE = auto()       # No isolation (in-process)
-    THREAD = auto()     # Thread isolation (same process)
-    PROCESS = auto()    # Subprocess isolation
+
+    NONE = auto()  # No isolation (in-process)
+    THREAD = auto()  # Thread isolation (same process)
+    PROCESS = auto()  # Subprocess isolation
     CONTAINER = auto()  # Container isolation (Docker/Podman)
 
 
 @dataclass
 class ResourceLimits:
     """Resource limits for isolated agents."""
-    memory_mb: int = 512           # Max memory in MB
-    cpu_percent: int = 50          # Max CPU percentage
-    timeout_seconds: int = 300     # Max execution time
+
+    memory_mb: int = 512  # Max memory in MB
+    cpu_percent: int = 50  # Max CPU percentage
+    timeout_seconds: int = 300  # Max execution time
     max_file_descriptors: int = 256
     max_processes: int = 10
-    network_access: bool = False   # Allow network access
+    network_access: bool = False  # Allow network access
     filesystem_read_only: bool = True  # Read-only filesystem
 
 
 @dataclass
 class IsolatedProcessInfo:
     """Information about an isolated process."""
+
     pid: int
     agent_name: str
     started_at: datetime
@@ -412,7 +409,7 @@ class ProcessIsolator:
     ) -> str:
         """Generate wrapper script for isolated execution."""
         config_json = json.dumps(config)
-        return f'''
+        return f"""
 import sys
 import json
 import signal
@@ -454,7 +451,7 @@ if agent.initialize(config):
 else:
     print("AGENT_INIT_FAILED", flush=True)
     sys.exit(1)
-'''
+"""
 
     def _start_monitor(
         self,
@@ -463,6 +460,7 @@ else:
         limits: ResourceLimits,
     ) -> None:
         """Start monitoring thread for resource enforcement."""
+
         def monitor():
             start_time = time.time()
             while process.poll() is None:
@@ -620,11 +618,15 @@ class ContainerIsolator:
 
         # Build container command
         cmd = [
-            self.runtime, "run",
+            self.runtime,
+            "run",
             "-d",  # Detached
-            "--name", f"agent-{agent_name}",
-            "--memory", f"{limits.memory_mb}m",
-            "--cpus", str(limits.cpu_percent / 100),
+            "--name",
+            f"agent-{agent_name}",
+            "--memory",
+            f"{limits.memory_mb}m",
+            "--cpus",
+            str(limits.cpu_percent / 100),
         ]
 
         if not limits.network_access:
@@ -637,10 +639,13 @@ class ContainerIsolator:
         cmd.extend(["-v", f"{agent_code_path}:/agent:ro"])
 
         # Add base image and entrypoint
-        cmd.extend([
-            self.base_image,
-            "python", "/agent/main.py",
-        ])
+        cmd.extend(
+            [
+                self.base_image,
+                "python",
+                "/agent/main.py",
+            ]
+        )
 
         try:
             result = subprocess.run(

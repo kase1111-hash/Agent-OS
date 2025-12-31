@@ -15,48 +15,48 @@ Usage:
     node.connect_peer("peer-agent", "https://peer.example.com")
 """
 
-from .identity import (
-    Identity,
-    IdentityManager,
-    KeyPair,
-    PublicKey,
-    PrivateKey,
-    Certificate,
-    create_identity,
-    verify_identity,
-)
-from .protocol import (
-    FederationMessage,
-    MessageType,
-    FederationProtocol,
-    ProtocolHandler,
-    create_protocol,
-)
-from .permissions import (
-    Permission,
-    PermissionLevel,
-    PermissionSet,
-    PermissionRequest,
-    PermissionGrant,
-    PermissionManager,
-    create_permission_manager,
-)
 from .crypto import (
     CryptoProvider,
     EncryptedMessage,
     SessionKey,
     create_crypto_provider,
-    encrypt_message,
     decrypt_message,
+    encrypt_message,
+)
+from .identity import (
+    Certificate,
+    Identity,
+    IdentityManager,
+    KeyPair,
+    PrivateKey,
+    PublicKey,
+    create_identity,
+    verify_identity,
 )
 from .node import (
+    ConnectionState,
     FederationNode,
     NodeConfig,
     NodeState,
-    ConnectionState,
     PeerConnection,
     PeerInfo,
     create_federation_node,
+)
+from .permissions import (
+    Permission,
+    PermissionGrant,
+    PermissionLevel,
+    PermissionManager,
+    PermissionRequest,
+    PermissionSet,
+    create_permission_manager,
+)
+from .protocol import (
+    FederationMessage,
+    FederationProtocol,
+    MessageType,
+    ProtocolHandler,
+    create_protocol,
 )
 
 __all__ = [

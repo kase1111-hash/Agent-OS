@@ -8,23 +8,23 @@ Preserves authorial intent while improving clarity and presentation.
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Set
+from typing import Any, Dict, List, Optional, Set
 
-from ..interface import (
-    BaseAgent,
-    AgentCapabilities,
-    CapabilityType,
-    AgentState,
-    RequestValidationResult,
-)
 from src.messaging.models import FlowRequest, FlowResponse, MessageStatus
 
+from ..interface import (
+    AgentCapabilities,
+    AgentState,
+    BaseAgent,
+    CapabilityType,
+    RequestValidationResult,
+)
 from .formatting import (
-    FormattingEngine,
-    RefinementEngine,
-    OutputFormat,
-    RefinementResult,
     DocumentTemplate,
+    FormattingEngine,
+    OutputFormat,
+    RefinementEngine,
+    RefinementResult,
     create_formatting_engine,
     create_refinement_engine,
 )
@@ -32,6 +32,7 @@ from .formatting import (
 # Optional Ollama integration
 try:
     from ..ollama import OllamaClient, create_ollama_client
+
     OLLAMA_AVAILABLE = True
 except ImportError:
     OLLAMA_AVAILABLE = False
@@ -180,7 +181,9 @@ class QuillAgent(BaseAgent):
                         elif self._ollama_client.model_exists(self._quill_config.fallback_model):
                             self._quill_config.model = self._quill_config.fallback_model
                             self._model_loaded = True
-                            logger.info(f"Using fallback model: {self._quill_config.fallback_model}")
+                            logger.info(
+                                f"Using fallback model: {self._quill_config.fallback_model}"
+                            )
 
                     # Set LLM callback
                     if self._model_loaded:
@@ -290,9 +293,13 @@ class QuillAgent(BaseAgent):
             requires_memory=False,
             can_escalate=True,
             metadata={
-                "default_format": self._quill_config.default_format.value if self._quill_config else "markdown",
+                "default_format": (
+                    self._quill_config.default_format.value if self._quill_config else "markdown"
+                ),
                 "track_changes": self._quill_config.track_changes if self._quill_config else True,
-                "templates_available": self._formatting_engine.list_templates() if self._formatting_engine else [],
+                "templates_available": (
+                    self._formatting_engine.list_templates() if self._formatting_engine else []
+                ),
                 "model_loaded": self._model_loaded,
             },
         )
@@ -302,7 +309,7 @@ class QuillAgent(BaseAgent):
         logger.info("Shutting down Quill agent")
 
         try:
-            if self._ollama_client and hasattr(self._ollama_client, 'close'):
+            if self._ollama_client and hasattr(self._ollama_client, "close"):
                 self._ollama_client.close()
 
             return self._do_shutdown()
@@ -401,7 +408,9 @@ class QuillAgent(BaseAgent):
             "config": {
                 "model": self._quill_config.model if self._quill_config else None,
                 "model_loaded": self._model_loaded,
-                "default_format": self._quill_config.default_format.value if self._quill_config else None,
+                "default_format": (
+                    self._quill_config.default_format.value if self._quill_config else None
+                ),
             },
         }
 
@@ -477,6 +486,7 @@ class QuillAgent(BaseAgent):
             # Try to parse as dict for JSON formatting
             try:
                 import json
+
                 data = json.loads(content)
                 output = self.format_json(data)
             except json.JSONDecodeError:
@@ -556,6 +566,7 @@ class QuillAgent(BaseAgent):
             # Try to parse content as JSON sections
             try:
                 import json
+
                 sections = json.loads(content)
             except json.JSONDecodeError:
                 # Use content as single body section
@@ -604,7 +615,9 @@ class QuillAgent(BaseAgent):
             fallback_prompt=fallback,
         )
 
-        logger.info(f"Quill: Loaded system prompt with constitutional context ({len(self._system_prompt)} chars)")
+        logger.info(
+            f"Quill: Loaded system prompt with constitutional context ({len(self._system_prompt)} chars)"
+        )
 
     def _llm_generate(self, prompt: str, options: Dict[str, Any]) -> str:
         """Generate response using Ollama LLM."""

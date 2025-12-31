@@ -11,29 +11,30 @@ problems without making decisions for humans.
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Set
+from typing import Any, Dict, List, Optional, Set
 
-from ..interface import (
-    BaseAgent,
-    AgentCapabilities,
-    CapabilityType,
-    AgentState,
-    RequestValidationResult,
-)
 from src.messaging.models import FlowRequest, FlowResponse, MessageStatus
 
+from ..interface import (
+    AgentCapabilities,
+    AgentState,
+    BaseAgent,
+    CapabilityType,
+    RequestValidationResult,
+)
 from .reasoning import (
-    ReasoningEngine,
-    ReasoningConfig,
-    ReasoningType,
-    ReasoningChain,
     ConfidenceLevel,
+    ReasoningChain,
+    ReasoningConfig,
+    ReasoningEngine,
+    ReasoningType,
     create_reasoning_engine,
 )
 
 # Optional Ollama integration
 try:
     from ..ollama import OllamaClient, OllamaMessage, create_ollama_client
+
     OLLAMA_AVAILABLE = True
 except ImportError:
     OLLAMA_AVAILABLE = False
@@ -300,7 +301,7 @@ class SageAgent(BaseAgent):
                 status=MessageStatus.SUCCESS,
                 output=output,
                 reasoning=f"Chain-of-thought analysis: {len(chain.steps)} steps, "
-                         f"confidence: {chain.overall_confidence.value}",
+                f"confidence: {chain.overall_confidence.value}",
             )
 
         except Exception as e:
@@ -338,7 +339,7 @@ class SageAgent(BaseAgent):
         logger.info("Shutting down Sage agent")
 
         try:
-            if self._ollama_client and hasattr(self._ollama_client, 'close'):
+            if self._ollama_client and hasattr(self._ollama_client, "close"):
                 self._ollama_client.close()
 
             return self._do_shutdown()
@@ -492,7 +493,9 @@ class SageAgent(BaseAgent):
                 fallback_prompt=fallback,
             )
 
-        logger.info(f"Sage: Loaded system prompt with constitutional context ({len(self._system_prompt)} chars)")
+        logger.info(
+            f"Sage: Loaded system prompt with constitutional context ({len(self._system_prompt)} chars)"
+        )
 
     def _llm_generate(self, prompt: str, options: Dict[str, Any]) -> str:
         """Generate response using Ollama LLM."""
@@ -545,11 +548,13 @@ class SageAgent(BaseAgent):
             reasoning=chain.escalation_reason,
         )
 
-        response.next_actions.append({
-            "action": "escalate_to_human",
-            "reason": chain.escalation_reason,
-            "chain_id": chain.chain_id,
-        })
+        response.next_actions.append(
+            {
+                "action": "escalate_to_human",
+                "reason": chain.escalation_reason,
+                "chain_id": chain.chain_id,
+            }
+        )
 
         return response
 

@@ -8,14 +8,14 @@ import logging
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, Dict, Any, List, Callable
+from typing import Any, Callable, Dict, List, Optional
 
 from .client import LedgerClient, LedgerConfig
 from .models import (
-    ValueEvent,
-    ValueDimension,
     IntentCategory,
     IntentValueMapping,
+    ValueDimension,
+    ValueEvent,
 )
 
 logger = logging.getLogger(__name__)
@@ -181,6 +181,7 @@ class IntentValueHook:
 @dataclass
 class AgentValueStats:
     """Value statistics for an agent."""
+
     agent_name: str
     total_value: float
     intent_count: int
@@ -250,9 +251,7 @@ class AgentValueTracker:
             stats.last_recorded = datetime.now()
 
             dim_key = dimension.value
-            stats.value_by_dimension[dim_key] = (
-                stats.value_by_dimension.get(dim_key, 0.0) + value
-            )
+            stats.value_by_dimension[dim_key] = stats.value_by_dimension.get(dim_key, 0.0) + value
 
             # Record to ledger
             return self._client.record_intent(
@@ -295,12 +294,8 @@ class AgentValueTracker:
         """Get tracker metrics."""
         return {
             "tracked_agents": len(self._agent_stats),
-            "total_value_all_agents": sum(
-                s.total_value for s in self._agent_stats.values()
-            ),
-            "total_intents_all_agents": sum(
-                s.intent_count for s in self._agent_stats.values()
-            ),
+            "total_value_all_agents": sum(s.total_value for s in self._agent_stats.values()),
+            "total_intents_all_agents": sum(s.intent_count for s in self._agent_stats.values()),
         }
 
 

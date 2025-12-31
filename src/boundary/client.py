@@ -14,24 +14,24 @@ import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
 from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
 
 from .daemon import (
+    BoundaryMode,
+    Decision,
+    RequestType,
     SmithDaemon,
     SmithDaemonConfig,
-    BoundaryMode,
-    RequestType,
-    Decision,
     create_smith_daemon,
 )
-
 
 logger = logging.getLogger(__name__)
 
 
 class ConnectionState(Enum):
     """Connection state to Smith daemon."""
+
     DISCONNECTED = "disconnected"
     CONNECTED = "connected"
     EMBEDDED = "embedded"  # Daemon running in-process
@@ -41,6 +41,7 @@ class ConnectionState(Enum):
 @dataclass
 class SmithClientConfig:
     """Configuration for the Smith client."""
+
     embedded: bool = True  # Run daemon in-process
     socket_path: Optional[Path] = None  # For external daemon
     log_path: Optional[Path] = None
@@ -58,6 +59,7 @@ BoundaryClientConfig = SmithClientConfig
 @dataclass
 class CachedDecision:
     """Cached permission decision."""
+
     allowed: bool
     timestamp: datetime
     request_type: str
@@ -335,7 +337,8 @@ class SmithClient:
             # Invalidate cache entries for this target
             cache_prefix = f"{request_type.lower()}:"
             keys_to_remove = [
-                k for k in self._decision_cache.keys()
+                k
+                for k in self._decision_cache.keys()
                 if k.startswith(cache_prefix) and k.endswith(f":{target}")
             ]
             for key in keys_to_remove:

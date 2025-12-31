@@ -6,55 +6,57 @@ Manages routing tables, confidence-based routing, fallback handling,
 and load balancing across available agents.
 """
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, List, Dict, Any, Callable, Set
 from enum import Enum, auto
-import logging
+from typing import Any, Callable, Dict, List, Optional, Set
 
 from .intent import IntentCategory, IntentClassification
 from .load_balancer import (
-    LoadBalancer,
-    LoadBalancingStrategy,
+    AgentHealthStatus,
     AgentLoadTracker,
     HealthChecker,
-    AgentHealthStatus,
+    LoadBalancer,
+    LoadBalancingStrategy,
     create_load_balancer,
 )
-
 
 logger = logging.getLogger(__name__)
 
 
 class RoutingStrategy(Enum):
     """Routing strategy types."""
-    SINGLE = auto()      # Route to single best agent
-    PARALLEL = auto()    # Route to multiple agents in parallel
+
+    SINGLE = auto()  # Route to single best agent
+    PARALLEL = auto()  # Route to multiple agents in parallel
     SEQUENTIAL = auto()  # Route through agents in sequence
-    FALLBACK = auto()    # Try agents in order until success
+    FALLBACK = auto()  # Try agents in order until success
 
 
 @dataclass
 class AgentRoute:
     """A route to a specific agent."""
+
     agent_name: str
-    priority: int = 0              # Higher = more preferred
+    priority: int = 0  # Higher = more preferred
     confidence_threshold: float = 0.5  # Minimum confidence to use this route
-    requires_smith: bool = True     # Must pass through Smith first
+    requires_smith: bool = True  # Must pass through Smith first
     max_tokens: Optional[int] = None  # Token limit for this agent
-    timeout_ms: int = 30000        # Timeout for this agent
+    timeout_ms: int = 30000  # Timeout for this agent
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class RoutingDecision:
     """Result of routing decision."""
-    routes: List[AgentRoute]           # Ordered list of agents to route to
-    strategy: RoutingStrategy          # How to execute routes
-    intent: IntentClassification       # The classified intent
-    requires_smith: bool = True        # Must validate with Smith
-    context_budget: int = 4096         # Token budget for context
-    reasoning: str = ""                # Why this routing was chosen
+
+    routes: List[AgentRoute]  # Ordered list of agents to route to
+    strategy: RoutingStrategy  # How to execute routes
+    intent: IntentClassification  # The classified intent
+    requires_smith: bool = True  # Must validate with Smith
+    context_budget: int = 4096  # Token budget for context
+    reasoning: str = ""  # Why this routing was chosen
     timestamp: datetime = field(default_factory=datetime.now)
 
     @property
@@ -154,11 +156,9 @@ class RoutingEngine:
         self._health_checker: Optional[HealthChecker] = None
 
         if enable_load_balancing:
-            self._load_tracker, self._load_balancer, self._health_checker = (
-                create_load_balancer(
-                    strategy=load_balancing_strategy,
-                    health_check_interval=health_check_interval,
-                )
+            self._load_tracker, self._load_balancer, self._health_checker = create_load_balancer(
+                strategy=load_balancing_strategy,
+                health_check_interval=health_check_interval,
             )
             # Register available agents for load tracking
             for agent_name in self.available_agents:
@@ -207,9 +207,7 @@ class RoutingEngine:
             # Apply load balancing to select best agent when multiple candidates
             if self._enable_load_balancing and len(routes) > 1:
                 routes = self._apply_load_balancing(routes, intent)
-                reasoning = self._generate_reasoning(
-                    routes, intent, confidence, load_balanced=True
-                )
+                reasoning = self._generate_reasoning(routes, intent, confidence, load_balanced=True)
             else:
                 reasoning = self._generate_reasoning(routes, intent, confidence)
 
@@ -330,8 +328,7 @@ class RoutingEngine:
         """Generate human-readable routing reasoning."""
         agents = [r.agent_name for r in routes]
         base_reason = (
-            f"Routing {intent.value} (confidence: {confidence:.2f}) "
-            f"to {', '.join(agents)}"
+            f"Routing {intent.value} (confidence: {confidence:.2f}) " f"to {', '.join(agents)}"
         )
         if load_balanced:
             base_reason += " (load-balanced)"
@@ -360,8 +357,7 @@ class RoutingEngine:
 
         original_count = len(self.routing_table[intent])
         self.routing_table[intent] = [
-            r for r in self.routing_table[intent]
-            if r.agent_name != agent_name
+            r for r in self.routing_table[intent] if r.agent_name != agent_name
         ]
         return len(self.routing_table[intent]) < original_count
 
@@ -396,15 +392,11 @@ class RoutingEngine:
             "total_routings": self._routing_count,
             "fallback_count": self._fallback_count,
             "fallback_rate": (
-                self._fallback_count / self._routing_count
-                if self._routing_count > 0
-                else 0.0
+                self._fallback_count / self._routing_count if self._routing_count > 0 else 0.0
             ),
             "multi_agent_count": self._multi_agent_count,
             "multi_agent_rate": (
-                self._multi_agent_count / self._routing_count
-                if self._routing_count > 0
-                else 0.0
+                self._multi_agent_count / self._routing_count if self._routing_count > 0 else 0.0
             ),
             "load_balancing_enabled": self._enable_load_balancing,
         }
@@ -549,6 +541,7 @@ class RoutingEngine:
 @dataclass
 class RoutingAuditEntry:
     """Audit log entry for routing decisions."""
+
     timestamp: datetime
     request_id: str
     intent: IntentCategory
@@ -586,7 +579,7 @@ class RoutingAuditor:
 
         # Trim if over limit
         if len(self._entries) > self.max_entries:
-            self._entries = self._entries[-self.max_entries:]
+            self._entries = self._entries[-self.max_entries :]
 
     def get_entries(
         self,

@@ -196,7 +196,8 @@ class OfflineStorage:
         cursor = self._db.cursor()
 
         # Key-value store
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS kv_store (
                 key TEXT PRIMARY KEY,
                 value TEXT,
@@ -206,10 +207,12 @@ class OfflineStorage:
                 etag TEXT,
                 metadata TEXT
             )
-        """)
+        """
+        )
 
         # Entity store
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS entities (
                 entity_type TEXT,
                 entity_id TEXT,
@@ -220,10 +223,12 @@ class OfflineStorage:
                 synced INTEGER DEFAULT 0,
                 PRIMARY KEY (entity_type, entity_id)
             )
-        """)
+        """
+        )
 
         # Change log
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS change_log (
                 change_id TEXT PRIMARY KEY,
                 entity_type TEXT,
@@ -234,15 +239,18 @@ class OfflineStorage:
                 synced INTEGER DEFAULT 0,
                 version INTEGER DEFAULT 0
             )
-        """)
+        """
+        )
 
         # Sync metadata
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS sync_metadata (
                 key TEXT PRIMARY KEY,
                 value TEXT
             )
-        """)
+        """
+        )
 
         self._db.commit()
 
@@ -283,11 +291,7 @@ class OfflineStorage:
         row = cursor.fetchone()
 
         if row:
-            expires_at = (
-                datetime.fromisoformat(row["expires_at"])
-                if row["expires_at"]
-                else None
-            )
+            expires_at = datetime.fromisoformat(row["expires_at"]) if row["expires_at"] else None
             if expires_at and datetime.now() >= expires_at:
                 await self.delete(key)
                 return None
@@ -477,9 +481,7 @@ class OfflineStorage:
 
         # Track change
         if track_change:
-            await self._track_change(
-                entity_type, entity_id, change_type, data, version
-            )
+            await self._track_change(entity_type, entity_id, change_type, data, version)
 
         return version
 
@@ -532,9 +534,7 @@ class OfflineStorage:
         self._db.commit()
 
         if cursor.rowcount > 0 and track_change:
-            await self._track_change(
-                entity_type, entity_id, ChangeType.DELETE, None, 0
-            )
+            await self._track_change(entity_type, entity_id, ChangeType.DELETE, None, 0)
             return True
         return False
 
@@ -620,9 +620,7 @@ class OfflineStorage:
             List of pending changes
         """
         cursor = self._db.cursor()
-        cursor.execute(
-            "SELECT * FROM change_log WHERE synced = 0 ORDER BY timestamp"
-        )
+        cursor.execute("SELECT * FROM change_log WHERE synced = 0 ORDER BY timestamp")
         rows = cursor.fetchall()
 
         return [
@@ -694,9 +692,7 @@ class OfflineStorage:
         self._db.commit()
 
         # Clean cache
-        expired_keys = [
-            k for k, v in self._cache.items() if v.is_expired
-        ]
+        expired_keys = [k for k, v in self._cache.items() if v.is_expired]
         for key in expired_keys:
             entry = self._cache[key]
             self._cache_size_bytes -= entry.size_bytes
@@ -934,9 +930,7 @@ class SyncManager:
             else:
                 resolved_data = conflict.server_data
         elif resolution == ConflictResolution.MERGE:
-            resolved_data = self._merge_data(
-                conflict.local_data, conflict.server_data
-            )
+            resolved_data = self._merge_data(conflict.local_data, conflict.server_data)
         elif resolution == ConflictResolution.MANUAL:
             if not manual_data:
                 return False

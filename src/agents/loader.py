@@ -7,17 +7,16 @@ Supports loading agents from Python modules or configuration files.
 
 import importlib
 import importlib.util
+import logging
 import sys
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Type, Callable
-import logging
-import threading
+from typing import Any, Callable, Dict, List, Optional, Type
 
-from .interface import AgentInterface, AgentState, AgentCapabilities
 from .config import AgentConfig, ConfigLoader
-
+from .interface import AgentCapabilities, AgentInterface, AgentState
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +24,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class RegisteredAgent:
     """A registered agent with metadata."""
+
     name: str
     instance: AgentInterface
     config: AgentConfig
@@ -161,7 +161,8 @@ class AgentRegistry:
         """Get agents with a specific capability."""
         with self._lock:
             return [
-                r for r in self._agents.values()
+                r
+                for r in self._agents.values()
                 if capability in {c.value for c in r.capabilities.capabilities}
             ]
 
@@ -271,11 +272,7 @@ class AgentRegistry:
             results[name] = self.stop_agent(name)
         return results
 
-    def register_callback(
-        self,
-        event: str,
-        callback: Callable[[RegisteredAgent], None]
-    ) -> None:
+    def register_callback(self, event: str, callback: Callable[[RegisteredAgent], None]) -> None:
         """
         Register a lifecycle callback.
 
@@ -330,11 +327,7 @@ class AgentLoader:
         self.config_loader = config_loader or ConfigLoader()
         self._agent_classes: Dict[str, Type[AgentInterface]] = {}
 
-    def register_class(
-        self,
-        name: str,
-        agent_class: Type[AgentInterface]
-    ) -> None:
+    def register_class(self, name: str, agent_class: Type[AgentInterface]) -> None:
         """
         Register an agent class for later instantiation.
 
@@ -441,10 +434,7 @@ class AgentLoader:
 
         # Load module from file
         try:
-            spec = importlib.util.spec_from_file_location(
-                f"agent_{config.name}",
-                file_path
-            )
+            spec = importlib.util.spec_from_file_location(f"agent_{config.name}", file_path)
             if not spec or not spec.loader:
                 raise ImportError(f"Cannot create module spec from: {file_path}")
 
@@ -621,9 +611,7 @@ def create_loader(base_path: Optional[Path] = None) -> AgentLoader:
     """
     from .interface import BaseAgent
 
-    loader = AgentLoader(
-        config_loader=ConfigLoader(base_path or Path.cwd())
-    )
+    loader = AgentLoader(config_loader=ConfigLoader(base_path or Path.cwd()))
 
     # Register built-in agent types
     loader.register_class("BaseAgent", BaseAgent)

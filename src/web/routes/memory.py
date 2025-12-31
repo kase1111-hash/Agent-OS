@@ -22,8 +22,9 @@ router = APIRouter()
 
 # Try to import real Seshat memory agent
 try:
-    from src.agents.seshat import create_seshat_agent, SeshatAgent
+    from src.agents.seshat import SeshatAgent, create_seshat_agent
     from src.agents.seshat.retrieval import ContextType
+
     REAL_MEMORY_AVAILABLE = True
 except ImportError:
     REAL_MEMORY_AVAILABLE = False
@@ -148,7 +149,8 @@ class MemoryStore:
         """Create database tables."""
         cursor = self._connection.cursor()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS memories (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -164,17 +166,22 @@ class MemoryStore:
                 consent_given INTEGER DEFAULT 1,
                 retention_days INTEGER
             )
-        """)
+        """
+        )
 
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_memories_user_id
             ON memories(user_id)
-        """)
+        """
+        )
 
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_memories_user_type
             ON memories(user_id, memory_type)
-        """)
+        """
+        )
 
         self._connection.commit()
 
@@ -204,8 +211,7 @@ class MemoryStore:
         with self._lock:
             cursor = self._connection.cursor()
             cursor.execute(
-                "SELECT * FROM memories WHERE user_id = ? ORDER BY created_at DESC",
-                (user_id,)
+                "SELECT * FROM memories WHERE user_id = ? ORDER BY created_at DESC", (user_id,)
             )
             return [self._row_to_entry(row) for row in cursor.fetchall()]
 
@@ -217,8 +223,7 @@ class MemoryStore:
         with self._lock:
             cursor = self._connection.cursor()
             cursor.execute(
-                "SELECT * FROM memories WHERE id = ? AND user_id = ?",
-                (entry_id, user_id)
+                "SELECT * FROM memories WHERE id = ? AND user_id = ?", (entry_id, user_id)
             )
             row = cursor.fetchone()
             if not row:
@@ -228,7 +233,7 @@ class MemoryStore:
             now = datetime.utcnow().isoformat()
             cursor.execute(
                 "UPDATE memories SET accessed_at = ?, access_count = access_count + 1 WHERE id = ?",
-                (now, entry_id)
+                (now, entry_id),
             )
             self._connection.commit()
 
@@ -254,27 +259,30 @@ class MemoryStore:
 
         with self._lock:
             cursor = self._connection.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO memories (
                     id, user_id, content, memory_type, source, tags_json, metadata_json,
                     created_at, accessed_at, access_count, relevance_score,
                     consent_given, retention_days
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                entry.id,
-                entry.user_id,
-                entry.content,
-                entry.memory_type.value,
-                entry.source,
-                json.dumps(entry.tags),
-                json.dumps(entry.metadata),
-                entry.created_at.isoformat(),
-                entry.accessed_at.isoformat(),
-                entry.access_count,
-                entry.relevance_score,
-                1 if entry.consent_given else 0,
-                entry.retention_days,
-            ))
+            """,
+                (
+                    entry.id,
+                    entry.user_id,
+                    entry.content,
+                    entry.memory_type.value,
+                    entry.source,
+                    json.dumps(entry.tags),
+                    json.dumps(entry.metadata),
+                    entry.created_at.isoformat(),
+                    entry.accessed_at.isoformat(),
+                    entry.access_count,
+                    entry.relevance_score,
+                    1 if entry.consent_given else 0,
+                    entry.retention_days,
+                ),
+            )
             self._connection.commit()
 
         return entry
@@ -289,8 +297,7 @@ class MemoryStore:
 
             # Check ownership
             cursor.execute(
-                "SELECT * FROM memories WHERE id = ? AND user_id = ?",
-                (entry_id, user_id)
+                "SELECT * FROM memories WHERE id = ? AND user_id = ?", (entry_id, user_id)
             )
             row = cursor.fetchone()
             if not row:
@@ -317,10 +324,7 @@ class MemoryStore:
                 return self._row_to_entry(row)
 
             params.append(entry_id)
-            cursor.execute(
-                f"UPDATE memories SET {', '.join(updates)} WHERE id = ?",
-                params
-            )
+            cursor.execute(f"UPDATE memories SET {', '.join(updates)} WHERE id = ?", params)
             self._connection.commit()
 
             # Fetch updated entry
@@ -334,10 +338,7 @@ class MemoryStore:
 
         with self._lock:
             cursor = self._connection.cursor()
-            cursor.execute(
-                "DELETE FROM memories WHERE id = ? AND user_id = ?",
-                (entry_id, user_id)
-            )
+            cursor.execute("DELETE FROM memories WHERE id = ? AND user_id = ?", (entry_id, user_id))
             self._connection.commit()
             return cursor.rowcount > 0
 
@@ -351,13 +352,10 @@ class MemoryStore:
             if memory_type:
                 cursor.execute(
                     "DELETE FROM memories WHERE user_id = ? AND memory_type = ?",
-                    (user_id, memory_type.value)
+                    (user_id, memory_type.value),
                 )
             else:
-                cursor.execute(
-                    "DELETE FROM memories WHERE user_id = ?",
-                    (user_id,)
-                )
+                cursor.execute("DELETE FROM memories WHERE user_id = ?", (user_id,))
             self._connection.commit()
             return cursor.rowcount
 
@@ -437,18 +435,24 @@ class MemoryStore:
             cursor = self._connection.cursor()
 
             # Count by type
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT memory_type, COUNT(*) FROM memories
                 WHERE user_id = ? GROUP BY memory_type
-            """, (user_id,))
+            """,
+                (user_id,),
+            )
             type_counts = {row[0]: row[1] for row in cursor.fetchall()}
 
             # Total size and consent
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT COUNT(*), SUM(LENGTH(content)), SUM(consent_given),
                        MIN(created_at), MAX(created_at)
                 FROM memories WHERE user_id = ?
-            """, (user_id,))
+            """,
+                (user_id,),
+            )
             row = cursor.fetchone()
 
             total = row[0] or 0
@@ -476,6 +480,7 @@ def get_store() -> MemoryStore:
     global _store
     if _store is None:
         from ..config import get_config
+
         config = get_config()
         db_path = config.data_dir / "memory.db"
         _store = MemoryStore(db_path=db_path)
@@ -576,6 +581,7 @@ async def search_memories(
     # Log intent
     try:
         from ..intent_log import IntentType, log_user_intent
+
         log_user_intent(
             user_id=user_id,
             intent_type=IntentType.MEMORY_SEARCH,
@@ -653,11 +659,16 @@ async def create_memory(
     # Log intent
     try:
         from ..intent_log import IntentType, log_user_intent
+
         log_user_intent(
             user_id=user_id,
             intent_type=IntentType.MEMORY_CREATE,
             description=f"Created {body.memory_type.value} memory",
-            details={"memory_id": entry.id, "memory_type": body.memory_type.value, "tags": body.tags},
+            details={
+                "memory_id": entry.id,
+                "memory_type": body.memory_type.value,
+                "tags": body.tags,
+            },
             related_entity_type="memory",
             related_entity_id=entry.id,
         )
@@ -699,6 +710,7 @@ async def delete_memory(
         # Log intent
         try:
             from ..intent_log import IntentType, log_user_intent
+
             log_user_intent(
                 user_id=user_id,
                 intent_type=IntentType.MEMORY_DELETE,
@@ -740,11 +752,15 @@ async def clear_memories(
     # Log intent
     try:
         from ..intent_log import IntentType, log_user_intent
+
         log_user_intent(
             user_id=user_id,
             intent_type=IntentType.MEMORY_DELETE,
             description=f"Cleared {deleted_count} memories",
-            details={"deleted_count": deleted_count, "memory_type": memory_type.value if memory_type else "all"},
+            details={
+                "deleted_count": deleted_count,
+                "memory_type": memory_type.value if memory_type else "all",
+            },
         )
     except Exception as e:
         logger.debug(f"Failed to log intent: {e}")

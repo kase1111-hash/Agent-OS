@@ -8,40 +8,39 @@ The security validation agent responsible for:
 - Emergency controls
 """
 
+import logging
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, Dict, Any, List, Set, Callable
-import logging
+from typing import Any, Callable, Dict, List, Optional, Set
 
 from src.agents.interface import (
-    BaseAgent,
     AgentCapabilities,
-    CapabilityType,
-    AgentState,
     AgentMetrics,
+    AgentState,
+    BaseAgent,
+    CapabilityType,
     RequestValidationResult,
     Rule,
 )
+from src.core.constitution import ConstitutionalKernel
 from src.messaging.models import (
+    CheckStatus,
+    ConstitutionalCheck,
     FlowRequest,
     FlowResponse,
     MessageStatus,
-    ConstitutionalCheck,
-    CheckStatus,
 )
-from src.core.constitution import ConstitutionalKernel
 
-from .pre_validator import PreExecutionValidator, PreValidationResult, CheckResult
-from .post_monitor import PostExecutionMonitor, PostMonitorResult, MonitorResult
-from .refusal_engine import RefusalEngine, RefusalResponse, RefusalType
 from .emergency import (
     EmergencyControls,
-    SystemMode,
     IncidentSeverity,
     SecurityIncident,
+    SystemMode,
 )
-
+from .post_monitor import MonitorResult, PostExecutionMonitor, PostMonitorResult
+from .pre_validator import CheckResult, PreExecutionValidator, PreValidationResult
+from .refusal_engine import RefusalEngine, RefusalResponse, RefusalType
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +48,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SmithMetrics:
     """Smith-specific metrics."""
+
     pre_validations: int = 0
     post_monitors: int = 0
     refusals_issued: int = 0
@@ -216,7 +216,9 @@ class SmithAgent(BaseAgent):
                     category="request_refused",
                     description=refusal.message,
                     request_id=str(request.request_id),
-                    triggered_by=refusal.decisions[0].check_id if refusal.decisions else "refusal_engine",
+                    triggered_by=(
+                        refusal.decisions[0].check_id if refusal.decisions else "refusal_engine"
+                    ),
                 )
 
             elif refusal.requires_human_review:
@@ -336,7 +338,20 @@ class SmithAgent(BaseAgent):
             supported_intents=self._supported_intents,
             context_window=4096,
             metadata={
-                "checks": ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10", "S11", "S12"],
+                "checks": [
+                    "S1",
+                    "S2",
+                    "S3",
+                    "S4",
+                    "S5",
+                    "S6",
+                    "S7",
+                    "S8",
+                    "S9",
+                    "S10",
+                    "S11",
+                    "S12",
+                ],
                 "has_emergency_controls": True,
                 "target_latency_ms": 500,
             },
@@ -478,6 +493,7 @@ class SmithAgent(BaseAgent):
         }
 
         import json
+
         return request.create_response(
             source="smith",
             status=MessageStatus.SUCCESS,
@@ -504,7 +520,9 @@ class SmithAgent(BaseAgent):
 
         output = "Recent Incidents:\n"
         for incident in incidents:
-            output += f"  [{incident.severity.name}] {incident.incident_id}: {incident.description}\n"
+            output += (
+                f"  [{incident.severity.name}] {incident.incident_id}: {incident.description}\n"
+            )
 
         return request.create_response(
             source="smith",
@@ -525,15 +543,17 @@ class SmithAgent(BaseAgent):
         if len(self._validation_times) > 100:
             self._validation_times = self._validation_times[-100:]
 
-        self._smith_metrics.avg_validation_time_ms = (
-            sum(self._validation_times) / len(self._validation_times)
+        self._smith_metrics.avg_validation_time_ms = sum(self._validation_times) / len(
+            self._validation_times
         )
 
     def get_metrics(self) -> AgentMetrics:
         """Get agent metrics."""
         return AgentMetrics(
-            requests_processed=self._smith_metrics.pre_validations + self._smith_metrics.post_monitors,
-            requests_succeeded=self._smith_metrics.pre_validations - self._smith_metrics.refusals_issued,
+            requests_processed=self._smith_metrics.pre_validations
+            + self._smith_metrics.post_monitors,
+            requests_succeeded=self._smith_metrics.pre_validations
+            - self._smith_metrics.refusals_issued,
             requests_failed=0,
             requests_refused=self._smith_metrics.refusals_issued,
         )

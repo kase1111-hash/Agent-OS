@@ -49,8 +49,8 @@ def _is_production_mode() -> bool:
 class MLKEMSecurityLevel(str, Enum):
     """ML-KEM security levels per FIPS 203."""
 
-    ML_KEM_512 = "ml-kem-512"    # NIST Level 1 (~AES-128)
-    ML_KEM_768 = "ml-kem-768"    # NIST Level 3 (~AES-192) - Recommended
+    ML_KEM_512 = "ml-kem-512"  # NIST Level 1 (~AES-128)
+    ML_KEM_768 = "ml-kem-768"  # NIST Level 3 (~AES-192) - Recommended
     ML_KEM_1024 = "ml-kem-1024"  # NIST Level 5 (~AES-256)
 
 
@@ -334,6 +334,7 @@ class DefaultMLKEMProvider(MLKEMProvider):
         """Check if liboqs is available."""
         try:
             import oqs
+
             # Check if Kyber is available
             if "Kyber768" in oqs.get_enabled_kem_mechanisms():
                 return True
@@ -341,9 +342,7 @@ class DefaultMLKEMProvider(MLKEMProvider):
         except ImportError:
             return False
 
-    def _get_oqs_algorithm(
-        self, security_level: MLKEMSecurityLevel
-    ) -> str:
+    def _get_oqs_algorithm(self, security_level: MLKEMSecurityLevel) -> str:
         """Map security level to liboqs algorithm name."""
         mapping = {
             MLKEMSecurityLevel.ML_KEM_512: "Kyber512",
@@ -366,9 +365,7 @@ class DefaultMLKEMProvider(MLKEMProvider):
             "Install with: pip install liboqs-python"
         )
 
-    def _generate_keypair_oqs(
-        self, security_level: MLKEMSecurityLevel
-    ) -> MLKEMKeyPair:
+    def _generate_keypair_oqs(self, security_level: MLKEMSecurityLevel) -> MLKEMKeyPair:
         """Generate key pair using liboqs."""
         import oqs
 
@@ -390,20 +387,14 @@ class DefaultMLKEMProvider(MLKEMProvider):
             security_level=security_level,
         )
 
-    def _generate_keypair_mock(
-        self, security_level: MLKEMSecurityLevel
-    ) -> MLKEMKeyPair:
+    def _generate_keypair_mock(self, security_level: MLKEMSecurityLevel) -> MLKEMKeyPair:
         """Generate mock key pair for testing."""
         params = ML_KEM_PARAMS[security_level]
 
         # Generate deterministic-looking but random keys
         seed = secrets.token_bytes(32)
-        public_key_data = self._expand_seed(
-            seed, params["public_key_size"], b"public"
-        )
-        private_key_data = self._expand_seed(
-            seed, params["private_key_size"], b"private"
-        )
+        public_key_data = self._expand_seed(seed, params["public_key_size"], b"public")
+        private_key_data = self._expand_seed(seed, params["private_key_size"], b"private")
 
         return MLKEMKeyPair(
             public_key=MLKEMPublicKey(
@@ -431,9 +422,7 @@ class DefaultMLKEMProvider(MLKEMProvider):
             "Install with: pip install liboqs-python"
         )
 
-    def _encapsulate_oqs(
-        self, public_key: MLKEMPublicKey
-    ) -> Tuple[bytes, MLKEMCiphertext]:
+    def _encapsulate_oqs(self, public_key: MLKEMPublicKey) -> Tuple[bytes, MLKEMCiphertext]:
         """Encapsulate using liboqs."""
         import oqs
 
@@ -450,9 +439,7 @@ class DefaultMLKEMProvider(MLKEMProvider):
 
         return shared_secret, ciphertext
 
-    def _encapsulate_mock(
-        self, public_key: MLKEMPublicKey
-    ) -> Tuple[bytes, MLKEMCiphertext]:
+    def _encapsulate_mock(self, public_key: MLKEMPublicKey) -> Tuple[bytes, MLKEMCiphertext]:
         """Mock encapsulation for testing."""
         params = ML_KEM_PARAMS[public_key.security_level]
 
@@ -469,9 +456,9 @@ class DefaultMLKEMProvider(MLKEMProvider):
         # Store shared secret in a way that can be recovered with private key
         # This is NOT cryptographically secure - mock only!
         encrypted_secret = bytes(
-            s ^ h for s, h in zip(
-                shared_secret,
-                hashlib.sha256(public_key.key_data + ciphertext_seed).digest()
+            s ^ h
+            for s, h in zip(
+                shared_secret, hashlib.sha256(public_key.key_data + ciphertext_seed).digest()
             )
         )
         ciphertext_data = encrypted_secret + ciphertext_data[32:]
@@ -527,31 +514,27 @@ class DefaultMLKEMProvider(MLKEMProvider):
         # Derive the same mask using private key derivation
         # This simulates the lattice decryption
         public_key_data = self._expand_seed(
-            private_key.key_data[:32],
-            params["public_key_size"],
-            b"public"
+            private_key.key_data[:32], params["public_key_size"], b"public"
         )
-        ciphertext_seed = private_key.key_data[32:64] if len(private_key.key_data) >= 64 else secrets.token_bytes(32)
+        ciphertext_seed = (
+            private_key.key_data[32:64]
+            if len(private_key.key_data) >= 64
+            else secrets.token_bytes(32)
+        )
 
         # In mock mode, we use HMAC to simulate key agreement
-        mask = hashlib.sha256(
-            public_key_data + ciphertext.ciphertext[32:64]
-        ).digest()
+        mask = hashlib.sha256(public_key_data + ciphertext.ciphertext[32:64]).digest()
 
-        shared_secret = bytes(
-            e ^ m for e, m in zip(encrypted_secret, mask)
-        )
+        shared_secret = bytes(e ^ m for e, m in zip(encrypted_secret, mask))
 
-        return shared_secret[:params["shared_secret_size"]]
+        return shared_secret[: params["shared_secret_size"]]
 
     def _expand_seed(self, seed: bytes, length: int, domain: bytes) -> bytes:
         """Expand seed to desired length using SHAKE-like construction."""
         output = b""
         counter = 0
         while len(output) < length:
-            block = hashlib.sha256(
-                seed + domain + counter.to_bytes(4, "big")
-            ).digest()
+            block = hashlib.sha256(seed + domain + counter.to_bytes(4, "big")).digest()
             output += block
             counter += 1
         return output[:length]
@@ -616,14 +599,12 @@ class MockMLKEMProvider(MLKEMProvider):
         # Create ciphertext that "encrypts" the shared secret
         nonce = secrets.token_bytes(16)
         encrypted = bytes(
-            s ^ h for s, h in zip(
-                shared_secret,
-                hashlib.sha256(public_key.key_data + nonce).digest()
-            )
+            s ^ h
+            for s, h in zip(shared_secret, hashlib.sha256(public_key.key_data + nonce).digest())
         )
 
-        ciphertext_data = nonce + encrypted + secrets.token_bytes(
-            params["ciphertext_size"] - 16 - 32
+        ciphertext_data = (
+            nonce + encrypted + secrets.token_bytes(params["ciphertext_size"] - 16 - 32)
         )
 
         # Store for mock decapsulation
@@ -652,13 +633,13 @@ class MockMLKEMProvider(MLKEMProvider):
         # Derive public key from private key (mock)
         public_key_data = hashlib.sha256(private_key.key_data).digest()
         public_key_data = public_key_data * (params["public_key_size"] // 32 + 1)
-        public_key_data = public_key_data[:params["public_key_size"]]
+        public_key_data = public_key_data[: params["public_key_size"]]
 
         # Decrypt
         mask = hashlib.sha256(public_key_data + nonce).digest()
         shared_secret = bytes(e ^ m for e, m in zip(encrypted, mask))
 
-        return shared_secret[:params["shared_secret_size"]]
+        return shared_secret[: params["shared_secret_size"]]
 
 
 # =============================================================================

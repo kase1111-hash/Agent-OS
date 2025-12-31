@@ -39,24 +39,23 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-from .ml_kem import (
-    MLKEMSecurityLevel,
-    MLKEMKeyPair,
-    MLKEMPublicKey,
-    MLKEMPrivateKey,
-    MLKEMCiphertext,
-    MLKEMProvider,
-    DefaultMLKEMProvider,
-)
-
 from .ml_dsa import (
-    MLDSASecurityLevel,
-    MLDSAKeyPair,
-    MLDSAPublicKey,
-    MLDSAPrivateKey,
-    MLDSASignature,
-    MLDSAProvider,
     DefaultMLDSAProvider,
+    MLDSAKeyPair,
+    MLDSAPrivateKey,
+    MLDSAProvider,
+    MLDSAPublicKey,
+    MLDSASecurityLevel,
+    MLDSASignature,
+)
+from .ml_kem import (
+    DefaultMLKEMProvider,
+    MLKEMCiphertext,
+    MLKEMKeyPair,
+    MLKEMPrivateKey,
+    MLKEMProvider,
+    MLKEMPublicKey,
+    MLKEMSecurityLevel,
 )
 
 logger = logging.getLogger(__name__)
@@ -70,9 +69,9 @@ logger = logging.getLogger(__name__)
 class HybridMode(str, Enum):
     """Hybrid cryptography modes."""
 
-    CLASSICAL_ONLY = "classical"      # X25519/Ed25519 only (legacy)
-    POST_QUANTUM_ONLY = "pq"          # ML-KEM/ML-DSA only
-    HYBRID = "hybrid"                  # Both combined (recommended)
+    CLASSICAL_ONLY = "classical"  # X25519/Ed25519 only (legacy)
+    POST_QUANTUM_ONLY = "pq"  # ML-KEM/ML-DSA only
+    HYBRID = "hybrid"  # Both combined (recommended)
 
 
 class HybridKEMAlgorithm(str, Enum):
@@ -98,9 +97,9 @@ class HybridSigAlgorithm(str, Enum):
 class HybridPublicKey:
     """Combined classical and post-quantum public key."""
 
-    classical_key: bytes          # X25519 or Ed25519 public key (32 bytes)
-    pq_key: bytes                 # ML-KEM or ML-DSA public key
-    algorithm: str                # Algorithm identifier
+    classical_key: bytes  # X25519 or Ed25519 public key (32 bytes)
+    pq_key: bytes  # ML-KEM or ML-DSA public key
+    algorithm: str  # Algorithm identifier
     key_id: str = ""
     created_at: datetime = field(default_factory=datetime.utcnow)
 
@@ -142,8 +141,8 @@ class HybridPublicKey:
 class HybridPrivateKey:
     """Combined classical and post-quantum private key."""
 
-    classical_key: bytes          # X25519 or Ed25519 private key
-    pq_key: bytes                 # ML-KEM or ML-DSA private key
+    classical_key: bytes  # X25519 or Ed25519 private key
+    pq_key: bytes  # ML-KEM or ML-DSA private key
     algorithm: str
     key_id: str = ""
     created_at: datetime = field(default_factory=datetime.utcnow)
@@ -183,8 +182,8 @@ class HybridKeyPair:
 class HybridCiphertext:
     """Hybrid ciphertext from key encapsulation."""
 
-    classical_ciphertext: bytes    # X25519 ephemeral public key
-    pq_ciphertext: bytes          # ML-KEM ciphertext
+    classical_ciphertext: bytes  # X25519 ephemeral public key
+    pq_ciphertext: bytes  # ML-KEM ciphertext
     algorithm: str
     recipient_key_id: str = ""
     created_at: datetime = field(default_factory=datetime.utcnow)
@@ -222,8 +221,8 @@ class HybridCiphertext:
 class HybridSignature:
     """Hybrid signature combining classical and post-quantum."""
 
-    classical_signature: bytes    # Ed25519 signature (64 bytes)
-    pq_signature: bytes          # ML-DSA signature
+    classical_signature: bytes  # Ed25519 signature (64 bytes)
+    pq_signature: bytes  # ML-DSA signature
     algorithm: str
     signer_key_id: str = ""
     message_hash: str = ""
@@ -294,6 +293,7 @@ class HybridKeyExchange:
         """Check if cryptography library is available."""
         try:
             from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+
             return True
         except ImportError:
             logger.warning("cryptography library not available for X25519")
@@ -333,8 +333,8 @@ class HybridKeyExchange:
     def _generate_x25519_keypair(self) -> Tuple[bytes, bytes]:
         """Generate X25519 key pair."""
         if self._has_crypto:
-            from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
             from cryptography.hazmat.primitives import serialization
+            from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 
             private_key = X25519PrivateKey.generate()
             public_key = private_key.public_key()
@@ -477,8 +477,8 @@ class HybridKeyExchange:
 
         # Use HKDF to derive final key
         if self._has_crypto:
-            from cryptography.hazmat.primitives.kdf.hkdf import HKDF
             from cryptography.hazmat.primitives import hashes
+            from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
             hkdf = HKDF(
                 algorithm=hashes.SHA384(),  # Upgraded from SHA256 for PQ
@@ -530,6 +530,7 @@ class HybridSigner:
         """Check if cryptography library is available."""
         try:
             from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
             return True
         except ImportError:
             logger.warning("cryptography library not available for Ed25519")
@@ -569,8 +570,8 @@ class HybridSigner:
     def _generate_ed25519_keypair(self) -> Tuple[bytes, bytes]:
         """Generate Ed25519 key pair."""
         if self._has_crypto:
-            from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
             from cryptography.hazmat.primitives import serialization
+            from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
             private_key = Ed25519PrivateKey.generate()
             public_key = private_key.public_key()
@@ -792,9 +793,7 @@ class HybridSessionManager:
             Our public key for sharing with peers
         """
         self._keypair = self.kex.generate_keypair()
-        logger.info(
-            f"Initialized hybrid session manager with algorithm: {self.kex.algorithm}"
-        )
+        logger.info(f"Initialized hybrid session manager with algorithm: {self.kex.algorithm}")
         return self._keypair.public_key
 
     @property
@@ -898,11 +897,7 @@ class HybridSessionManager:
 
     def list_sessions(self) -> List[Dict[str, Any]]:
         """List all active sessions."""
-        return [
-            session.to_dict()
-            for session in self._sessions.values()
-            if session.is_valid
-        ]
+        return [session.to_dict() for session in self._sessions.values() if session.is_valid]
 
 
 # =============================================================================

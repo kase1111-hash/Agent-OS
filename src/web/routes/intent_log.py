@@ -67,6 +67,7 @@ def get_current_user_id(
 
 class IntentLogEntryResponse(BaseModel):
     """Response model for intent log entry."""
+
     entry_id: str
     user_id: str
     intent_type: str
@@ -80,6 +81,7 @@ class IntentLogEntryResponse(BaseModel):
 
 class IntentLogStatsResponse(BaseModel):
     """Response model for intent log statistics."""
+
     user_id: str
     total_entries: int
     by_type: Dict[str, int]
@@ -89,6 +91,7 @@ class IntentLogStatsResponse(BaseModel):
 
 class IntentLogListResponse(BaseModel):
     """Response model for list of intent log entries."""
+
     entries: List[IntentLogEntryResponse]
     total: int
     limit: int
@@ -139,10 +142,7 @@ async def list_intent_logs(
         try:
             query.intent_type = IntentType[intent_type.upper()]
         except KeyError:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid intent type: {intent_type}"
-            )
+            raise HTTPException(status_code=400, detail=f"Invalid intent type: {intent_type}")
 
     store = get_intent_log_store()
     entries = store.query_entries(query)
@@ -199,9 +199,7 @@ async def get_intent_log_stats(
 @router.get("/types")
 async def list_intent_types() -> Dict[str, List[str]]:
     """List all available intent types."""
-    return {
-        "intent_types": [t.name for t in IntentType]
-    }
+    return {"intent_types": [t.name for t in IntentType]}
 
 
 @router.get("/recent")
@@ -313,10 +311,7 @@ async def clear_intent_log(
     user_id = get_current_user_id(request, session_token)
 
     if user_id == "default":
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication required to clear intent log"
-        )
+        raise HTTPException(status_code=401, detail="Authentication required to clear intent log")
 
     store = get_intent_log_store()
     count = store.delete_user_entries(user_id)

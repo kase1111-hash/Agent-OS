@@ -25,8 +25,8 @@ from .base import (
     Installer,
     InstallerError,
     InstallerPhase,
-    create_directory,
     copy_directory,
+    create_directory,
     run_command,
 )
 from .config import InstallConfig, InstallMode
@@ -409,20 +409,20 @@ class WindowsInstaller(Installer):
         bin_dir = self.config.install_path / "bin"
 
         # Create agent-os.cmd
-        cmd_content = f'''@echo off
+        cmd_content = f"""@echo off
 setlocal
 set AGENT_OS_HOME={self.config.install_path}
 set PYTHONPATH=%AGENT_OS_HOME%\\lib;%PYTHONPATH%
 python -m agent_os %*
-'''
+"""
         try:
             (bin_dir / "agent-os.cmd").write_text(cmd_content)
 
             # Create agent-os.ps1 for PowerShell
-            ps_content = f'''$env:AGENT_OS_HOME = "{self.config.install_path}"
+            ps_content = f"""$env:AGENT_OS_HOME = "{self.config.install_path}"
 $env:PYTHONPATH = "$env:AGENT_OS_HOME\\lib;$env:PYTHONPATH"
 python -m agent_os $args
-'''
+"""
             (bin_dir / "agent-os.ps1").write_text(ps_content)
 
             return True
@@ -581,14 +581,14 @@ port = 8080
             shortcut_path = shortcut_dir / "Agent OS.lnk"
             target = self.config.install_path / "bin" / "agent-os.cmd"
 
-            ps_script = f'''
+            ps_script = f"""
 $WshShell = New-Object -comObject WScript.Shell
 $Shortcut = $WshShell.CreateShortcut("{shortcut_path}")
 $Shortcut.TargetPath = "{target}"
 $Shortcut.WorkingDirectory = "{self.config.install_path}"
 $Shortcut.Description = "Agent OS - Constitutional AI Framework"
 $Shortcut.Save()
-'''
+"""
             code, stdout, stderr = run_command(
                 ["powershell", "-Command", ps_script],
                 timeout=30,
@@ -637,9 +637,7 @@ $Shortcut.Save()
                     winreg.REG_SZ,
                     str(self.config.install_path),
                 )
-                winreg.SetValueEx(
-                    key, "Publisher", 0, winreg.REG_SZ, "Agent OS Community"
-                )
+                winreg.SetValueEx(key, "Publisher", 0, winreg.REG_SZ, "Agent OS Community")
                 winreg.SetValueEx(key, "NoModify", 0, winreg.REG_DWORD, 1)
                 winreg.SetValueEx(key, "NoRepair", 0, winreg.REG_DWORD, 1)
 

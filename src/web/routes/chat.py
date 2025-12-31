@@ -20,14 +20,16 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
+from src.boundary import BoundaryMode, SmithClient, create_smith_client
 from src.web.conversation_store import (
-    ConversationStore,
-    StoredMessage,
     Conversation,
-    MessageRole as StoredMessageRole,
+    ConversationStore,
+)
+from src.web.conversation_store import MessageRole as StoredMessageRole
+from src.web.conversation_store import (
+    StoredMessage,
     get_conversation_store,
 )
-from src.boundary import SmithClient, create_smith_client, BoundaryMode
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +44,7 @@ from urllib.parse import urlparse
 
 class SSRFProtectionError(Exception):
     """Raised when a URL fails SSRF protection validation."""
+
     pass
 
 
@@ -67,7 +70,7 @@ def validate_ollama_endpoint(url: str) -> str:
         raise SSRFProtectionError(f"Invalid URL format: {e}")
 
     # Validate scheme
-    if parsed.scheme not in ('http', 'https'):
+    if parsed.scheme not in ("http", "https"):
         raise SSRFProtectionError(f"Invalid URL scheme: {parsed.scheme}")
 
     # Validate host exists
@@ -78,9 +81,9 @@ def validate_ollama_endpoint(url: str) -> str:
 
     # Check for suspicious internal hostnames
     suspicious_patterns = [
-        'metadata.',           # Cloud metadata services
-        '169.254.',            # AWS metadata IP range
-        'internal.',           # Internal services
+        "metadata.",  # Cloud metadata services
+        "169.254.",  # AWS metadata IP range
+        "internal.",  # Internal services
     ]
 
     for pattern in suspicious_patterns:
@@ -88,8 +91,8 @@ def validate_ollama_endpoint(url: str) -> str:
             raise SSRFProtectionError(f"Suspicious hostname pattern: {hostname}")
 
     # Reject .internal, .local, .corp, .lan TLDs (except localhost)
-    if hostname not in ('localhost', '127.0.0.1', '::1'):
-        suspicious_tlds = ['.internal', '.local', '.corp', '.lan']
+    if hostname not in ("localhost", "127.0.0.1", "::1"):
+        suspicious_tlds = [".internal", ".local", ".corp", ".lan"]
         for tld in suspicious_tlds:
             if hostname.endswith(tld):
                 raise SSRFProtectionError(f"Suspicious hostname pattern: {hostname}")
@@ -157,6 +160,7 @@ class ModelManager:
         """Get list of available models from Ollama."""
         try:
             from src.agents.ollama import OllamaClient
+
             client = OllamaClient(endpoint=OLLAMA_ENDPOINT, timeout=5)
             models = client.list_models()
             client.close()
@@ -388,7 +392,9 @@ class ConnectionManager:
         """Get conversation history from cache or load from store."""
         # Check boundary permission for memory access
         if not self.boundary.check_memory_access("chat:conversation", conversation_id):
-            logger.warning(f"Boundary daemon denied memory access to conversation {conversation_id}")
+            logger.warning(
+                f"Boundary daemon denied memory access to conversation {conversation_id}"
+            )
             return []
 
         # Check cache first
@@ -505,7 +511,9 @@ class ConnectionManager:
                 models = model_manager.get_available_models()
                 current = model_manager.get_current_model()
                 if models:
-                    model_list = "\n".join(f"  • {m}" + (" ← current" if m == current else "") for m in models)
+                    model_list = "\n".join(
+                        f"  • {m}" + (" ← current" if m == current else "") for m in models
+                    )
                     response = f"**Available Models:**\n{model_list}\n\nTo switch models, say: `use <model_name>`"
                 else:
                     response = "No models found. Make sure Ollama is running and you have models pulled.\nTry: `ollama pull mistral`"
@@ -520,7 +528,10 @@ class ConnectionManager:
         for pattern in current_patterns:
             if re.match(pattern, msg_lower):
                 current = model_manager.get_current_model()
-                return f"Currently using: **{current}**", {"command": "current_model", "model": current}
+                return f"Currently using: **{current}**", {
+                    "command": "current_model",
+                    "model": current,
+                }
 
         # Switch model command
         switch_patterns = [
@@ -572,10 +583,12 @@ class ConnectionManager:
         # Convert history to Ollama message format
         messages = []
         for msg in history[-10:]:  # Keep last 10 messages for context
-            messages.append({
-                "role": msg.role.value,
-                "content": msg.content,
-            })
+            messages.append(
+                {
+                    "role": msg.role.value,
+                    "content": msg.content,
+                }
+            )
 
         # Add the current message
         messages.append({"role": "user", "content": message})
@@ -945,6 +958,7 @@ async def get_chat_status(
 
 class ModelSwitchRequest(BaseModel):
     """Request to switch models."""
+
     model: str
 
 
@@ -999,6 +1013,7 @@ async def switch_model(request: ModelSwitchRequest) -> Dict[str, Any]:
 
 class ImportRequest(BaseModel):
     """Request to import conversations."""
+
     data: Dict[str, Any]
     overwrite: bool = False
 
@@ -1046,16 +1061,12 @@ async def import_conversations(
         if "conversations" in data:
             # Multiple conversations
             for conv_data in data["conversations"]:
-                conv_id = manager.store.import_conversation(
-                    conv_data, overwrite=request.overwrite
-                )
+                conv_id = manager.store.import_conversation(conv_data, overwrite=request.overwrite)
                 if conv_id:
                     imported.append(conv_id)
         elif "conversation" in data:
             # Single conversation
-            conv_id = manager.store.import_conversation(
-                data, overwrite=request.overwrite
-            )
+            conv_id = manager.store.import_conversation(data, overwrite=request.overwrite)
             if conv_id:
                 imported.append(conv_id)
 
@@ -1093,9 +1104,7 @@ async def archive_conversation(
 ) -> Dict[str, str]:
     """Archive a conversation."""
     try:
-        success = manager.store.update_conversation(
-            conversation_id, archived=True
-        )
+        success = manager.store.update_conversation(conversation_id, archived=True)
         if success:
             # Remove from cache
             if conversation_id in manager._conversations_cache:
@@ -1115,9 +1124,7 @@ async def unarchive_conversation(
 ) -> Dict[str, str]:
     """Unarchive a conversation."""
     try:
-        success = manager.store.update_conversation(
-            conversation_id, archived=False
-        )
+        success = manager.store.update_conversation(conversation_id, archived=False)
         if success:
             return {"status": "unarchived", "conversation_id": conversation_id}
     except Exception as e:

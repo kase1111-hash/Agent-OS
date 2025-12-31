@@ -8,32 +8,33 @@ Implements emergency control mechanisms:
 - Incident logging
 """
 
-from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Optional, List, Dict, Any, Callable
-from enum import Enum, auto
+import json
 import logging
-import threading
 import os
 import signal
-import json
+import threading
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum, auto
 from pathlib import Path
-
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class SystemMode(Enum):
     """System operating modes."""
-    NORMAL = auto()      # Full functionality
+
+    NORMAL = auto()  # Full functionality
     RESTRICTED = auto()  # Limited functionality
-    SAFE = auto()        # Minimal functionality, no external access
-    LOCKDOWN = auto()    # Emergency lockdown, no operations
-    HALTED = auto()      # System halted
+    SAFE = auto()  # Minimal functionality, no external access
+    LOCKDOWN = auto()  # Emergency lockdown, no operations
+    HALTED = auto()  # System halted
 
 
 class IncidentSeverity(Enum):
     """Severity levels for security incidents."""
+
     LOW = 1
     MEDIUM = 2
     HIGH = 3
@@ -44,6 +45,7 @@ class IncidentSeverity(Enum):
 @dataclass
 class SecurityIncident:
     """Record of a security incident."""
+
     incident_id: str
     severity: IncidentSeverity
     category: str
@@ -73,6 +75,7 @@ class SecurityIncident:
 @dataclass
 class ModeTransition:
     """Record of a system mode transition."""
+
     from_mode: SystemMode
     to_mode: SystemMode
     reason: str
@@ -94,8 +97,8 @@ class EmergencyControls:
 
     # Thresholds for automatic mode escalation
     MODE_ESCALATION_THRESHOLDS = {
-        IncidentSeverity.HIGH: (3, 60),      # 3 high incidents in 60 seconds
-        IncidentSeverity.CRITICAL: (1, 300), # 1 critical incident
+        IncidentSeverity.HIGH: (3, 60),  # 3 high incidents in 60 seconds
+        IncidentSeverity.CRITICAL: (1, 300),  # 1 critical incident
         IncidentSeverity.EMERGENCY: (1, 0),  # Immediate
     }
 
@@ -263,9 +266,7 @@ class EmergencyControls:
         """
         with self._mode_lock:
             if self._current_mode == SystemMode.HALTED:
-                logger.warning(
-                    f"Cannot restore from HALTED mode - requires system restart"
-                )
+                logger.warning(f"Cannot restore from HALTED mode - requires system restart")
                 return False
 
             # In production, would verify authorization
@@ -382,8 +383,7 @@ class EmergencyControls:
     def get_status(self) -> Dict[str, Any]:
         """Get current emergency control status."""
         recent_incidents = [
-            i for i in self._incidents
-            if (datetime.now() - i.timestamp).total_seconds() < 3600
+            i for i in self._incidents if (datetime.now() - i.timestamp).total_seconds() < 3600
         ]
 
         return {
@@ -414,9 +414,7 @@ class EmergencyControls:
 
             # Validate transition
             if not self._is_valid_transition(old_mode, new_mode):
-                logger.warning(
-                    f"Invalid mode transition: {old_mode.name} -> {new_mode.name}"
-                )
+                logger.warning(f"Invalid mode transition: {old_mode.name} -> {new_mode.name}")
                 return False
 
             # Record transition
@@ -494,7 +492,8 @@ class EmergencyControls:
             if window_seconds > 0:
                 cutoff = datetime.now()
                 recent = [
-                    i for i in self._incidents
+                    i
+                    for i in self._incidents
                     if i.severity == severity
                     and (cutoff - i.timestamp).total_seconds() < window_seconds
                 ]
@@ -521,7 +520,7 @@ class EmergencyControls:
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
         if not log_path.exists():
-            with open(log_path, 'w') as f:
+            with open(log_path, "w") as f:
                 json.dump({"incidents": [], "created": datetime.now().isoformat()}, f)
 
     def _write_incident(self, incident: SecurityIncident) -> None:
@@ -532,12 +531,12 @@ class EmergencyControls:
         try:
             log_path = Path(self.incident_log_path)
 
-            with open(log_path, 'r') as f:
+            with open(log_path, "r") as f:
                 data = json.load(f)
 
             data["incidents"].append(incident.to_dict())
 
-            with open(log_path, 'w') as f:
+            with open(log_path, "w") as f:
                 json.dump(data, f, indent=2)
 
         except Exception as e:
@@ -556,7 +555,7 @@ class EmergencyControls:
 
         if self.incident_log_path:
             halt_path = Path(self.incident_log_path).parent / "halt.log"
-            with open(halt_path, 'a') as f:
+            with open(halt_path, "a") as f:
                 f.write(json.dumps(halt_log) + "\n")
 
         logger.critical(f"System halt logged: {halt_log}")

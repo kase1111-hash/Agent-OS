@@ -447,9 +447,7 @@ class ContextMemory:
                 "interaction_type": row["interaction_type"],
                 "input_text": row["input_text"],
                 "output_rule_id": row["output_rule_id"],
-                "context_data": json.loads(row["context_data"])
-                if row["context_data"]
-                else None,
+                "context_data": json.loads(row["context_data"]) if row["context_data"] else None,
             }
             for row in cursor.fetchall()
         ]
@@ -482,12 +480,14 @@ class ContextMemory:
             for rule_id in similar_folder.rule_ids:
                 for rule in existing_rules:
                     if rule.rule_id == rule_id:
-                        suggestions.append({
-                            "rule": rule,
-                            "source_folder": similar_folder.path,
-                            "similarity_score": score,
-                            "reason": f"Similar to rule for {similar_folder.path}",
-                        })
+                        suggestions.append(
+                            {
+                                "rule": rule,
+                                "source_folder": similar_folder.path,
+                                "similarity_score": score,
+                                "reason": f"Similar to rule for {similar_folder.path}",
+                            }
+                        )
                         break
 
         return suggestions
@@ -512,9 +512,9 @@ class ContextMemory:
         for folder in self._folders.values():
             for tag in folder.tags:
                 tag_counts[tag] = tag_counts.get(tag, 0) + 1
-        analysis["common_tags"] = dict(sorted(
-            tag_counts.items(), key=lambda x: x[1], reverse=True
-        )[:10])
+        analysis["common_tags"] = dict(
+            sorted(tag_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+        )
 
         # Sensitivity distribution
         for folder in self._folders.values():
@@ -526,9 +526,7 @@ class ContextMemory:
         # Folder depth distribution
         for folder in self._folders.values():
             depth = len(Path(folder.path).parts)
-            analysis["folders_by_depth"][depth] = (
-                analysis["folders_by_depth"].get(depth, 0) + 1
-            )
+            analysis["folders_by_depth"][depth] = analysis["folders_by_depth"].get(depth, 0) + 1
 
         return analysis
 
@@ -562,8 +560,11 @@ class ContextMemory:
         if inherited:
             context["inherited_sensitivity"] = max(
                 (f.sensitivity for f in inherited),
-                key=lambda s: ["normal", "sensitive", "confidential"].index(s)
-                if s in ["normal", "sensitive", "confidential"] else 0,
+                key=lambda s: (
+                    ["normal", "sensitive", "confidential"].index(s)
+                    if s in ["normal", "sensitive", "confidential"]
+                    else 0
+                ),
             )
 
         # Add user context

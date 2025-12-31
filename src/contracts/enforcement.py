@@ -12,53 +12,54 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set
 
+from .abstraction import (
+    AbstractionGuard,
+    AbstractionLevel,
+    AbstractionResult,
+    create_abstraction_guard,
+)
+from .domains import (
+    DomainCheckResult,
+    ProhibitedDomainChecker,
+    ProhibitionLevel,
+    create_domain_checker,
+)
 from .store import (
-    ContractStore,
-    LearningContract,
-    ContractType,
-    ContractStatus,
     ContractScope,
+    ContractStatus,
+    ContractStore,
+    ContractType,
+    LearningContract,
     LearningScope,
     create_contract_store,
 )
 from .validator import (
     ContractValidator,
-    ValidationResult,
-    ValidationCode,
     LearningRequest,
+    ValidationCode,
+    ValidationResult,
     create_validator,
 )
-from .domains import (
-    ProhibitedDomainChecker,
-    DomainCheckResult,
-    ProhibitionLevel,
-    create_domain_checker,
-)
-from .abstraction import (
-    AbstractionGuard,
-    AbstractionResult,
-    AbstractionLevel,
-    create_abstraction_guard,
-)
-
 
 logger = logging.getLogger(__name__)
 
 
 class EnforcementDecision(Enum):
     """Result of enforcement decision."""
-    ALLOW = auto()           # Learning allowed
-    ALLOW_ABSTRACTED = auto() # Learning allowed with abstraction
-    DENY = auto()            # Learning denied
-    DENY_DOMAIN = auto()     # Denied due to prohibited domain
-    DENY_NO_CONTRACT = auto() # Denied, no valid contract
-    ESCALATE = auto()        # Requires human approval
-    PROMPT = auto()          # Prompt user for consent
+
+    ALLOW = auto()  # Learning allowed
+    ALLOW_ABSTRACTED = auto()  # Learning allowed with abstraction
+    DENY = auto()  # Learning denied
+    DENY_DOMAIN = auto()  # Denied due to prohibited domain
+    DENY_NO_CONTRACT = auto()  # Denied, no valid contract
+    ESCALATE = auto()  # Requires human approval
+    PROMPT = auto()  # Prompt user for consent
 
 
 @dataclass
 class EnforcementResult:
     """Result of an enforcement check."""
+
     decision: EnforcementDecision
     allowed: bool
     contract: Optional[LearningContract] = None
@@ -86,6 +87,7 @@ class EnforcementResult:
 @dataclass
 class EnforcementConfig:
     """Configuration for the enforcement engine."""
+
     default_deny: bool = True
     require_explicit_consent: bool = True
     enable_abstraction: bool = True
@@ -423,6 +425,7 @@ class LearningContractsEngine:
         if active_only:
             return self._store.get_active_contracts(user_id)
         from .store import ContractQuery
+
         return self._store.query_contracts(ContractQuery(user_id=user_id))
 
     def abstract_content(
@@ -444,7 +447,8 @@ class LearningContractsEngine:
         patterns: Optional[List[str]] = None,
     ) -> None:
         """Add a prohibited domain."""
-        from .domains import ProhibitedDomain, DomainCategory, ProhibitionLevel
+        from .domains import DomainCategory, ProhibitedDomain, ProhibitionLevel
+
         domain = ProhibitedDomain(
             domain_id=f"custom_{name.lower().replace(' ', '_')}",
             name=name,

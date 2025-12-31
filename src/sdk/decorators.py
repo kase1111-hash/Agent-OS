@@ -11,13 +11,12 @@ Provides decorators for enhancing agent functionality including:
 
 import functools
 import logging
-import time
 import threading
+import time
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional, TypeVar, cast
 
 from src.messaging.models import FlowRequest, FlowResponse, MessageStatus
-
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +40,7 @@ def log_requests(
             def process(self, request: FlowRequest) -> FlowResponse:
                 ...
     """
+
     def decorator(func: F) -> F:
         @functools.wraps(func)
         def wrapper(self, request: FlowRequest, *args, **kwargs) -> FlowResponse:
@@ -57,12 +57,13 @@ def log_requests(
             duration = (time.time() - start) * 1000
             logger.log(
                 level,
-                f"Request completed: status={response.status.name}, duration={duration:.1f}ms"
+                f"Request completed: status={response.status.name}, duration={duration:.1f}ms",
             )
 
             return response
 
         return cast(F, wrapper)
+
     return decorator
 
 
@@ -77,6 +78,7 @@ def log_responses(
         level: Logging level
         include_output: Include response output in logs
     """
+
     def decorator(func: F) -> F:
         @functools.wraps(func)
         def wrapper(self, request: FlowRequest, *args, **kwargs) -> FlowResponse:
@@ -91,6 +93,7 @@ def log_responses(
             return response
 
         return cast(F, wrapper)
+
     return decorator
 
 
@@ -110,6 +113,7 @@ def measure_time(
         def process(self, request):
             ...
     """
+
     def decorator(func: F) -> F:
         name = metric_name or func.__name__
 
@@ -127,6 +131,7 @@ def measure_time(
             return result
 
         return cast(F, wrapper)
+
     return decorator
 
 
@@ -150,6 +155,7 @@ def retry(
         def call_api(self, ...):
             ...
     """
+
     def decorator(func: F) -> F:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -169,6 +175,7 @@ def retry(
                     delay *= backoff_factor
 
         return cast(F, wrapper)
+
     return decorator
 
 
@@ -188,6 +195,7 @@ def catch_errors(
         def process(self, request: FlowRequest) -> FlowResponse:
             ...
     """
+
     def decorator(func: F) -> F:
         @functools.wraps(func)
         def wrapper(self, request: FlowRequest, *args, **kwargs) -> FlowResponse:
@@ -196,13 +204,14 @@ def catch_errors(
             except Exception as e:
                 logger.log(log_level, f"{func.__name__} error: {e}", exc_info=True)
                 return request.create_response(
-                    source=getattr(self, 'name', 'unknown'),
+                    source=getattr(self, "name", "unknown"),
                     status=default_status,
                     output="",
                     errors=[str(e)],
                 )
 
         return cast(F, wrapper)
+
     return decorator
 
 
@@ -257,6 +266,7 @@ def rate_limit(
         def process(self, request: FlowRequest) -> FlowResponse:
             ...
     """
+
     def decorator(func: F) -> F:
         limiter_key = f"{func.__module__}.{func.__qualname__}"
 
@@ -275,7 +285,7 @@ def rate_limit(
 
             if not limiter.check(limit_key):
                 return request.create_response(
-                    source=getattr(self, 'name', 'unknown'),
+                    source=getattr(self, "name", "unknown"),
                     status=MessageStatus.REFUSED,
                     output="Rate limit exceeded. Please try again later.",
                 )
@@ -283,6 +293,7 @@ def rate_limit(
             return func(self, request, *args, **kwargs)
 
         return cast(F, wrapper)
+
     return decorator
 
 
@@ -332,6 +343,7 @@ def cache_response(
         def process(self, request: FlowRequest) -> FlowResponse:
             ...
     """
+
     def decorator(func: F) -> F:
         cache_key = f"{func.__module__}.{func.__qualname__}"
 
@@ -363,6 +375,7 @@ def cache_response(
             return response
 
         return cast(F, wrapper)
+
     return decorator
 
 
@@ -384,6 +397,7 @@ def validate_request(
         def process(self, request: FlowRequest) -> FlowResponse:
             ...
     """
+
     def decorator(func: F) -> F:
         @functools.wraps(func)
         def wrapper(self, request: FlowRequest, *args, **kwargs) -> FlowResponse:
@@ -405,7 +419,7 @@ def validate_request(
 
             if errors:
                 return request.create_response(
-                    source=getattr(self, 'name', 'unknown'),
+                    source=getattr(self, "name", "unknown"),
                     status=MessageStatus.REFUSED,
                     output="Request validation failed",
                     errors=errors,
@@ -414,6 +428,7 @@ def validate_request(
             return func(self, request, *args, **kwargs)
 
         return cast(F, wrapper)
+
     return decorator
 
 
@@ -430,6 +445,7 @@ def require_capability(
         def analyze(self, ...):
             ...
     """
+
     def decorator(func: F) -> F:
         @functools.wraps(func)
         def wrapper(self, *args, **kwargs):
@@ -444,4 +460,5 @@ def require_capability(
             return func(self, *args, **kwargs)
 
         return cast(F, wrapper)
+
     return decorator

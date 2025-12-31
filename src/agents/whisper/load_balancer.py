@@ -5,38 +5,41 @@ Provides load balancing strategies for distributing requests across agents.
 Tracks agent load metrics, health status, and enables intelligent routing.
 """
 
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any, Set, Callable
-from enum import Enum, auto
-from collections import deque
 import logging
 import threading
 import time
+from collections import deque
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from enum import Enum, auto
+from typing import Any, Callable, Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
 
 class LoadBalancingStrategy(Enum):
     """Available load balancing strategies."""
-    ROUND_ROBIN = auto()          # Simple round-robin rotation
-    WEIGHTED_ROUND_ROBIN = auto() # Weighted by agent capacity
-    LEAST_CONNECTIONS = auto()    # Route to agent with fewest active requests
+
+    ROUND_ROBIN = auto()  # Simple round-robin rotation
+    WEIGHTED_ROUND_ROBIN = auto()  # Weighted by agent capacity
+    LEAST_CONNECTIONS = auto()  # Route to agent with fewest active requests
     LEAST_RESPONSE_TIME = auto()  # Route to fastest responding agent
-    ADAPTIVE = auto()             # Combined: considers load, response time, and errors
+    ADAPTIVE = auto()  # Combined: considers load, response time, and errors
 
 
 class AgentHealthStatus(Enum):
     """Agent health status levels."""
-    HEALTHY = "healthy"           # Agent operating normally
-    DEGRADED = "degraded"         # Agent having issues but functional
-    UNHEALTHY = "unhealthy"       # Agent failing health checks
-    UNKNOWN = "unknown"           # No health data available
+
+    HEALTHY = "healthy"  # Agent operating normally
+    DEGRADED = "degraded"  # Agent having issues but functional
+    UNHEALTHY = "unhealthy"  # Agent failing health checks
+    UNKNOWN = "unknown"  # No health data available
 
 
 @dataclass
 class AgentLoadSnapshot:
     """Point-in-time snapshot of agent load."""
+
     timestamp: datetime
     active_requests: int
     response_time_ms: float
@@ -47,6 +50,7 @@ class AgentLoadSnapshot:
 @dataclass
 class AgentLoadMetrics:
     """Real-time load metrics for an agent."""
+
     agent_name: str
 
     # Current state
@@ -67,8 +71,8 @@ class AgentLoadMetrics:
     last_failure_time: Optional[datetime] = None
 
     # Configuration
-    weight: int = 100             # Weight for weighted round-robin (1-100)
-    max_concurrent: int = 10      # Max concurrent requests
+    weight: int = 100  # Weight for weighted round-robin (1-100)
+    max_concurrent: int = 10  # Max concurrent requests
 
     # Circuit breaker
     circuit_open: bool = False
@@ -245,9 +249,7 @@ class AgentLoadTracker:
         """Record that a request has completed for an agent."""
         with self._lock:
             if agent_name in self._metrics:
-                self._metrics[agent_name].record_request_complete(
-                    response_time_ms, success
-                )
+                self._metrics[agent_name].record_request_complete(response_time_ms, success)
 
     def update_health(self, agent_name: str, status: AgentHealthStatus) -> None:
         """Update health status for an agent."""
@@ -283,7 +285,9 @@ class AgentLoadTracker:
 
                 # Trim old snapshots
                 if len(self._snapshots[agent_name]) > self._max_snapshots:
-                    self._snapshots[agent_name] = self._snapshots[agent_name][-self._max_snapshots:]
+                    self._snapshots[agent_name] = self._snapshots[agent_name][
+                        -self._max_snapshots :
+                    ]
 
     def get_snapshots(
         self,
@@ -423,7 +427,7 @@ class LoadBalancer:
     def _least_connections_select(self, candidates: List[str]) -> str:
         """Select agent with fewest active connections."""
         best_agent = candidates[0]
-        best_load = float('inf')
+        best_load = float("inf")
 
         for agent_name in candidates:
             metrics = self.tracker.get_metrics(agent_name)
@@ -438,7 +442,7 @@ class LoadBalancer:
     def _least_response_time_select(self, candidates: List[str]) -> str:
         """Select agent with lowest average response time."""
         best_agent = candidates[0]
-        best_time = float('inf')
+        best_time = float("inf")
 
         for agent_name in candidates:
             metrics = self.tracker.get_metrics(agent_name)
@@ -465,7 +469,7 @@ class LoadBalancer:
         - Health status (healthy is best)
         """
         best_agent = candidates[0]
-        best_score = float('inf')
+        best_score = float("inf")
 
         for agent_name in candidates:
             metrics = self.tracker.get_metrics(agent_name)
@@ -495,10 +499,10 @@ class LoadBalancer:
 
                 # Weighted combination
                 score = (
-                    load_score * 0.35 +      # 35% weight on current load
-                    time_score * 0.25 +      # 25% weight on response time
-                    error_score * 0.25 +     # 25% weight on error rate
-                    health_score * 0.15      # 15% weight on health status
+                    load_score * 0.35  # 35% weight on current load
+                    + time_score * 0.25  # 25% weight on response time
+                    + error_score * 0.25  # 25% weight on error rate
+                    + health_score * 0.15  # 15% weight on health status
                 )
 
             if score < best_score:

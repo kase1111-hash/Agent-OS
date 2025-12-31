@@ -13,30 +13,29 @@ import secrets
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Callable, Iterator
+from typing import Any, Callable, Dict, Iterator, List, Optional
 
-from .profiles import (
-    EncryptionTier,
-    EncryptionProfile,
-    ProfileManager,
-    WORKING_PROFILE,
-    PRIVATE_PROFILE,
-    SEALED_PROFILE,
-    VAULTED_PROFILE,
-)
-from .keys import KeyManager, KeyStatus
-from .storage import BlobStorage, BlobMetadata, BlobType, BlobStatus
-from .index import VaultIndex, ConsentRecord, AccessType
 from .consent import (
+    ConsentDecision,
     ConsentManager,
     ConsentOperation,
-    ConsentDecision,
-    ConsentStatus,
     ConsentPolicy,
+    ConsentStatus,
 )
 from .deletion import DeletionManager, DeletionResult, DeletionScope, TTLEnforcer
 from .genesis import GenesisProofSystem, GenesisRecord, IntegrityProof
-
+from .index import AccessType, ConsentRecord, VaultIndex
+from .keys import KeyManager, KeyStatus
+from .profiles import (
+    PRIVATE_PROFILE,
+    SEALED_PROFILE,
+    VAULTED_PROFILE,
+    WORKING_PROFILE,
+    EncryptionProfile,
+    EncryptionTier,
+    ProfileManager,
+)
+from .storage import BlobMetadata, BlobStatus, BlobStorage, BlobType
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +43,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class VaultConfig:
     """Configuration for Memory Vault."""
+
     vault_path: Path
     vault_id: Optional[str] = None
     owner: str = "system"
@@ -58,6 +58,7 @@ class VaultConfig:
 @dataclass
 class StoreResult:
     """Result of a store operation."""
+
     success: bool
     blob_id: Optional[str] = None
     consent_id: Optional[str] = None
@@ -69,6 +70,7 @@ class StoreResult:
 @dataclass
 class RetrieveResult:
     """Result of a retrieve operation."""
+
     success: bool
     data: Optional[bytes] = None
     text: Optional[str] = None
@@ -326,7 +328,7 @@ class MemoryVault:
         **kwargs,
     ) -> StoreResult:
         """Store text in the vault."""
-        return self.store(text.encode('utf-8'), tier, blob_type=BlobType.TEXT, **kwargs)
+        return self.store(text.encode("utf-8"), tier, blob_type=BlobType.TEXT, **kwargs)
 
     def store_json(
         self,
@@ -336,7 +338,8 @@ class MemoryVault:
     ) -> StoreResult:
         """Store JSON data in the vault."""
         import json
-        return self.store(json.dumps(data).encode('utf-8'), tier, blob_type=BlobType.JSON, **kwargs)
+
+        return self.store(json.dumps(data).encode("utf-8"), tier, blob_type=BlobType.JSON, **kwargs)
 
     def retrieve(
         self,
@@ -405,14 +408,15 @@ class MemoryVault:
             # Try to decode as text/JSON
             if metadata.blob_type == BlobType.TEXT:
                 try:
-                    result.text = data.decode('utf-8')
+                    result.text = data.decode("utf-8")
                 except Exception:
                     pass
             elif metadata.blob_type == BlobType.JSON:
                 try:
                     import json
+
                     result.json_data = json.loads(data)
-                    result.text = data.decode('utf-8')
+                    result.text = data.decode("utf-8")
                 except Exception:
                     pass
 

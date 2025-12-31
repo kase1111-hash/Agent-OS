@@ -8,26 +8,27 @@ Defines four encryption classification tiers:
 - Vaulted: Maximum security, hardware-bound keys
 """
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum, auto
-from typing import Optional, Dict, Any, List
-import logging
-
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class EncryptionTier(Enum):
     """Encryption classification tiers (lowest to highest security)."""
-    WORKING = 1    # Session-scoped, ephemeral
-    PRIVATE = 2    # User-scoped, persistent
-    SEALED = 3     # High-security, requires unlock
-    VAULTED = 4    # Maximum security, hardware-bound
+
+    WORKING = 1  # Session-scoped, ephemeral
+    PRIVATE = 2  # User-scoped, persistent
+    SEALED = 3  # High-security, requires unlock
+    VAULTED = 4  # Maximum security, hardware-bound
 
 
 class KeyDerivation(Enum):
     """Key derivation methods."""
+
     PBKDF2 = auto()
     ARGON2ID = auto()
     SCRYPT = auto()
@@ -35,14 +36,16 @@ class KeyDerivation(Enum):
 
 class KeyBinding(Enum):
     """Key binding types."""
-    SOFTWARE = auto()   # Software-only key
-    TPM = auto()        # TPM-bound
-    HARDWARE = auto()   # Hardware security module
+
+    SOFTWARE = auto()  # Software-only key
+    TPM = auto()  # TPM-bound
+    HARDWARE = auto()  # Hardware security module
 
 
 @dataclass
 class EncryptionProfile:
     """Configuration for an encryption tier."""
+
     tier: EncryptionTier
     name: str
     description: str
@@ -289,8 +292,15 @@ class ProfileManager:
 
         # High sensitivity content types
         high_sensitivity = {
-            "credentials", "password", "secret", "key", "token",
-            "financial", "medical", "legal", "personal_id",
+            "credentials",
+            "password",
+            "secret",
+            "key",
+            "token",
+            "financial",
+            "medical",
+            "legal",
+            "personal_id",
         }
 
         # Check content type
@@ -332,8 +342,7 @@ class ProfileManager:
             "requires_consent": profile.requires_consent,
             "key_binding": profile.key_binding.name,
             "auto_lock_timeout": (
-                profile.auto_lock_timeout.total_seconds()
-                if profile.auto_lock_timeout else None
+                profile.auto_lock_timeout.total_seconds() if profile.auto_lock_timeout else None
             ),
             "max_access_count": profile.max_access_count,
         }

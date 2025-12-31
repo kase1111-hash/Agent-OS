@@ -456,11 +456,11 @@ class LinuxInstaller(Installer):
         """Create Linux launcher scripts."""
         bin_dir = self.config.install_path / "bin"
 
-        script_content = f'''#!/bin/bash
+        script_content = f"""#!/bin/bash
 export AGENT_OS_HOME="{self.config.install_path}"
 export PYTHONPATH="$AGENT_OS_HOME/lib:$PYTHONPATH"
 python3 -m agent_os "$@"
-'''
+"""
         try:
             script_path = bin_dir / "agent-os"
             script_path.write_text(script_content)
@@ -664,12 +664,8 @@ WantedBy=default.target
             service_path = Path.home() / ".config/systemd/user/agent-os.service"
 
             if service_path.exists():
-                run_command(
-                    ["systemctl", "--user", "stop", "agent-os"], timeout=30
-                )
-                run_command(
-                    ["systemctl", "--user", "disable", "agent-os"], timeout=30
-                )
+                run_command(["systemctl", "--user", "stop", "agent-os"], timeout=30)
+                run_command(["systemctl", "--user", "disable", "agent-os"], timeout=30)
                 service_path.unlink()
                 run_command(["systemctl", "--user", "daemon-reload"], timeout=30)
 

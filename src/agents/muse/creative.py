@@ -6,15 +6,16 @@ Supports stories, poems, scenarios, brainstorming, and artistic expressions.
 All outputs are marked as drafts requiring human approval.
 """
 
+import random
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
 from typing import Any, Callable
-from datetime import datetime
-import random
 
 
 class CreativeStyle(Enum):
     """Creative writing styles."""
+
     NARRATIVE = "narrative"
     POETIC = "poetic"
     DRAMATIC = "dramatic"
@@ -27,6 +28,7 @@ class CreativeStyle(Enum):
 
 class ContentType(Enum):
     """Types of creative content."""
+
     STORY = "story"
     POEM = "poem"
     SCENARIO = "scenario"
@@ -39,9 +41,10 @@ class ContentType(Enum):
 
 class CreativeMode(Enum):
     """Creative generation modes."""
+
     EXPLORE = "explore"  # Wide exploration, many options
-    REFINE = "refine"    # Focused refinement of ideas
-    EXPAND = "expand"    # Expand on existing content
+    REFINE = "refine"  # Focused refinement of ideas
+    EXPAND = "expand"  # Expand on existing content
     COMBINE = "combine"  # Combine multiple ideas
     CONTRAST = "contrast"  # Generate contrasting alternatives
 
@@ -49,6 +52,7 @@ class CreativeMode(Enum):
 @dataclass
 class CreativeOption:
     """A single creative output option."""
+
     content: str
     style: CreativeStyle
     content_type: ContentType
@@ -68,6 +72,7 @@ class CreativeOption:
 @dataclass
 class CreativeResult:
     """Result of creative generation with multiple options."""
+
     prompt: str
     options: list[CreativeOption]
     mode: CreativeMode
@@ -92,20 +97,24 @@ class CreativeResult:
         ]
 
         for i, option in enumerate(self.options, 1):
-            lines.extend([
-                f"\n--- Option {i} (Confidence: {option.confidence:.0%}) ---",
-                option.format_as_draft(),
-            ])
+            lines.extend(
+                [
+                    f"\n--- Option {i} (Confidence: {option.confidence:.0%}) ---",
+                    option.format_as_draft(),
+                ]
+            )
             if option.notes:
                 lines.append(f"Notes: {option.notes}")
             if option.variations:
                 lines.append(f"Variations: {len(option.variations)} available")
 
-        lines.extend([
-            "",
-            "=" * 50,
-            "[All options are drafts requiring human approval]",
-        ])
+        lines.extend(
+            [
+                "",
+                "=" * 50,
+                "[All options are drafts requiring human approval]",
+            ]
+        )
 
         return "\n".join(lines)
 
@@ -113,6 +122,7 @@ class CreativeResult:
 @dataclass
 class CreativeConstraints:
     """Constraints for creative generation."""
+
     max_length: int = 2000
     min_length: int = 50
     allowed_styles: list[CreativeStyle] = field(default_factory=list)
@@ -253,7 +263,7 @@ class CreativeEngine:
         options = []
         review_notes = []
 
-        for style in styles[:self.num_options]:
+        for style in styles[: self.num_options]:
             # Generate content for this style
             content, notes = self._generate_for_style(
                 prompt, content_type, style, mode, constraints
@@ -273,7 +283,11 @@ class CreativeEngine:
                 content_type=content_type,
                 confidence=confidence,
                 notes=notes,
-                variations=self._generate_variations(content, style) if mode == CreativeMode.EXPLORE else [],
+                variations=(
+                    self._generate_variations(content, style)
+                    if mode == CreativeMode.EXPLORE
+                    else []
+                ),
             )
             options.append(option)
 
@@ -360,12 +374,28 @@ class CreativeEngine:
         """Select appropriate styles for content type."""
         # Style affinities for different content types
         affinities = {
-            ContentType.STORY: [CreativeStyle.NARRATIVE, CreativeStyle.DRAMATIC, CreativeStyle.WHIMSICAL],
-            ContentType.POEM: [CreativeStyle.POETIC, CreativeStyle.LYRICAL, CreativeStyle.MINIMALIST],
-            ContentType.SCENARIO: [CreativeStyle.DRAMATIC, CreativeStyle.NARRATIVE, CreativeStyle.FORMAL],
+            ContentType.STORY: [
+                CreativeStyle.NARRATIVE,
+                CreativeStyle.DRAMATIC,
+                CreativeStyle.WHIMSICAL,
+            ],
+            ContentType.POEM: [
+                CreativeStyle.POETIC,
+                CreativeStyle.LYRICAL,
+                CreativeStyle.MINIMALIST,
+            ],
+            ContentType.SCENARIO: [
+                CreativeStyle.DRAMATIC,
+                CreativeStyle.NARRATIVE,
+                CreativeStyle.FORMAL,
+            ],
             ContentType.BRAINSTORM: [CreativeStyle.CONVERSATIONAL, CreativeStyle.WHIMSICAL],
             ContentType.DIALOGUE: [CreativeStyle.CONVERSATIONAL, CreativeStyle.DRAMATIC],
-            ContentType.DESCRIPTION: [CreativeStyle.POETIC, CreativeStyle.NARRATIVE, CreativeStyle.MINIMALIST],
+            ContentType.DESCRIPTION: [
+                CreativeStyle.POETIC,
+                CreativeStyle.NARRATIVE,
+                CreativeStyle.MINIMALIST,
+            ],
             ContentType.CONCEPT: [CreativeStyle.FORMAL, CreativeStyle.CONVERSATIONAL],
             ContentType.METAPHOR: [CreativeStyle.POETIC, CreativeStyle.LYRICAL],
         }
@@ -517,7 +547,9 @@ Generate creative content following these guidelines.
         if len(words) > 10:
             # Rearrange opening
             mid = len(words) // 2
-            variation1 = " ".join(words[mid:mid+5] + ["—"] + words[:5] + words[5:mid] + words[mid+5:])
+            variation1 = " ".join(
+                words[mid : mid + 5] + ["—"] + words[:5] + words[5:mid] + words[mid + 5 :]
+            )
             variations.append(variation1[:200] + "...")
 
         return variations[:2]  # Max 2 variations

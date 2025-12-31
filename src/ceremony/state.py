@@ -15,12 +15,12 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-
 logger = logging.getLogger(__name__)
 
 
 class CeremonyPhase(Enum):
     """Phases of the Bring-Home Ceremony."""
+
     NOT_STARTED = auto()
     PHASE_I_COLD_BOOT = auto()
     PHASE_II_OWNER_ROOT = auto()
@@ -62,6 +62,7 @@ class CeremonyPhase(Enum):
 
 class CeremonyStatus(Enum):
     """Status of a ceremony."""
+
     IN_PROGRESS = auto()
     COMPLETED = auto()
     FAILED = auto()
@@ -70,6 +71,7 @@ class CeremonyStatus(Enum):
 
 class PhaseResult(Enum):
     """Result of a phase execution."""
+
     SUCCESS = auto()
     FAILED = auto()
     SKIPPED = auto()
@@ -79,6 +81,7 @@ class PhaseResult(Enum):
 @dataclass
 class PhaseRecord:
     """Record of a phase completion."""
+
     phase: CeremonyPhase
     result: PhaseResult
     started_at: datetime
@@ -108,7 +111,9 @@ class PhaseRecord:
             phase=CeremonyPhase[data["phase"]],
             result=PhaseResult[data["result"]],
             started_at=datetime.fromisoformat(data["started_at"]),
-            completed_at=datetime.fromisoformat(data["completed_at"]) if data.get("completed_at") else None,
+            completed_at=(
+                datetime.fromisoformat(data["completed_at"]) if data.get("completed_at") else None
+            ),
             attempts=data.get("attempts", 1),
             error_message=data.get("error_message"),
             verification_hash=data.get("verification_hash"),
@@ -119,6 +124,7 @@ class PhaseRecord:
 @dataclass
 class CeremonyState:
     """State of the Bring-Home Ceremony."""
+
     ceremony_id: str
     owner_id: Optional[str] = None
     status: CeremonyStatus = CeremonyStatus.IN_PROGRESS
@@ -272,7 +278,9 @@ class CeremonyState:
             status=CeremonyStatus[data["status"]],
             current_phase=CeremonyPhase[data["current_phase"]],
             started_at=datetime.fromisoformat(data["started_at"]),
-            completed_at=datetime.fromisoformat(data["completed_at"]) if data.get("completed_at") else None,
+            completed_at=(
+                datetime.fromisoformat(data["completed_at"]) if data.get("completed_at") else None
+            ),
             owner_key_hash=data.get("owner_key_hash"),
             vault_id=data.get("vault_id"),
             boundary_verified=data.get("boundary_verified", False),

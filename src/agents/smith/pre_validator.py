@@ -9,22 +9,22 @@ Implements security checks S1-S5 that run BEFORE agent execution:
 - S5: External interface blocker
 """
 
-from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Optional, List, Dict, Any, Set
-from enum import Enum, auto
 import logging
 import re
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum, auto
+from typing import Any, Dict, List, Optional, Set
 
-from src.messaging.models import FlowRequest, MessageStatus
 from src.core.constitution import ConstitutionalKernel
-
+from src.messaging.models import FlowRequest, MessageStatus
 
 logger = logging.getLogger(__name__)
 
 
 class CheckResult(Enum):
     """Result of a security check."""
+
     PASS = auto()
     FAIL = auto()
     WARN = auto()
@@ -34,6 +34,7 @@ class CheckResult(Enum):
 @dataclass
 class ValidationCheck:
     """Result of a single validation check."""
+
     check_id: str  # S1, S2, etc.
     name: str
     result: CheckResult
@@ -49,6 +50,7 @@ class ValidationCheck:
 @dataclass
 class PreValidationResult:
     """Result of pre-execution validation."""
+
     approved: bool
     checks: List[ValidationCheck] = field(default_factory=list)
     blocked_by: Optional[str] = None  # Check ID that blocked
@@ -138,16 +140,13 @@ class PreExecutionValidator:
 
         # Compile regex patterns
         self._irreversible_patterns = [
-            (re.compile(p, re.IGNORECASE), name)
-            for p, name in self.IRREVERSIBLE_PATTERNS
+            (re.compile(p, re.IGNORECASE), name) for p, name in self.IRREVERSIBLE_PATTERNS
         ]
         self._injection_patterns = [
-            (re.compile(p, re.IGNORECASE), name)
-            for p, name in self.INJECTION_PATTERNS
+            (re.compile(p, re.IGNORECASE), name) for p, name in self.INJECTION_PATTERNS
         ]
         self._external_patterns = [
-            (re.compile(p, re.IGNORECASE), name)
-            for p, name in self.EXTERNAL_INTERFACE_PATTERNS
+            (re.compile(p, re.IGNORECASE), name) for p, name in self.EXTERNAL_INTERFACE_PATTERNS
         ]
 
         # Metrics
@@ -173,6 +172,7 @@ class PreExecutionValidator:
             PreValidationResult with all check results
         """
         import time
+
         start_time = time.time()
         self._total_validations += 1
         context = context or {}
@@ -399,15 +399,17 @@ class PreExecutionValidator:
         metadata = request.content.metadata
 
         # Detect memory operations
-        memory_write = any(word in prompt_lower for word in [
-            "remember", "store", "save", "memorize", "keep", "record"
-        ])
-        memory_read = any(word in prompt_lower for word in [
-            "recall", "retrieve", "what did i", "remember when"
-        ])
-        memory_delete = any(word in prompt_lower for word in [
-            "forget", "delete memory", "erase memory", "purge memory"
-        ])
+        memory_write = any(
+            word in prompt_lower
+            for word in ["remember", "store", "save", "memorize", "keep", "record"]
+        )
+        memory_read = any(
+            word in prompt_lower for word in ["recall", "retrieve", "what did i", "remember when"]
+        )
+        memory_delete = any(
+            word in prompt_lower
+            for word in ["forget", "delete memory", "erase memory", "purge memory"]
+        )
 
         # Check for memory write without consent
         if memory_write:

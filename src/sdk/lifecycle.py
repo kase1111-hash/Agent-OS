@@ -18,14 +18,14 @@ from datetime import datetime, timedelta
 from enum import Enum, auto
 from typing import Any, Callable, Dict, List, Optional, Set
 
-from src.agents.interface import BaseAgent, AgentState
-
+from src.agents.interface import AgentState, BaseAgent
 
 logger = logging.getLogger(__name__)
 
 
 class HealthStatus(Enum):
     """Health status of an agent."""
+
     HEALTHY = auto()
     DEGRADED = auto()
     UNHEALTHY = auto()
@@ -35,6 +35,7 @@ class HealthStatus(Enum):
 @dataclass
 class HealthCheck:
     """Result of a health check."""
+
     status: HealthStatus
     message: str = ""
     details: Dict[str, Any] = field(default_factory=dict)
@@ -54,6 +55,7 @@ class HealthCheck:
 @dataclass
 class AgentStats:
     """Runtime statistics for an agent."""
+
     requests_processed: int = 0
     requests_succeeded: int = 0
     requests_failed: int = 0
@@ -84,7 +86,9 @@ class AgentStats:
             "average_latency_ms": self.average_latency_ms,
             "success_rate": self.success_rate,
             "uptime_seconds": self.uptime_seconds,
-            "last_request_time": self.last_request_time.isoformat() if self.last_request_time else None,
+            "last_request_time": (
+                self.last_request_time.isoformat() if self.last_request_time else None
+            ),
             "recent_errors": self.errors[-5:],
         }
 
@@ -234,10 +238,12 @@ class AgentLifecycleManager:
                 if check.status != HealthStatus.HEALTHY:
                     issues.append(check)
             except Exception as e:
-                issues.append(HealthCheck(
-                    status=HealthStatus.UNHEALTHY,
-                    message=f"Health check error: {e}",
-                ))
+                issues.append(
+                    HealthCheck(
+                        status=HealthStatus.UNHEALTHY,
+                        message=f"Health check error: {e}",
+                    )
+                )
 
         latency = int((time.time() - start) * 1000)
 
@@ -313,11 +319,13 @@ class AgentLifecycleManager:
     def record_error(self, error: Exception) -> None:
         """Record an error."""
         with self._lock:
-            self.stats.errors.append({
-                "error": str(error),
-                "type": type(error).__name__,
-                "timestamp": datetime.now().isoformat(),
-            })
+            self.stats.errors.append(
+                {
+                    "error": str(error),
+                    "type": type(error).__name__,
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
             # Keep only last 100 errors
             if len(self.stats.errors) > 100:
                 self.stats.errors = self.stats.errors[-100:]

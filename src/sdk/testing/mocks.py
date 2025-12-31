@@ -10,14 +10,14 @@ from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Set
 
 from src.agents.interface import (
-    BaseAgent,
     AgentCapabilities,
+    AgentState,
+    BaseAgent,
     CapabilityType,
     RequestValidationResult,
-    AgentState,
 )
-from src.messaging.models import FlowRequest, FlowResponse, MessageStatus
 from src.core.models import Rule, RuleType
+from src.messaging.models import FlowRequest, FlowResponse, MessageStatus
 
 
 class MockAgent(BaseAgent):
@@ -119,6 +119,7 @@ class MockAgent(BaseAgent):
 @dataclass
 class MockMemoryEntry:
     """A mock memory entry."""
+
     id: str
     content: str
     embedding: Optional[List[float]] = None
@@ -241,13 +242,15 @@ class MockToolsClient:
         timeout: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Invoke a tool."""
-        self._invocations.append({
-            "tool_name": tool_name,
-            "parameters": parameters,
-            "user_id": user_id,
-            "agent_id": agent_id,
-            "timestamp": datetime.now(),
-        })
+        self._invocations.append(
+            {
+                "tool_name": tool_name,
+                "parameters": parameters,
+                "user_id": user_id,
+                "agent_id": agent_id,
+                "timestamp": datetime.now(),
+            }
+        )
 
         if tool_name not in self._available_tools:
             return {

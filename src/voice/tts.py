@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 class PathValidationError(Exception):
     """Raised when a path fails security validation."""
+
     pass
 
 
@@ -64,23 +65,21 @@ def validate_output_path(path: Path) -> Path:
     path_str = str(resolved)
 
     # Disallow null bytes
-    if '\x00' in path_str:
+    if "\x00" in path_str:
         raise PathValidationError("Path contains null byte")
 
     # Disallow newlines
-    if '\n' in path_str or '\r' in path_str:
+    if "\n" in path_str or "\r" in path_str:
         raise PathValidationError("Path contains newline characters")
 
     # Disallow common shell metacharacters as a defense-in-depth measure
     dangerous_patterns = [
-        r'[;|&`$]',  # Command separators and execution
+        r"[;|&`$]",  # Command separators and execution
     ]
 
     for pattern in dangerous_patterns:
         if re.search(pattern, path_str):
-            raise PathValidationError(
-                f"Path contains potentially dangerous characters: {path_str}"
-            )
+            raise PathValidationError(f"Path contains potentially dangerous characters: {path_str}")
 
     return resolved
 
@@ -101,13 +100,12 @@ def sanitize_tts_text(text: str) -> str:
         return ""
 
     # Remove null bytes
-    text = text.replace('\x00', '')
+    text = text.replace("\x00", "")
 
     # Remove other control characters except common whitespace
     # Keep: newline, carriage return, tab
-    sanitized = ''.join(
-        char for char in text
-        if char in '\n\r\t' or (ord(char) >= 32 and ord(char) != 127)
+    sanitized = "".join(
+        char for char in text if char in "\n\r\t" or (ord(char) >= 32 and ord(char) != 127)
     )
 
     return sanitized
@@ -438,9 +436,12 @@ class PiperTTS(TTSEngine):
             if self.model_path:
                 cmd.extend(["--model", self.model_path])
 
-            cmd.extend([
-                "--output_file", output_path,
-            ])
+            cmd.extend(
+                [
+                    "--output_file",
+                    output_path,
+                ]
+            )
 
             # Run Piper with sanitized text as stdin
             result = subprocess.run(
@@ -624,8 +625,10 @@ class EspeakTTS(TTSEngine):
             result = subprocess.run(
                 [
                     cmd,
-                    "-w", output_path,
-                    "-s", str(speed),
+                    "-w",
+                    output_path,
+                    "-s",
+                    str(speed),
                     sanitized_text,
                 ],
                 capture_output=True,

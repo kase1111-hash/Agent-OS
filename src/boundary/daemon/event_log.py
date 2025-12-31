@@ -10,15 +10,14 @@ distinct from the external boundary-daemon project.
 
 import hashlib
 import json
+import logging
 import os
 import threading
-import logging
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Iterator
-import uuid
-
+from typing import Any, Dict, Iterator, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +25,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class LogEntry:
     """A single log entry in the event chain."""
+
     sequence: int
     timestamp: datetime
     event_type: str
@@ -167,12 +167,15 @@ class ImmutableEventLog:
         **kwargs,
     ) -> LogEntry:
         """Log a tripwire event."""
-        return self.append("tripwire", {
-            "tripwire_id": tripwire_id,
-            "reason": reason,
-            "severity": severity,
-            **kwargs,
-        })
+        return self.append(
+            "tripwire",
+            {
+                "tripwire_id": tripwire_id,
+                "reason": reason,
+                "severity": severity,
+                **kwargs,
+            },
+        )
 
     def log_enforcement(
         self,
@@ -182,12 +185,15 @@ class ImmutableEventLog:
         **kwargs,
     ) -> LogEntry:
         """Log an enforcement event."""
-        return self.append("enforcement", {
-            "action": action,
-            "reason": reason,
-            "success": success,
-            **kwargs,
-        })
+        return self.append(
+            "enforcement",
+            {
+                "action": action,
+                "reason": reason,
+                "success": success,
+                **kwargs,
+            },
+        )
 
     def log_mode_change(
         self,
@@ -197,12 +203,15 @@ class ImmutableEventLog:
         **kwargs,
     ) -> LogEntry:
         """Log a mode change event."""
-        return self.append("mode_change", {
-            "old_mode": old_mode,
-            "new_mode": new_mode,
-            "reason": reason,
-            **kwargs,
-        })
+        return self.append(
+            "mode_change",
+            {
+                "old_mode": old_mode,
+                "new_mode": new_mode,
+                "reason": reason,
+                **kwargs,
+            },
+        )
 
     def log_policy_decision(
         self,
@@ -212,12 +221,15 @@ class ImmutableEventLog:
         **kwargs,
     ) -> LogEntry:
         """Log a policy decision."""
-        return self.append("policy_decision", {
-            "request_type": request_type,
-            "decision": decision,
-            "reason": reason,
-            **kwargs,
-        })
+        return self.append(
+            "policy_decision",
+            {
+                "request_type": request_type,
+                "decision": decision,
+                "reason": reason,
+                **kwargs,
+            },
+        )
 
     def get_entry(self, sequence: int) -> Optional[LogEntry]:
         """Get entry by sequence number."""
@@ -339,9 +351,7 @@ class ImmutableEventLog:
     def _sign_entry(self, entry: LogEntry) -> str:
         """Sign an entry (placeholder for real signing)."""
         # In production, would use actual cryptographic signing
-        return hashlib.sha256(
-            (entry.entry_hash + str(uuid.uuid4())).encode()
-        ).hexdigest()[:32]
+        return hashlib.sha256((entry.entry_hash + str(uuid.uuid4())).encode()).hexdigest()[:32]
 
     def _persist_entry(self, entry: LogEntry) -> None:
         """Persist entry to file."""

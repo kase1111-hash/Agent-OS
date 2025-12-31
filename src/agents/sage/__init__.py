@@ -28,15 +28,14 @@ from .agent import (
     SageConfig,
     create_sage_agent,
 )
-
 from .reasoning import (
-    ReasoningEngine,
-    ReasoningConfig,
-    ReasoningType,
-    ReasoningChain,
-    ReasoningStep,
-    TradeOff,
     ConfidenceLevel,
+    ReasoningChain,
+    ReasoningConfig,
+    ReasoningEngine,
+    ReasoningStep,
+    ReasoningType,
+    TradeOff,
     create_reasoning_engine,
 )
 

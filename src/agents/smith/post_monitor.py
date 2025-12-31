@@ -7,23 +7,23 @@ Implements security checks S6-S8 that run AFTER agent execution:
 - S8: Anomaly detection
 """
 
-from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Optional, List, Dict, Any, Tuple
-from enum import Enum, auto
+import json
 import logging
 import re
-import json
 from collections import deque
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum, auto
+from typing import Any, Dict, List, Optional, Tuple
 
 from src.messaging.models import FlowRequest, FlowResponse, MessageStatus
-
 
 logger = logging.getLogger(__name__)
 
 
 class MonitorResult(Enum):
     """Result of a monitoring check."""
+
     CLEAN = auto()
     SUSPICIOUS = auto()
     VIOLATION = auto()
@@ -33,6 +33,7 @@ class MonitorResult(Enum):
 @dataclass
 class MonitorCheck:
     """Result of a single monitoring check."""
+
     check_id: str  # S6, S7, etc.
     name: str
     result: MonitorResult
@@ -49,6 +50,7 @@ class MonitorCheck:
 @dataclass
 class PostMonitorResult:
     """Result of post-execution monitoring."""
+
     passed: bool
     checks: List[MonitorCheck] = field(default_factory=list)
     violations: List[str] = field(default_factory=list)
@@ -136,20 +138,16 @@ class PostExecutionMonitor:
 
         # Compile regex patterns
         self._persistence_patterns = [
-            (re.compile(p, re.IGNORECASE), name)
-            for p, name in self.PERSISTENCE_PATTERNS
+            (re.compile(p, re.IGNORECASE), name) for p, name in self.PERSISTENCE_PATTERNS
         ]
         self._exfiltration_patterns = [
-            (re.compile(p, re.IGNORECASE), name)
-            for p, name in self.EXFILTRATION_PATTERNS
+            (re.compile(p, re.IGNORECASE), name) for p, name in self.EXFILTRATION_PATTERNS
         ]
         self._sensitive_patterns = [
-            (re.compile(p, re.IGNORECASE), name)
-            for p, name in self.SENSITIVE_DATA_PATTERNS
+            (re.compile(p, re.IGNORECASE), name) for p, name in self.SENSITIVE_DATA_PATTERNS
         ]
         self._leakage_patterns = [
-            (re.compile(p, re.IGNORECASE), name)
-            for p, name in self.PROMPT_LEAKAGE_PATTERNS
+            (re.compile(p, re.IGNORECASE), name) for p, name in self.PROMPT_LEAKAGE_PATTERNS
         ]
 
         # Anomaly detection history
@@ -181,6 +179,7 @@ class PostExecutionMonitor:
             PostMonitorResult with all check results
         """
         import time
+
         start_time = time.time()
         self._total_monitors += 1
         context = context or {}
@@ -390,7 +389,10 @@ class PostExecutionMonitor:
 
             # Check code ratio anomaly (sudden increase in code-like content)
             avg_code_ratio = self._baseline_metrics.get("avg_code_ratio", 0.1)
-            if current_metrics["code_ratio"] > avg_code_ratio * 3 and current_metrics["code_ratio"] > 0.5:
+            if (
+                current_metrics["code_ratio"] > avg_code_ratio * 3
+                and current_metrics["code_ratio"] > 0.5
+            ):
                 anomalies.append(("high_code_ratio", current_metrics["code_ratio"]))
 
             # Check for entropy anomaly (potential encoded data)
@@ -433,7 +435,9 @@ class PostExecutionMonitor:
         length = len(output)
 
         # Code-like content ratio
-        code_patterns = r'[{}()\[\];=<>]|\b(def|class|function|var|let|const|if|else|for|while|return)\b'
+        code_patterns = (
+            r"[{}()\[\];=<>]|\b(def|class|function|var|let|const|if|else|for|while|return)\b"
+        )
         code_matches = len(re.findall(code_patterns, output))
         code_ratio = code_matches / max(len(output.split()), 1)
 
@@ -481,18 +485,20 @@ class PostExecutionMonitor:
         if not output:
             return 0.0
 
-        unusual = sum(1 for c in output if ord(c) < 32 and c not in '\n\t\r')
+        unusual = sum(1 for c in output if ord(c) < 32 and c not in "\n\t\r")
         unusual += sum(1 for c in output if ord(c) > 126)
         return unusual / len(output)
 
     def _update_history(self, output: str, agent_name: str) -> None:
         """Update output history for baseline calculation."""
         metrics = self._calculate_output_metrics(output)
-        self._output_history.append({
-            "agent": agent_name,
-            "metrics": metrics,
-            "timestamp": datetime.now(),
-        })
+        self._output_history.append(
+            {
+                "agent": agent_name,
+                "metrics": metrics,
+                "timestamp": datetime.now(),
+            }
+        )
 
         # Update baseline metrics
         if len(self._output_history) >= 10:

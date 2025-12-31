@@ -119,7 +119,10 @@ class IntentParser:
         # Action patterns
         self._rule_action_patterns = [
             (r"\b(read|reading|view|viewing|access|accessing|open|opening|see)\b", RuleAction.READ),
-            (r"\b(write|writing|edit|editing|modify|modifying|change|changing|update|updating)\b", RuleAction.WRITE),
+            (
+                r"\b(write|writing|edit|editing|modify|modifying|change|changing|update|updating)\b",
+                RuleAction.WRITE,
+            ),
             (r"\b(delete|deleting|remove|removing|erase|erasing)\b", RuleAction.DELETE),
             (r"\b(execute|executing|run|running|launch|launching)\b", RuleAction.EXECUTE),
             (r"\b(create|creating|make|making|new)\b", RuleAction.CREATE),
@@ -224,9 +227,7 @@ class IntentParser:
 
         return actions
 
-    def _extract_target(
-        self, text: str, context: Dict[str, Any]
-    ) -> Optional[str]:
+    def _extract_target(self, text: str, context: Dict[str, Any]) -> Optional[str]:
         """Extract target path from text."""
         # Try each path pattern
         for pattern in self._path_patterns:
@@ -291,7 +292,9 @@ class IntentParser:
                     conditions[value] = match.group(1)
 
         # Size-based conditions
-        size_match = re.search(r"files?\s+(larger|smaller|over|under)\s+(\d+)\s*(kb|mb|gb)?", text, re.IGNORECASE)
+        size_match = re.search(
+            r"files?\s+(larger|smaller|over|under)\s+(\d+)\s*(kb|mb|gb)?", text, re.IGNORECASE
+        )
         if size_match:
             size = int(size_match.group(2))
             unit = (size_match.group(3) or "kb").lower()
@@ -318,21 +321,15 @@ class IntentParser:
 
         # Missing effect with conflicting keywords
         if not intent.effect:
-            ambiguities.append(
-                "Should this rule allow or deny the action?"
-            )
+            ambiguities.append("Should this rule allow or deny the action?")
 
         # Missing actions
         if not intent.rule_actions and intent.action == IntentAction.SET_RULE:
-            ambiguities.append(
-                "What actions should be controlled (read, write, delete, etc.)?"
-            )
+            ambiguities.append("What actions should be controlled (read, write, delete, etc.)?")
 
         # Scope ambiguity
         if intent.target and not intent.scope:
-            ambiguities.append(
-                "Should this apply to just this item, or recursively?"
-            )
+            ambiguities.append("Should this apply to just this item, or recursively?")
 
         return ambiguities
 
@@ -525,9 +522,7 @@ class PolicyInterpreter:
 
                     # Same parent directory
                     if intent_path.parent == rule_path.parent:
-                        suggestions.append(
-                            (rule, f"Similar to your rule for {rule.target}")
-                        )
+                        suggestions.append((rule, f"Similar to your rule for {rule.target}"))
                         continue
 
                     # Ancestor relationship

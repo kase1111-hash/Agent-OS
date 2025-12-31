@@ -8,43 +8,45 @@ This is part of Agent Smith's system-level enforcement mechanism within Agent-OS
 distinct from the external boundary-daemon project.
 """
 
+import logging
 import os
 import signal
-import logging
 import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
-from typing import Callable, Dict, List, Optional, Any, Set
 from pathlib import Path
-
+from typing import Any, Callable, Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
 
 class EnforcementAction(Enum):
     """Types of enforcement actions."""
-    ALERT = auto()       # Log and notify
-    SUSPEND = auto()     # Suspend operations temporarily
-    ISOLATE = auto()     # Isolate from external resources
-    HALT = auto()        # Halt all operations
-    LOCKDOWN = auto()    # Full system lockdown
-    SHUTDOWN = auto()    # Graceful shutdown
+
+    ALERT = auto()  # Log and notify
+    SUSPEND = auto()  # Suspend operations temporarily
+    ISOLATE = auto()  # Isolate from external resources
+    HALT = auto()  # Halt all operations
+    LOCKDOWN = auto()  # Full system lockdown
+    SHUTDOWN = auto()  # Graceful shutdown
 
 
 class EnforcementSeverity(Enum):
     """Severity levels for enforcement."""
-    LOW = 1       # Informational
-    MEDIUM = 2    # Warning
-    HIGH = 3      # Action required
+
+    LOW = 1  # Informational
+    MEDIUM = 2  # Warning
+    HIGH = 3  # Action required
     CRITICAL = 4  # Immediate action
-    EMERGENCY = 5 # System emergency
+    EMERGENCY = 5  # System emergency
 
 
 @dataclass
 class EnforcementEvent:
     """Record of an enforcement action."""
+
     event_id: str
     action: EnforcementAction
     severity: EnforcementSeverity
@@ -73,6 +75,7 @@ class EnforcementEvent:
 @dataclass
 class EnforcementPolicy:
     """Policy for automatic enforcement actions."""
+
     id: str
     trigger_severity: EnforcementSeverity
     action: EnforcementAction
@@ -421,22 +424,26 @@ class EnforcementLayer:
     def _install_default_policies(self) -> None:
         """Install default enforcement policies."""
         # Auto-suspend on high severity
-        self.add_policy(EnforcementPolicy(
-            id="auto_suspend_high",
-            trigger_severity=EnforcementSeverity.HIGH,
-            action=EnforcementAction.SUSPEND,
-            description="Auto-suspend on high severity event",
-            cooldown_seconds=30.0,
-        ))
+        self.add_policy(
+            EnforcementPolicy(
+                id="auto_suspend_high",
+                trigger_severity=EnforcementSeverity.HIGH,
+                action=EnforcementAction.SUSPEND,
+                description="Auto-suspend on high severity event",
+                cooldown_seconds=30.0,
+            )
+        )
 
         # Auto-lockdown on emergency
-        self.add_policy(EnforcementPolicy(
-            id="auto_lockdown_emergency",
-            trigger_severity=EnforcementSeverity.EMERGENCY,
-            action=EnforcementAction.LOCKDOWN,
-            description="Auto-lockdown on emergency",
-            cooldown_seconds=0.0,  # No cooldown for emergencies
-        ))
+        self.add_policy(
+            EnforcementPolicy(
+                id="auto_lockdown_emergency",
+                trigger_severity=EnforcementSeverity.EMERGENCY,
+                action=EnforcementAction.LOCKDOWN,
+                description="Auto-lockdown on emergency",
+                cooldown_seconds=0.0,  # No cooldown for emergencies
+            )
+        )
 
 
 def create_enforcement_layer(

@@ -13,41 +13,41 @@ Capabilities:
 
 import logging
 from datetime import datetime
-from typing import Optional, Dict, Any, List, Set
+from typing import Any, Dict, List, Optional, Set
 
-from ..interface import (
-    BaseAgent,
-    AgentCapabilities,
-    CapabilityType,
-    AgentState,
-    RequestValidationResult,
-)
 from src.messaging.models import FlowRequest, FlowResponse, MessageStatus
 
-from .embeddings import (
-    EmbeddingEngine,
-    create_embedding_engine,
-    MockEmbeddingModel,
-)
-from .vectorstore import (
-    VectorStoreBase,
-    VectorBackend,
-    InMemoryVectorStore,
-    create_vector_store,
-)
-from .retrieval import (
-    RetrievalPipeline,
-    ContextType,
-    MemoryEntry,
-    RetrievalResult,
-    RAGContext,
-    HybridRetriever,
+from ..interface import (
+    AgentCapabilities,
+    AgentState,
+    BaseAgent,
+    CapabilityType,
+    RequestValidationResult,
 )
 from .consent_integration import (
-    ConsentBridge,
-    ConsentAwareRetrievalPipeline,
     ConsentAwareConfig,
+    ConsentAwareRetrievalPipeline,
+    ConsentBridge,
     SeshatConsentScope,
+)
+from .embeddings import (
+    EmbeddingEngine,
+    MockEmbeddingModel,
+    create_embedding_engine,
+)
+from .retrieval import (
+    ContextType,
+    HybridRetriever,
+    MemoryEntry,
+    RAGContext,
+    RetrievalPipeline,
+    RetrievalResult,
+)
+from .vectorstore import (
+    InMemoryVectorStore,
+    VectorBackend,
+    VectorStoreBase,
+    create_vector_store,
 )
 
 logger = logging.getLogger(__name__)
@@ -313,8 +313,12 @@ class SeshatAgent(BaseAgent):
             requires_memory=False,  # We ARE the memory system
             can_escalate=False,
             metadata={
-                "vector_backend": self._seshat_config.vector_backend.name if self._seshat_config else None,
-                "consent_enabled": self._seshat_config.consent_enabled if self._seshat_config else False,
+                "vector_backend": (
+                    self._seshat_config.vector_backend.name if self._seshat_config else None
+                ),
+                "consent_enabled": (
+                    self._seshat_config.consent_enabled if self._seshat_config else False
+                ),
             },
         )
 
@@ -513,8 +517,11 @@ class SeshatAgent(BaseAgent):
             source=metadata.get("source", str(request.request_id)),
             consent_id=metadata.get("consent_id"),
             importance=metadata.get("importance", 0.5),
-            metadata={k: v for k, v in metadata.items()
-                     if k not in ["context_type", "source", "consent_id", "importance"]},
+            metadata={
+                k: v
+                for k, v in metadata.items()
+                if k not in ["context_type", "source", "consent_id", "importance"]
+            },
         )
 
         return request.create_response(
@@ -534,9 +541,7 @@ class SeshatAgent(BaseAgent):
         # Parse context types filter
         context_types = None
         if "context_types" in metadata:
-            context_types = [
-                ContextType[t.upper()] for t in metadata["context_types"]
-            ]
+            context_types = [ContextType[t.upper()] for t in metadata["context_types"]]
 
         result = self.retrieve(
             query=query,
@@ -670,7 +675,7 @@ class SeshatAgent(BaseAgent):
             source=self.name,
             status=MessageStatus.PARTIAL,
             output=f"Consolidation would process {stats['total_memories']} memories. "
-                   f"Provide a summarization callback to execute.",
+            f"Provide a summarization callback to execute.",
             reasoning="Summarization callback required",
         )
 

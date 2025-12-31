@@ -10,8 +10,9 @@ import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, List, Dict, Any, Tuple, Union
 from enum import Enum, auto
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 import numpy as np
 
 from .embeddings import EmbeddingEngine, EmbeddingResult
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 class VectorBackend(Enum):
     """Supported vector store backends."""
+
     MEMORY = auto()  # In-memory for testing
     CHROMADB = auto()
     QDRANT = auto()
@@ -29,6 +31,7 @@ class VectorBackend(Enum):
 @dataclass
 class VectorDocument:
     """Document stored in vector store."""
+
     doc_id: str
     content: str
     embedding: np.ndarray
@@ -49,6 +52,7 @@ class VectorDocument:
 @dataclass
 class SearchResult:
     """Result from vector similarity search."""
+
     doc_id: str
     content: str
     score: float  # Similarity score (higher is more similar)
@@ -68,6 +72,7 @@ class SearchResult:
 @dataclass
 class SearchQuery:
     """Query for vector search."""
+
     text: Optional[str] = None
     embedding: Optional[np.ndarray] = None
     top_k: int = 10
@@ -215,17 +220,19 @@ class InMemoryVectorStore(VectorStoreBase):
                 score = float(np.dot(query_vec, doc_emb))
 
                 if score >= query.min_score:
-                    results.append(SearchResult(
-                        doc_id=doc_id,
-                        content=doc.content,
-                        score=score,
-                        metadata=doc.metadata,
-                        consent_id=doc.consent_id,
-                    ))
+                    results.append(
+                        SearchResult(
+                            doc_id=doc_id,
+                            content=doc.content,
+                            score=score,
+                            metadata=doc.metadata,
+                            consent_id=doc.consent_id,
+                        )
+                    )
 
             # Sort by score descending
             results.sort(key=lambda r: r.score, reverse=True)
-            return results[:query.top_k]
+            return results[: query.top_k]
 
     def get(self, doc_id: str) -> Optional[VectorDocument]:
         with self._lock:
@@ -242,8 +249,7 @@ class InMemoryVectorStore(VectorStoreBase):
     def delete_by_consent(self, consent_id: str) -> int:
         with self._lock:
             to_delete = [
-                doc_id for doc_id, doc in self._documents.items()
-                if doc.consent_id == consent_id
+                doc_id for doc_id, doc in self._documents.items() if doc.consent_id == consent_id
             ]
             for doc_id in to_delete:
                 del self._documents[doc_id]
@@ -293,9 +299,7 @@ class ChromaDBVectorStore(VectorStoreBase):
                     settings=Settings(anonymized_telemetry=False),
                 )
             else:
-                self._client = chromadb.Client(
-                    Settings(anonymized_telemetry=False)
-                )
+                self._client = chromadb.Client(Settings(anonymized_telemetry=False))
 
             self._collection = self._client.get_or_create_collection(
                 name=self.collection_name,
@@ -306,9 +310,7 @@ class ChromaDBVectorStore(VectorStoreBase):
             return True
 
         except ImportError:
-            logger.warning(
-                "ChromaDB not available. Install with: pip install chromadb"
-            )
+            logger.warning("ChromaDB not available. Install with: pip install chromadb")
             return False
         except Exception as e:
             logger.error(f"Failed to initialize ChromaDB: {e}")
@@ -377,9 +379,7 @@ class ChromaDBVectorStore(VectorStoreBase):
                 for key, value in query.filters.items():
                     where_clauses.append({key: value})
                 if query.consent_ids:
-                    where_clauses.append(
-                        {"consent_id": {"$in": query.consent_ids}}
-                    )
+                    where_clauses.append({"consent_id": {"$in": query.consent_ids}})
                 if len(where_clauses) == 1:
                     where = where_clauses[0]
                 elif len(where_clauses) > 1:
@@ -402,14 +402,19 @@ class ChromaDBVectorStore(VectorStoreBase):
                         metadata = results["metadatas"][0][i] if results["metadatas"] else {}
                         content = results["documents"][0][i] if results["documents"] else ""
 
-                        search_results.append(SearchResult(
-                            doc_id=doc_id,
-                            content=content,
-                            score=score,
-                            metadata={k: v for k, v in metadata.items()
-                                     if k not in ["created_at", "consent_id"]},
-                            consent_id=metadata.get("consent_id"),
-                        ))
+                        search_results.append(
+                            SearchResult(
+                                doc_id=doc_id,
+                                content=content,
+                                score=score,
+                                metadata={
+                                    k: v
+                                    for k, v in metadata.items()
+                                    if k not in ["created_at", "consent_id"]
+                                },
+                                consent_id=metadata.get("consent_id"),
+                            )
+                        )
 
             return search_results
 
@@ -432,9 +437,12 @@ class ChromaDBVectorStore(VectorStoreBase):
                 return VectorDocument(
                     doc_id=doc_id,
                     content=result["documents"][0] if result["documents"] else "",
-                    embedding=np.array(result["embeddings"][0]) if result["embeddings"] else np.array([]),
-                    metadata={k: v for k, v in metadata.items()
-                             if k not in ["created_at", "consent_id"]},
+                    embedding=(
+                        np.array(result["embeddings"][0]) if result["embeddings"] else np.array([])
+                    ),
+                    metadata={
+                        k: v for k, v in metadata.items() if k not in ["created_at", "consent_id"]
+                    },
                     consent_id=metadata.get("consent_id"),
                 )
             return None
@@ -521,8 +529,8 @@ class QdrantVectorStore(VectorStoreBase):
         try:
             from qdrant_client import QdrantClient
             from qdrant_client.models import (
-                VectorParams,
                 Distance,
+                VectorParams,
             )
 
             if self._path:
@@ -548,9 +556,7 @@ class QdrantVectorStore(VectorStoreBase):
             return True
 
         except ImportError:
-            logger.warning(
-                "Qdrant client not available. Install with: pip install qdrant-client"
-            )
+            logger.warning("Qdrant client not available. Install with: pip install qdrant-client")
             return False
         except Exception as e:
             logger.error(f"Failed to initialize Qdrant: {e}")
@@ -570,7 +576,7 @@ class QdrantVectorStore(VectorStoreBase):
                 payload["consent_id"] = document.consent_id
 
             # Qdrant needs numeric IDs, use hash of doc_id
-            point_id = abs(hash(document.doc_id)) % (10 ** 18)
+            point_id = abs(hash(document.doc_id)) % (10**18)
 
             self._client.upsert(
                 collection_name=self.collection_name,
@@ -603,7 +609,7 @@ class QdrantVectorStore(VectorStoreBase):
                 if doc.consent_id:
                     payload["consent_id"] = doc.consent_id
 
-                point_id = abs(hash(doc.doc_id)) % (10 ** 18)
+                point_id = abs(hash(doc.doc_id)) % (10**18)
                 points.append(
                     PointStruct(
                         id=point_id,
@@ -629,23 +635,18 @@ class QdrantVectorStore(VectorStoreBase):
             raise ValueError("Query must have embedding")
 
         try:
-            from qdrant_client.models import Filter, FieldCondition, MatchValue
+            from qdrant_client.models import FieldCondition, Filter, MatchValue
 
             # Build filter
             must_conditions = []
             for key, value in query.filters.items():
-                must_conditions.append(
-                    FieldCondition(key=key, match=MatchValue(value=value))
-                )
+                must_conditions.append(FieldCondition(key=key, match=MatchValue(value=value)))
 
             if query.consent_ids:
                 # Match any of the consent_ids
                 for consent_id in query.consent_ids:
                     must_conditions.append(
-                        FieldCondition(
-                            key="consent_id",
-                            match=MatchValue(value=consent_id)
-                        )
+                        FieldCondition(key="consent_id", match=MatchValue(value=consent_id))
                     )
 
             query_filter = Filter(must=must_conditions) if must_conditions else None
@@ -661,14 +662,19 @@ class QdrantVectorStore(VectorStoreBase):
             search_results = []
             for hit in results:
                 payload = hit.payload or {}
-                search_results.append(SearchResult(
-                    doc_id=payload.get("doc_id", str(hit.id)),
-                    content=payload.get("content", ""),
-                    score=hit.score,
-                    metadata={k: v for k, v in payload.items()
-                             if k not in ["doc_id", "content", "created_at", "consent_id"]},
-                    consent_id=payload.get("consent_id"),
-                ))
+                search_results.append(
+                    SearchResult(
+                        doc_id=payload.get("doc_id", str(hit.id)),
+                        content=payload.get("content", ""),
+                        score=hit.score,
+                        metadata={
+                            k: v
+                            for k, v in payload.items()
+                            if k not in ["doc_id", "content", "created_at", "consent_id"]
+                        },
+                        consent_id=payload.get("consent_id"),
+                    )
+                )
 
             return search_results
 
@@ -681,7 +687,7 @@ class QdrantVectorStore(VectorStoreBase):
             raise RuntimeError("Store not initialized")
 
         try:
-            from qdrant_client.models import Filter, FieldCondition, MatchValue
+            from qdrant_client.models import FieldCondition, Filter, MatchValue
 
             results = self._client.scroll(
                 collection_name=self.collection_name,
@@ -699,8 +705,11 @@ class QdrantVectorStore(VectorStoreBase):
                     doc_id=doc_id,
                     content=payload.get("content", ""),
                     embedding=np.array(point.vector),
-                    metadata={k: v for k, v in payload.items()
-                             if k not in ["doc_id", "content", "created_at", "consent_id"]},
+                    metadata={
+                        k: v
+                        for k, v in payload.items()
+                        if k not in ["doc_id", "content", "created_at", "consent_id"]
+                    },
                     consent_id=payload.get("consent_id"),
                 )
             return None
@@ -714,7 +723,7 @@ class QdrantVectorStore(VectorStoreBase):
             raise RuntimeError("Store not initialized")
 
         try:
-            from qdrant_client.models import Filter, FieldCondition, MatchValue
+            from qdrant_client.models import FieldCondition, Filter, MatchValue
 
             self._client.delete(
                 collection_name=self.collection_name,
@@ -732,7 +741,7 @@ class QdrantVectorStore(VectorStoreBase):
             raise RuntimeError("Store not initialized")
 
         try:
-            from qdrant_client.models import Filter, FieldCondition, MatchValue
+            from qdrant_client.models import FieldCondition, Filter, MatchValue
 
             # Get count before deletion
             results = self._client.scroll(
@@ -771,7 +780,7 @@ class QdrantVectorStore(VectorStoreBase):
     def clear(self) -> None:
         if self._initialized and self._client:
             try:
-                from qdrant_client.models import VectorParams, Distance
+                from qdrant_client.models import Distance, VectorParams
 
                 self._client.delete_collection(self.collection_name)
                 self._client.create_collection(

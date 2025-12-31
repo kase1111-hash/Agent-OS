@@ -5,29 +5,36 @@ Parses constitutional documents in Markdown format with YAML frontmatter.
 Extracts rules, sections, and metadata for the constitutional kernel.
 """
 
-import re
 import hashlib
 import logging
-from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Set, Any
+import re
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import yaml
 
 logger = logging.getLogger(__name__)
 
 from .models import (
+    AuthorityLevel,
+    Constitution,
     ConstitutionMetadata,
     Rule,
     RuleType,
-    AuthorityLevel,
-    Constitution,
 )
-
 
 # Rule type indicators (keywords that help classify rules)
 MANDATE_KEYWORDS = {"shall", "must", "will", "required", "mandatory"}
-PROHIBITION_KEYWORDS = {"shall not", "must not", "cannot", "may not", "prohibited", "forbidden", "never"}
+PROHIBITION_KEYWORDS = {
+    "shall not",
+    "must not",
+    "cannot",
+    "may not",
+    "prohibited",
+    "forbidden",
+    "never",
+}
 PERMISSION_KEYWORDS = {"may", "can", "allowed", "permitted", "optional"}
 ESCALATION_KEYWORDS = {"escalate", "notify", "alert", "human steward", "override"}
 IMMUTABLE_MARKERS = {"(immutable)", "[immutable]", "immutable"}
@@ -36,13 +43,14 @@ IMMUTABLE_MARKERS = {"(immutable)", "[immutable]", "immutable"}
 @dataclass
 class Section:
     """Represents a parsed markdown section."""
-    level: int           # Header level (1-6)
-    title: str           # Section title
-    content: str         # Section content (without subsections)
-    full_content: str    # Full content including subsections
-    path: List[str]      # Full path of parent headers
-    line_start: int      # Starting line number
-    line_end: int        # Ending line number
+
+    level: int  # Header level (1-6)
+    title: str  # Section title
+    content: str  # Section content (without subsections)
+    full_content: str  # Full content including subsections
+    path: List[str]  # Full path of parent headers
+    line_start: int  # Starting line number
+    line_end: int  # Ending line number
 
 
 class ConstitutionParser:
@@ -216,15 +224,17 @@ class ConstitutionParser:
 
             content_lines = lines[start:end]
 
-            sections.append(Section(
-                level=level,
-                title=title,
-                content="\n".join(content_lines).strip(),
-                full_content="\n".join(content_lines).strip(),
-                path=list(current_path),
-                line_start=start,
-                line_end=end - 1,
-            ))
+            sections.append(
+                Section(
+                    level=level,
+                    title=title,
+                    content="\n".join(content_lines).strip(),
+                    full_content="\n".join(content_lines).strip(),
+                    path=list(current_path),
+                    line_start=start,
+                    line_end=end - 1,
+                )
+            )
 
         return sections
 
@@ -401,10 +411,7 @@ class ConstitutionParser:
         """Check if a sentence contains rule indicators."""
         sentence_lower = sentence.lower()
         all_keywords = (
-            MANDATE_KEYWORDS |
-            PROHIBITION_KEYWORDS |
-            PERMISSION_KEYWORDS |
-            ESCALATION_KEYWORDS
+            MANDATE_KEYWORDS | PROHIBITION_KEYWORDS | PERMISSION_KEYWORDS | ESCALATION_KEYWORDS
         )
         return any(kw in sentence_lower for kw in all_keywords)
 
@@ -412,12 +419,62 @@ class ConstitutionParser:
         """Extract significant keywords from rule content."""
         # Common words to exclude
         stopwords = {
-            "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-            "have", "has", "had", "do", "does", "did", "shall", "will", "should",
-            "would", "could", "may", "might", "must", "can", "cannot", "to", "of",
-            "in", "for", "on", "with", "at", "by", "from", "or", "and", "not",
-            "this", "that", "these", "those", "it", "its", "all", "any", "no",
-            "only", "if", "when", "where", "what", "which", "who", "whom", "how",
+            "the",
+            "a",
+            "an",
+            "is",
+            "are",
+            "was",
+            "were",
+            "be",
+            "been",
+            "being",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "shall",
+            "will",
+            "should",
+            "would",
+            "could",
+            "may",
+            "might",
+            "must",
+            "can",
+            "cannot",
+            "to",
+            "of",
+            "in",
+            "for",
+            "on",
+            "with",
+            "at",
+            "by",
+            "from",
+            "or",
+            "and",
+            "not",
+            "this",
+            "that",
+            "these",
+            "those",
+            "it",
+            "its",
+            "all",
+            "any",
+            "no",
+            "only",
+            "if",
+            "when",
+            "where",
+            "what",
+            "which",
+            "who",
+            "whom",
+            "how",
         }
 
         # Extract words (alphanumeric, 3+ chars)
@@ -431,7 +488,9 @@ class ConstitutionParser:
         references = []
 
         # Match section references like "Section IV" or "Article III"
-        section_refs = re.findall(r"(?:Section|Article|Chapter)\s+[IVXLCDM]+", content, re.IGNORECASE)
+        section_refs = re.findall(
+            r"(?:Section|Article|Chapter)\s+[IVXLCDM]+", content, re.IGNORECASE
+        )
         references.extend(section_refs)
 
         # Match document references like "CONSTITUTION.md" or "constitution.md"

@@ -219,8 +219,12 @@ class PermissionRequest:
             permissions=PermissionSet.from_dict(data["permissions"]),
             reason=data.get("reason", ""),
             status=PermissionStatus(data.get("status", "pending")),
-            created_at=datetime.fromisoformat(data.get("created_at", datetime.utcnow().isoformat())),
-            expires_at=datetime.fromisoformat(data["expires_at"]) if data.get("expires_at") else None,
+            created_at=datetime.fromisoformat(
+                data.get("created_at", datetime.utcnow().isoformat())
+            ),
+            expires_at=(
+                datetime.fromisoformat(data["expires_at"]) if data.get("expires_at") else None
+            ),
             metadata=data.get("metadata", {}),
         )
 
@@ -292,9 +296,15 @@ class PermissionGrant:
             permissions=PermissionSet.from_dict(data["permissions"]),
             request_id=data.get("request_id"),
             status=PermissionStatus(data.get("status", "approved")),
-            created_at=datetime.fromisoformat(data.get("created_at", datetime.utcnow().isoformat())),
-            expires_at=datetime.fromisoformat(data["expires_at"]) if data.get("expires_at") else None,
-            revoked_at=datetime.fromisoformat(data["revoked_at"]) if data.get("revoked_at") else None,
+            created_at=datetime.fromisoformat(
+                data.get("created_at", datetime.utcnow().isoformat())
+            ),
+            expires_at=(
+                datetime.fromisoformat(data["expires_at"]) if data.get("expires_at") else None
+            ),
+            revoked_at=(
+                datetime.fromisoformat(data["revoked_at"]) if data.get("revoked_at") else None
+            ),
             metadata=data.get("metadata", {}),
         )
 
@@ -708,10 +718,7 @@ class PermissionManager:
 
     def list_pending_requests(self) -> List[PermissionRequest]:
         """List all pending permission requests."""
-        return [
-            r for r in self._pending_requests.values()
-            if r.is_pending and not r.is_expired
-        ]
+        return [r for r in self._pending_requests.values() if r.is_pending and not r.is_expired]
 
     def list_grants_given(
         self,
@@ -756,10 +763,7 @@ class PermissionManager:
         grants_cleaned = 0
 
         # Clean expired requests
-        expired_requests = [
-            rid for rid, r in self._pending_requests.items()
-            if r.is_expired
-        ]
+        expired_requests = [rid for rid, r in self._pending_requests.items() if r.is_expired]
         for rid in expired_requests:
             del self._pending_requests[rid]
             requests_cleaned += 1

@@ -13,42 +13,45 @@ import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
-from typing import Callable, Dict, List, Optional, Any, Set
-
+from typing import Any, Callable, Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
 
 class BoundaryMode(Enum):
     """Boundary enforcement modes."""
-    LOCKDOWN = auto()    # Maximum security - all external access blocked
+
+    LOCKDOWN = auto()  # Maximum security - all external access blocked
     RESTRICTED = auto()  # Limited access - only whitelisted operations
-    TRUSTED = auto()     # Normal operation with monitoring
-    EMERGENCY = auto()   # Emergency mode - human intervention required
+    TRUSTED = auto()  # Normal operation with monitoring
+    EMERGENCY = auto()  # Emergency mode - human intervention required
 
 
 class RequestType(Enum):
     """Types of requests that require boundary checking."""
-    NETWORK_ACCESS = auto()      # Any network operation
-    FILE_WRITE = auto()          # Writing to filesystem
-    PROCESS_SPAWN = auto()       # Starting new processes
-    MEMORY_ACCESS = auto()       # Accessing memory vault
-    EXTERNAL_API = auto()        # Calling external APIs
-    AGENT_ACTIVATION = auto()    # Activating an agent
-    CONFIGURATION_CHANGE = auto() # Changing system configuration
+
+    NETWORK_ACCESS = auto()  # Any network operation
+    FILE_WRITE = auto()  # Writing to filesystem
+    PROCESS_SPAWN = auto()  # Starting new processes
+    MEMORY_ACCESS = auto()  # Accessing memory vault
+    EXTERNAL_API = auto()  # Calling external APIs
+    AGENT_ACTIVATION = auto()  # Activating an agent
+    CONFIGURATION_CHANGE = auto()  # Changing system configuration
 
 
 class Decision(Enum):
     """Policy decision outcomes."""
-    ALLOW = auto()        # Request allowed
-    DENY = auto()         # Request denied
-    ESCALATE = auto()     # Requires human approval
-    AUDIT = auto()        # Allow but log for audit
+
+    ALLOW = auto()  # Request allowed
+    DENY = auto()  # Request denied
+    ESCALATE = auto()  # Requires human approval
+    AUDIT = auto()  # Allow but log for audit
 
 
 @dataclass
 class PolicyRequest:
     """A request for policy evaluation."""
+
     request_id: str
     request_type: RequestType
     source: str  # Who is making the request
@@ -60,6 +63,7 @@ class PolicyRequest:
 @dataclass
 class PolicyDecision:
     """Result of policy evaluation."""
+
     request: PolicyRequest
     decision: Decision
     reason: str
@@ -85,6 +89,7 @@ class PolicyDecision:
 @dataclass
 class PolicyRule:
     """A policy rule for the policy engine."""
+
     id: str
     description: str
     request_types: Set[RequestType]
@@ -130,9 +135,7 @@ class PolicyEngine:
         self._rules: List[PolicyRule] = []
         self._decision_log: List[PolicyDecision] = []
         self._lock = threading.Lock()
-        self._mode_history: List[tuple[datetime, BoundaryMode]] = [
-            (datetime.now(), initial_mode)
-        ]
+        self._mode_history: List[tuple[datetime, BoundaryMode]] = [(datetime.now(), initial_mode)]
 
         # Whitelist for allowed operations in each mode
         self._whitelists: Dict[BoundaryMode, Dict[RequestType, Set[str]]] = {
@@ -245,9 +248,11 @@ class PolicyEngine:
             # Emergency mode blocks everything
             if mode == BoundaryMode.EMERGENCY:
                 return self._make_decision(
-                    request, Decision.DENY,
+                    request,
+                    Decision.DENY,
                     "Emergency mode - all operations blocked",
-                    mode, ["emergency_mode_active"]
+                    mode,
+                    ["emergency_mode_active"],
                 )
 
             # Check whitelist first
@@ -271,7 +276,10 @@ class PolicyEngine:
                     reason = "Lockdown mode - denied by default"
                     conditions.append("lockdown_default_deny")
                 elif mode == BoundaryMode.RESTRICTED:
-                    if request.request_type in [RequestType.NETWORK_ACCESS, RequestType.EXTERNAL_API]:
+                    if request.request_type in [
+                        RequestType.NETWORK_ACCESS,
+                        RequestType.EXTERNAL_API,
+                    ]:
                         reason = "Restricted mode - external access denied"
                         conditions.append("restricted_external_deny")
                     else:
@@ -317,7 +325,10 @@ class PolicyEngine:
             self._decision_log = self._decision_log[-10000:]
 
         log_level = logging.DEBUG if decision == Decision.ALLOW else logging.INFO
-        logger.log(log_level, f"Policy decision: {decision.name} for {request.request_type.name} ({reason})")
+        logger.log(
+            log_level,
+            f"Policy decision: {decision.name} for {request.request_type.name} ({reason})",
+        )
 
         return policy_decision
 
@@ -350,55 +361,65 @@ class PolicyEngine:
     def _install_default_rules(self) -> None:
         """Install default policy rules."""
         # Lockdown: deny all network
-        self.add_rule(PolicyRule(
-            id="lockdown_no_network",
-            description="Lockdown mode denies all network access",
-            request_types={RequestType.NETWORK_ACCESS, RequestType.EXTERNAL_API},
-            modes={BoundaryMode.LOCKDOWN},
-            decision=Decision.DENY,
-            priority=100,
-        ))
+        self.add_rule(
+            PolicyRule(
+                id="lockdown_no_network",
+                description="Lockdown mode denies all network access",
+                request_types={RequestType.NETWORK_ACCESS, RequestType.EXTERNAL_API},
+                modes={BoundaryMode.LOCKDOWN},
+                decision=Decision.DENY,
+                priority=100,
+            )
+        )
 
         # Lockdown: deny process spawn
-        self.add_rule(PolicyRule(
-            id="lockdown_no_spawn",
-            description="Lockdown mode denies process spawning",
-            request_types={RequestType.PROCESS_SPAWN},
-            modes={BoundaryMode.LOCKDOWN},
-            decision=Decision.DENY,
-            priority=100,
-        ))
+        self.add_rule(
+            PolicyRule(
+                id="lockdown_no_spawn",
+                description="Lockdown mode denies process spawning",
+                request_types={RequestType.PROCESS_SPAWN},
+                modes={BoundaryMode.LOCKDOWN},
+                decision=Decision.DENY,
+                priority=100,
+            )
+        )
 
         # Restricted: escalate external access
-        self.add_rule(PolicyRule(
-            id="restricted_escalate_external",
-            description="Restricted mode escalates external access",
-            request_types={RequestType.NETWORK_ACCESS, RequestType.EXTERNAL_API},
-            modes={BoundaryMode.RESTRICTED},
-            decision=Decision.ESCALATE,
-            priority=50,
-        ))
+        self.add_rule(
+            PolicyRule(
+                id="restricted_escalate_external",
+                description="Restricted mode escalates external access",
+                request_types={RequestType.NETWORK_ACCESS, RequestType.EXTERNAL_API},
+                modes={BoundaryMode.RESTRICTED},
+                decision=Decision.ESCALATE,
+                priority=50,
+            )
+        )
 
         # Trusted: audit all operations
-        self.add_rule(PolicyRule(
-            id="trusted_audit_all",
-            description="Trusted mode audits all operations",
-            request_types=set(RequestType),
-            modes={BoundaryMode.TRUSTED},
-            decision=Decision.AUDIT,
-            priority=10,
-        ))
+        self.add_rule(
+            PolicyRule(
+                id="trusted_audit_all",
+                description="Trusted mode audits all operations",
+                request_types=set(RequestType),
+                modes={BoundaryMode.TRUSTED},
+                decision=Decision.AUDIT,
+                priority=10,
+            )
+        )
 
         # Always allow memory access for agents
-        self.add_rule(PolicyRule(
-            id="allow_agent_memory",
-            description="Allow agent memory access",
-            request_types={RequestType.MEMORY_ACCESS},
-            modes={BoundaryMode.RESTRICTED, BoundaryMode.TRUSTED},
-            decision=Decision.ALLOW,
-            priority=75,
-            condition=lambda r: r.source.startswith("agent:"),
-        ))
+        self.add_rule(
+            PolicyRule(
+                id="allow_agent_memory",
+                description="Allow agent memory access",
+                request_types={RequestType.MEMORY_ACCESS},
+                modes={BoundaryMode.RESTRICTED, BoundaryMode.TRUSTED},
+                decision=Decision.ALLOW,
+                priority=75,
+                condition=lambda r: r.source.startswith("agent:"),
+            )
+        )
 
 
 def create_policy_engine(

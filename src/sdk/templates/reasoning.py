@@ -14,8 +14,7 @@ from typing import Any, Callable, Dict, List, Optional, Set
 from src.agents.interface import CapabilityType
 from src.messaging.models import FlowRequest, FlowResponse, MessageStatus
 
-from .base import AgentTemplate, AgentConfig
-
+from .base import AgentConfig, AgentTemplate
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +22,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ReasoningStep:
     """A step in a reasoning chain."""
+
     step_number: int
     description: str
     input_data: Any
@@ -46,6 +46,7 @@ class ReasoningStep:
 @dataclass
 class ReasoningResult:
     """Result of a reasoning process."""
+
     conclusion: str
     confidence: float
     steps: List[ReasoningStep] = field(default_factory=list)
@@ -67,6 +68,7 @@ class ReasoningResult:
 @dataclass
 class ReasoningConfig(AgentConfig):
     """Configuration for reasoning agents."""
+
     min_confidence_threshold: float = 0.7
     max_reasoning_steps: int = 10
     require_evidence: bool = True
@@ -125,7 +127,11 @@ class ReasoningAgentTemplate(AgentTemplate):
                 source=self.name,
                 status=MessageStatus.SUCCESS,
                 output=output,
-                reasoning=self._format_reasoning_chain() if self.reasoning_config.explain_reasoning else None,
+                reasoning=(
+                    self._format_reasoning_chain()
+                    if self.reasoning_config.explain_reasoning
+                    else None
+                ),
             )
 
         except Exception as e:
@@ -251,10 +257,12 @@ class ReasoningAgentTemplate(AgentTemplate):
             output=f"Low confidence ({result.confidence:.0%}). Human review recommended.\n\n{result.conclusion}",
             reasoning=self._format_reasoning_chain(),
         )
-        response.next_actions.append({
-            "action": "escalate_to_human",
-            "reason": f"Confidence {result.confidence:.0%} below threshold {self.reasoning_config.min_confidence_threshold:.0%}",
-        })
+        response.next_actions.append(
+            {
+                "action": "escalate_to_human",
+                "reason": f"Confidence {result.confidence:.0%} below threshold {self.reasoning_config.min_confidence_threshold:.0%}",
+            }
+        )
         return response
 
 

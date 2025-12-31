@@ -17,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, BackgroundTasks, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -37,11 +37,13 @@ from urllib.parse import urlparse
 
 class PathTraversalError(Exception):
     """Raised when a path traversal attack is detected."""
+
     pass
 
 
 class SSRFProtectionError(Exception):
     """Raised when a URL fails SSRF protection validation."""
+
     pass
 
 
@@ -67,19 +69,19 @@ def validate_filename_in_directory(filename: str, base_directory: Path) -> Path:
         raise PathTraversalError("Empty filename")
 
     # Check for null bytes
-    if '\x00' in filename:
+    if "\x00" in filename:
         raise PathTraversalError("Filename contains null byte")
 
     # Check for path traversal patterns
-    if '..' in filename:
+    if ".." in filename:
         raise PathTraversalError("Filename contains path traversal sequence")
 
     # Check for absolute paths
-    if filename.startswith('/') or filename.startswith('\\'):
+    if filename.startswith("/") or filename.startswith("\\"):
         raise PathTraversalError("Filename is an absolute path")
 
     # On Windows, also check for drive letters
-    if len(filename) >= 2 and filename[1] == ':':
+    if len(filename) >= 2 and filename[1] == ":":
         raise PathTraversalError("Filename contains drive letter")
 
     # Construct the full path
@@ -108,12 +110,12 @@ def _is_private_ip(ip_str: str) -> bool:
     try:
         ip = ipaddress.ip_address(ip_str)
         return (
-            ip.is_private or
-            ip.is_loopback or
-            ip.is_link_local or
-            ip.is_multicast or
-            ip.is_reserved or
-            ip.is_unspecified
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_multicast
+            or ip.is_reserved
+            or ip.is_unspecified
         )
     except ValueError:
         return False
@@ -142,7 +144,7 @@ def validate_api_endpoint(url: str, allow_localhost: bool = True) -> str:
         raise SSRFProtectionError(f"Invalid URL format: {e}")
 
     # Validate scheme
-    if parsed.scheme not in ('http', 'https'):
+    if parsed.scheme not in ("http", "https"):
         raise SSRFProtectionError(f"Invalid URL scheme: {parsed.scheme}")
 
     # Validate host exists
@@ -153,13 +155,13 @@ def validate_api_endpoint(url: str, allow_localhost: bool = True) -> str:
 
     # Check for suspicious internal hostnames
     suspicious_patterns = [
-        r'^metadata\.',           # Cloud metadata services
-        r'^169\.254\.',           # AWS metadata IP range
-        r'^internal\.',           # Internal services
-        r'\.internal$',
-        r'\.local$',
-        r'\.corp$',
-        r'\.lan$',
+        r"^metadata\.",  # Cloud metadata services
+        r"^169\.254\.",  # AWS metadata IP range
+        r"^internal\.",  # Internal services
+        r"\.internal$",
+        r"\.local$",
+        r"\.corp$",
+        r"\.lan$",
     ]
 
     for pattern in suspicious_patterns:
@@ -177,7 +179,7 @@ def validate_api_endpoint(url: str, allow_localhost: bool = True) -> str:
             raise SSRFProtectionError(f"Reserved IP address not allowed: {hostname}")
     except ValueError:
         # Not an IP address, it's a hostname - check for localhost
-        if not allow_localhost and hostname in ('localhost', '127.0.0.1', '::1'):
+        if not allow_localhost and hostname in ("localhost", "127.0.0.1", "::1"):
             raise SSRFProtectionError("Localhost not allowed")
 
     return url
@@ -187,10 +189,16 @@ def validate_api_endpoint(url: str, allow_localhost: bool = True) -> str:
 # Models
 # =============================================================================
 
+
 class ImageGenerationRequest(BaseModel):
     """Request for image generation."""
-    prompt: str = Field(..., min_length=1, max_length=2000, description="Text prompt for image generation")
-    negative_prompt: Optional[str] = Field(None, max_length=1000, description="Negative prompt to avoid certain features")
+
+    prompt: str = Field(
+        ..., min_length=1, max_length=2000, description="Text prompt for image generation"
+    )
+    negative_prompt: Optional[str] = Field(
+        None, max_length=1000, description="Negative prompt to avoid certain features"
+    )
     model: Optional[str] = Field(None, description="Model to use for generation")
     width: int = Field(512, ge=64, le=2048, description="Image width in pixels")
     height: int = Field(512, ge=64, le=2048, description="Image height in pixels")
@@ -203,6 +211,7 @@ class ImageGenerationRequest(BaseModel):
 
 class ImageGenerationResponse(BaseModel):
     """Response from image generation."""
+
     id: str
     status: str  # "pending", "processing", "completed", "failed"
     prompt: str
@@ -216,6 +225,7 @@ class ImageGenerationResponse(BaseModel):
 
 class ImageModelInfo(BaseModel):
     """Information about an image generation model."""
+
     id: str
     name: str
     type: str  # "stable-diffusion", "sdxl", "flux", etc.
@@ -228,6 +238,7 @@ class ImageModelInfo(BaseModel):
 
 class GalleryImage(BaseModel):
     """Image in the gallery."""
+
     id: str
     prompt: str
     negative_prompt: Optional[str]
@@ -247,9 +258,11 @@ class GalleryImage(BaseModel):
 # In-Memory Storage (for demo - replace with persistent storage in production)
 # =============================================================================
 
+
 @dataclass
 class ImageGenerationJob:
     """Represents an image generation job."""
+
     id: str
     prompt: str
     negative_prompt: Optional[str]
@@ -325,7 +338,7 @@ class ImageStore:
 
     def get_gallery(self, limit: int = 50, offset: int = 0) -> List[GalleryImage]:
         """Get gallery images."""
-        return self.gallery[offset:offset + limit]
+        return self.gallery[offset : offset + limit]
 
     def delete_from_gallery(self, image_id: str) -> bool:
         """Delete an image from gallery."""
@@ -408,6 +421,7 @@ AVAILABLE_MODELS: List[ImageModelInfo] = [
 # Image Generation Backend
 # =============================================================================
 
+
 class ImageGenerator:
     """
     Image generation backend.
@@ -447,6 +461,7 @@ class ImageGenerator:
         # Check for diffusers
         try:
             import diffusers
+
             self._diffusers_available = True
         except ImportError:
             pass
@@ -492,7 +507,7 @@ class ImageGenerator:
                 await progress_callback(i + 1, job.num_images)
 
             # Create a gradient image with prompt text
-            img = Image.new('RGB', (job.width, job.height))
+            img = Image.new("RGB", (job.width, job.height))
             draw = ImageDraw.Draw(img)
 
             # Create gradient
@@ -517,8 +532,10 @@ class ImageGenerator:
 
             # Draw text with background
             text_bbox = draw.textbbox((10, 10), text, font=font)
-            draw.rectangle([text_bbox[0]-5, text_bbox[1]-5, text_bbox[2]+5, text_bbox[3]+5],
-                          fill=(0, 0, 0, 180))
+            draw.rectangle(
+                [text_bbox[0] - 5, text_bbox[1] - 5, text_bbox[2] + 5, text_bbox[3] + 5],
+                fill=(0, 0, 0, 180),
+            )
             draw.text((10, 10), text, fill=(255, 255, 255), font=font)
 
             # Add model info
@@ -537,14 +554,16 @@ class ImageGenerator:
             img.save(buffer, format="PNG")
             base64_image = base64.b64encode(buffer.getvalue()).decode()
 
-            images.append({
-                "id": image_id,
-                "filename": filename,
-                "base64": base64_image,
-                "width": job.width,
-                "height": job.height,
-                "seed": job.seed + i,
-            })
+            images.append(
+                {
+                    "id": image_id,
+                    "filename": filename,
+                    "base64": base64_image,
+                    "width": job.width,
+                    "height": job.height,
+                    "seed": job.seed + i,
+                }
+            )
 
             # Small delay to simulate processing
             await asyncio.sleep(0.5)
@@ -556,15 +575,17 @@ class ImageGenerator:
         images = []
         for i in range(job.num_images):
             # Create a simple 1x1 pixel PNG (placeholder)
-            images.append({
-                "id": str(uuid.uuid4()),
-                "filename": "placeholder.png",
-                "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-                "width": job.width,
-                "height": job.height,
-                "seed": job.seed + i,
-                "placeholder": True,
-            })
+            images.append(
+                {
+                    "id": str(uuid.uuid4()),
+                    "filename": "placeholder.png",
+                    "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+                    "width": job.width,
+                    "height": job.height,
+                    "seed": job.seed + i,
+                    "placeholder": True,
+                }
+            )
         return images
 
     async def _generate_diffusers(
@@ -574,7 +595,7 @@ class ImageGenerator:
     ) -> List[Dict[str, Any]]:
         """Generate using Hugging Face diffusers."""
         import torch
-        from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler
+        from diffusers import DPMSolverMultistepScheduler, StableDiffusionPipeline
 
         # Load pipeline
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -613,14 +634,16 @@ class ImageGenerator:
             img.save(buffer, format="PNG")
             base64_image = base64.b64encode(buffer.getvalue()).decode()
 
-            images.append({
-                "id": image_id,
-                "filename": filename,
-                "base64": base64_image,
-                "width": job.width,
-                "height": job.height,
-                "seed": job.seed + i,
-            })
+            images.append(
+                {
+                    "id": image_id,
+                    "filename": filename,
+                    "base64": base64_image,
+                    "width": job.width,
+                    "height": job.height,
+                    "seed": job.seed + i,
+                }
+            )
 
         return images
 
@@ -646,9 +669,9 @@ class ImageGenerator:
                         "model": ["4", 0],
                         "positive": ["6", 0],
                         "negative": ["7", 0],
-                        "latent_image": ["5", 0]
+                        "latent_image": ["5", 0],
                     },
-                    "class_type": "KSampler"
+                    "class_type": "KSampler",
                 },
                 # Add more workflow nodes...
             }
@@ -708,14 +731,16 @@ class ImageGenerator:
             with open(filepath, "wb") as f:
                 f.write(img_data)
 
-            images.append({
-                "id": image_id,
-                "filename": filename,
-                "base64": img_base64,
-                "width": job.width,
-                "height": job.height,
-                "seed": job.seed + i,
-            })
+            images.append(
+                {
+                    "id": image_id,
+                    "filename": filename,
+                    "base64": img_base64,
+                    "width": job.width,
+                    "height": job.height,
+                    "seed": job.seed + i,
+                }
+            )
 
         return images
 
@@ -732,6 +757,7 @@ def get_generator() -> ImageGenerator:
 # =============================================================================
 # API Endpoints
 # =============================================================================
+
 
 @router.get("/models", response_model=List[ImageModelInfo])
 async def list_models():
@@ -857,10 +883,7 @@ async def get_image(image_id: str):
             if img.get("id") == image_id:
                 # Return the image file - validate filename to prevent path traversal
                 try:
-                    filepath = validate_filename_in_directory(
-                        img["filename"],
-                        store.output_dir
-                    )
+                    filepath = validate_filename_in_directory(img["filename"], store.output_dir)
                 except PathTraversalError as e:
                     logger.warning(f"Path traversal attempt blocked: {e}")
                     raise HTTPException(status_code=400, detail="Invalid filename")
@@ -906,6 +929,7 @@ async def get_stats():
 # WebSocket for Real-time Updates
 # =============================================================================
 
+
 @router.websocket("/ws")
 async def image_websocket(websocket: WebSocket):
     """WebSocket for real-time generation updates."""
@@ -921,10 +945,12 @@ async def image_websocket(websocket: WebSocket):
                 store = get_image_store()
                 job = store.create_job(request)
 
-                await websocket.send_json({
-                    "type": "job_created",
-                    "job_id": job.id,
-                })
+                await websocket.send_json(
+                    {
+                        "type": "job_created",
+                        "job_id": job.id,
+                    }
+                )
 
                 # Run generation with progress updates
                 await run_generation_with_websocket(job.id, websocket)
@@ -936,12 +962,14 @@ async def image_websocket(websocket: WebSocket):
                 job = store.get_job(job_id)
 
                 if job:
-                    await websocket.send_json({
-                        "type": "status",
-                        "job_id": job.id,
-                        "status": job.status,
-                        "images": job.images,
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "status",
+                            "job_id": job.id,
+                            "status": job.status,
+                            "images": job.images,
+                        }
+                    )
 
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected")
@@ -950,6 +978,7 @@ async def image_websocket(websocket: WebSocket):
 # =============================================================================
 # Background Tasks
 # =============================================================================
+
 
 async def run_generation_job(job_id: str):
     """Run image generation job in background."""
@@ -1011,21 +1040,25 @@ async def run_generation_with_websocket(job_id: str, websocket: WebSocket):
 
     try:
         store.update_job(job_id, status="processing")
-        await websocket.send_json({
-            "type": "progress",
-            "job_id": job_id,
-            "status": "processing",
-            "progress": 0,
-        })
-
-        async def progress_callback(current: int, total: int):
-            progress = int((current / total) * 100)
-            await websocket.send_json({
+        await websocket.send_json(
+            {
                 "type": "progress",
                 "job_id": job_id,
                 "status": "processing",
-                "progress": progress,
-            })
+                "progress": 0,
+            }
+        )
+
+        async def progress_callback(current: int, total: int):
+            progress = int((current / total) * 100)
+            await websocket.send_json(
+                {
+                    "type": "progress",
+                    "job_id": job_id,
+                    "status": "processing",
+                    "progress": progress,
+                }
+            )
 
         images = await generator.generate(job, progress_callback)
 
@@ -1036,11 +1069,13 @@ async def run_generation_with_websocket(job_id: str, websocket: WebSocket):
             images=images,
         )
 
-        await websocket.send_json({
-            "type": "completed",
-            "job_id": job_id,
-            "images": images,
-        })
+        await websocket.send_json(
+            {
+                "type": "completed",
+                "job_id": job_id,
+                "images": images,
+            }
+        )
 
         # Add to gallery
         for img in images:
@@ -1068,8 +1103,10 @@ async def run_generation_with_websocket(job_id: str, websocket: WebSocket):
             completed_at=datetime.now(),
             error=str(e),
         )
-        await websocket.send_json({
-            "type": "error",
-            "job_id": job_id,
-            "error": str(e),
-        })
+        await websocket.send_json(
+            {
+                "type": "error",
+                "job_id": job_id,
+                "error": str(e),
+            }
+        )

@@ -8,35 +8,34 @@ This module provides inter-agent communication infrastructure:
 - Audit logging and dead letter queue
 """
 
-from .models import (
-    FlowRequest,
-    FlowResponse,
-    RequestMetadata,
-    ResponseMetadata,
-    ConstitutionalCheck,
-    MemoryRequest,
-    MessageStatus,
-    CheckStatus,
-    MessagePriority,
-)
 from .bus import (
-    MessageBus,
-    InMemoryMessageBus,
-    MessageHandler,
-    Subscription,
     ChannelRouter,
     ChannelStats,
+    InMemoryMessageBus,
+    MessageBus,
+    MessageHandler,
+    Subscription,
 )
 from .models import (
+    AuditLogEntry,
+    CheckStatus,
+    ConstitutionalCheck,
+    DeadLetterMessage,
+    FlowRequest,
+    FlowResponse,
+    MemoryRequest,
+    MessagePriority,
+    MessageStatus,
+    RequestMetadata,
+    ResponseMetadata,
     create_request,
     create_response,
-    DeadLetterMessage,
-    AuditLogEntry,
 )
 
 # Optional Redis support
 try:
     from .redis_bus import RedisMessageBus, create_redis_bus
+
     REDIS_AVAILABLE = True
 except ImportError:
     RedisMessageBus = None

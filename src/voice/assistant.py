@@ -464,12 +464,15 @@ class VoiceAssistant:
             except Exception as e:
                 logger.error(f"Interaction callback error: {e}")
 
-        self._emit_event("interaction_complete", {
-            "id": interaction_id,
-            "user_text": stt_result.text,
-            "response_text": response_text,
-            "duration": duration,
-        })
+        self._emit_event(
+            "interaction_complete",
+            {
+                "id": interaction_id,
+                "user_text": stt_result.text,
+                "response_text": response_text,
+                "duration": duration,
+            },
+        )
 
     def _capture_speech(self, buffer: AudioBuffer) -> None:
         """Capture speech audio until silence is detected."""

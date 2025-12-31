@@ -4,17 +4,17 @@ Audio Capture and Playback
 Provides audio input/output functionality for voice interaction.
 """
 
+import io
 import logging
+import struct
 import threading
 import time
+import wave
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Union
-import io
-import struct
-import wave
 
 logger = logging.getLogger(__name__)
 
@@ -233,7 +233,7 @@ def calculate_rms(audio_data: bytes, sample_width: int = 2) -> float:
 
     sum_squares = sum(s * s for s in samples)
     mean_squares = sum_squares / len(samples)
-    return mean_squares ** 0.5
+    return mean_squares**0.5
 
 
 def detect_silence(
@@ -349,11 +349,7 @@ class MockAudioCapture(AudioCapture):
     def _generate_audio(self) -> None:
         """Generate mock audio chunks."""
         chunk_duration = self.config.chunk_size / self.config.sample_rate
-        bytes_per_chunk = (
-            self.config.chunk_size *
-            self.config.channels *
-            self.config.sample_width
-        )
+        bytes_per_chunk = self.config.chunk_size * self.config.channels * self.config.sample_width
 
         while self._running:
             if self._generate_silence:
@@ -362,6 +358,7 @@ class MockAudioCapture(AudioCapture):
             else:
                 # Generate low-level noise
                 import random
+
                 data = bytes([random.randint(127, 129) for _ in range(bytes_per_chunk)])
 
             chunk = AudioChunk(
@@ -400,6 +397,7 @@ class PyAudioCapture(AudioCapture):
         """Check if PyAudio is available."""
         try:
             import pyaudio
+
             pa = pyaudio.PyAudio()
             # Check for input devices
             has_input = pa.get_default_input_device_info() is not None
@@ -535,9 +533,7 @@ class MockAudioPlayer(AudioPlayer):
         # Simulate playback duration
         if format == AudioFormat.PCM:
             duration = len(audio_data) / (
-                self.config.sample_rate *
-                self.config.channels *
-                self.config.sample_width
+                self.config.sample_rate * self.config.channels * self.config.sample_width
             )
         else:
             duration = 0.1  # Estimate for other formats
@@ -585,6 +581,7 @@ class PyAudioPlayer(AudioPlayer):
         """Check if PyAudio is available for playback."""
         try:
             import pyaudio
+
             pa = pyaudio.PyAudio()
             has_output = pa.get_default_output_device_info() is not None
             pa.terminate()

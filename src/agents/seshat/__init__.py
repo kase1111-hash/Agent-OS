@@ -11,53 +11,49 @@ Main components:
 - RetrievalPipeline: RAG retrieval with consent
 """
 
-from .embeddings import (
-    EmbeddingResult,
-    EmbeddingBatch,
-    EmbeddingCache,
-    EmbeddingModel,
-    SentenceTransformerModel,
-    MockEmbeddingModel,
-    EmbeddingEngine,
-    create_embedding_engine,
+from .agent import (
+    SeshatAgent,
+    SeshatConfig,
+    create_seshat_agent,
 )
-
-from .vectorstore import (
-    VectorBackend,
-    VectorDocument,
-    SearchResult,
-    SearchQuery,
-    VectorStoreBase,
-    InMemoryVectorStore,
-    ChromaDBVectorStore,
-    QdrantVectorStore,
-    create_vector_store,
-)
-
-from .retrieval import (
-    RetrievalMode,
-    ContextType,
-    MemoryEntry,
-    RetrievalResult,
-    RAGContext,
-    ConsentVerifier,
-    RetrievalPipeline,
-    HybridRetriever,
-    create_retrieval_pipeline,
-)
-
 from .consent_integration import (
-    SeshatConsentScope,
     ConsentAwareConfig,
-    ConsentBridge,
     ConsentAwareRetrievalPipeline,
+    ConsentBridge,
+    SeshatConsentScope,
     create_consent_aware_pipeline,
 )
-
-from .agent import (
-    SeshatConfig,
-    SeshatAgent,
-    create_seshat_agent,
+from .embeddings import (
+    EmbeddingBatch,
+    EmbeddingCache,
+    EmbeddingEngine,
+    EmbeddingModel,
+    EmbeddingResult,
+    MockEmbeddingModel,
+    SentenceTransformerModel,
+    create_embedding_engine,
+)
+from .retrieval import (
+    ConsentVerifier,
+    ContextType,
+    HybridRetriever,
+    MemoryEntry,
+    RAGContext,
+    RetrievalMode,
+    RetrievalPipeline,
+    RetrievalResult,
+    create_retrieval_pipeline,
+)
+from .vectorstore import (
+    ChromaDBVectorStore,
+    InMemoryVectorStore,
+    QdrantVectorStore,
+    SearchQuery,
+    SearchResult,
+    VectorBackend,
+    VectorDocument,
+    VectorStoreBase,
+    create_vector_store,
 )
 
 __all__ = [

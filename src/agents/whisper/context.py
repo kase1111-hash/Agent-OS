@@ -5,29 +5,30 @@ Minimizes context passed to agents while preserving essential information.
 Implements the "need to know" principle for agent communication.
 """
 
-from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Optional, List, Dict, Any, Set
-from enum import Enum, auto
 import logging
 import re
-
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum, auto
+from typing import Any, Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
 
 class ContextRelevance(Enum):
     """Relevance levels for context items."""
-    ESSENTIAL = auto()    # Must be included
-    RELEVANT = auto()     # Should be included if space allows
-    OPTIONAL = auto()     # Include only if abundant space
-    IRRELEVANT = auto()   # Should be excluded
+
+    ESSENTIAL = auto()  # Must be included
+    RELEVANT = auto()  # Should be included if space allows
+    OPTIONAL = auto()  # Include only if abundant space
+    IRRELEVANT = auto()  # Should be excluded
 
 
 @dataclass
 class ContextItem:
     """A single item of context."""
-    role: str              # "user", "assistant", "system"
+
+    role: str  # "user", "assistant", "system"
     content: str
     timestamp: Optional[datetime] = None
     relevance: ContextRelevance = ContextRelevance.OPTIONAL
@@ -38,11 +39,12 @@ class ContextItem:
 @dataclass
 class MinimizedContext:
     """Result of context minimization."""
+
     items: List[ContextItem]
     total_tokens: int
     items_removed: int
     items_truncated: int
-    budget_used: float     # Percentage of budget used
+    budget_used: float  # Percentage of budget used
     strategy_used: str
 
 
@@ -127,7 +129,7 @@ class ContextMinimizer:
         """Score context items for relevance."""
         items = []
         prompt_lower = prompt.lower()
-        prompt_words = set(re.findall(r'\w+', prompt_lower))
+        prompt_words = set(re.findall(r"\w+", prompt_lower))
 
         for i, msg in enumerate(context):
             content = msg.get("content", "")
@@ -141,14 +143,16 @@ class ContextMinimizer:
                 content, prompt_words, role, i, len(context), intent
             )
 
-            items.append(ContextItem(
-                role=role,
-                content=content,
-                timestamp=msg.get("timestamp"),
-                relevance=relevance,
-                token_estimate=tokens,
-                metadata=msg.get("metadata", {}),
-            ))
+            items.append(
+                ContextItem(
+                    role=role,
+                    content=content,
+                    timestamp=msg.get("timestamp"),
+                    relevance=relevance,
+                    token_estimate=tokens,
+                    metadata=msg.get("metadata", {}),
+                )
+            )
 
         return items
 
@@ -163,7 +167,7 @@ class ContextMinimizer:
     ) -> ContextRelevance:
         """Calculate relevance of a context item."""
         content_lower = content.lower()
-        content_words = set(re.findall(r'\w+', content_lower))
+        content_words = set(re.findall(r"\w+", content_lower))
 
         # Calculate word overlap
         overlap = len(prompt_words & content_words)
@@ -180,7 +184,7 @@ class ContextMinimizer:
         }.get(role, 0.5)
 
         # Combined score
-        score = (overlap_ratio * 0.5 + recency_weight * 0.3 + role_weight * 0.2)
+        score = overlap_ratio * 0.5 + recency_weight * 0.3 + role_weight * 0.2
 
         # Most recent user message is always essential
         if position == total - 1 and role == "user":
@@ -256,7 +260,7 @@ class ContextMinimizer:
         # Ensure minimum items
         if len(result) < self.min_context_items and len(items) >= self.min_context_items:
             # Add most recent items
-            recent = items[-self.min_context_items:]
+            recent = items[-self.min_context_items :]
             for item in recent:
                 if item not in result:
                     result.append(item)

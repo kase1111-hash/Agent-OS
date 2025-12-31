@@ -9,23 +9,23 @@ Provides configuration management for agents including:
 - Constitutional document binding
 """
 
+import logging
 import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Set, Union
-import logging
+from typing import Any, Dict, List, Optional, Set, Union
 
 try:
     import yaml
+
     YAML_AVAILABLE = True
 except ImportError:
     YAML_AVAILABLE = False
 
-import json
 import ipaddress
+import json
 from urllib.parse import urlparse
-
 
 # =============================================================================
 # Security: Endpoint Validation
@@ -34,6 +34,7 @@ from urllib.parse import urlparse
 
 class SSRFProtectionError(Exception):
     """Raised when a URL fails SSRF protection validation."""
+
     pass
 
 
@@ -59,7 +60,7 @@ def validate_model_endpoint(url: str) -> str:
         raise SSRFProtectionError(f"Invalid URL format: {e}")
 
     # Validate scheme
-    if parsed.scheme not in ('http', 'https'):
+    if parsed.scheme not in ("http", "https"):
         raise SSRFProtectionError(f"Invalid URL scheme: {parsed.scheme}")
 
     # Validate host exists
@@ -70,9 +71,9 @@ def validate_model_endpoint(url: str) -> str:
 
     # Check for suspicious internal hostnames
     suspicious_patterns = [
-        'metadata.',           # Cloud metadata services
-        '169.254.',            # AWS metadata IP range
-        'internal.',           # Internal services
+        "metadata.",  # Cloud metadata services
+        "169.254.",  # AWS metadata IP range
+        "internal.",  # Internal services
     ]
 
     for pattern in suspicious_patterns:
@@ -80,8 +81,8 @@ def validate_model_endpoint(url: str) -> str:
             raise SSRFProtectionError(f"Suspicious hostname pattern: {hostname}")
 
     # Reject .internal, .local, .corp, .lan TLDs (except localhost)
-    if hostname not in ('localhost', '127.0.0.1', '::1'):
-        suspicious_tlds = ['.internal', '.local', '.corp', '.lan']
+    if hostname not in ("localhost", "127.0.0.1", "::1"):
+        suspicious_tlds = [".internal", ".local", ".corp", ".lan"]
         for tld in suspicious_tlds:
             if hostname.endswith(tld):
                 raise SSRFProtectionError(f"Suspicious hostname pattern: {hostname}")
@@ -106,16 +107,17 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ModelConfig:
     """Configuration for an LLM model endpoint."""
-    name: str                       # Model name (e.g., "llama3:8b")
+
+    name: str  # Model name (e.g., "llama3:8b")
     endpoint: str = "http://localhost:11434"  # Ollama endpoint
-    context_window: int = 4096      # Max context tokens
-    max_output_tokens: int = 2048   # Max output tokens
-    temperature: float = 0.7        # Default temperature
-    top_p: float = 0.9              # Default top_p
-    top_k: int = 40                 # Default top_k
-    repeat_penalty: float = 1.1     # Default repeat penalty
+    context_window: int = 4096  # Max context tokens
+    max_output_tokens: int = 2048  # Max output tokens
+    temperature: float = 0.7  # Default temperature
+    top_p: float = 0.9  # Default top_p
+    top_k: int = 40  # Default top_k
+    repeat_penalty: float = 1.1  # Default repeat penalty
     quantization: Optional[str] = None  # Quantization level (e.g., "Q4_K_M")
-    timeout_ms: int = 30000         # Request timeout
+    timeout_ms: int = 30000  # Request timeout
     system_prompt: Optional[str] = None  # Default system prompt
     extra_params: Dict[str, Any] = field(default_factory=dict)
 
@@ -138,18 +140,26 @@ class ModelConfig:
         if not isinstance(data, dict):
             raise ValueError(f"Model config must be a dictionary, got {type(data).__name__}")
 
-        if 'name' not in data:
+        if "name" not in data:
             raise ValueError("Model config missing required field 'name'")
 
         # Extract known fields
         known_fields = {
-            'name', 'endpoint', 'context_window', 'max_output_tokens',
-            'temperature', 'top_p', 'top_k', 'repeat_penalty',
-            'quantization', 'timeout_ms', 'system_prompt'
+            "name",
+            "endpoint",
+            "context_window",
+            "max_output_tokens",
+            "temperature",
+            "top_p",
+            "top_k",
+            "repeat_penalty",
+            "quantization",
+            "timeout_ms",
+            "system_prompt",
         }
 
         kwargs = {k: v for k, v in data.items() if k in known_fields}
-        kwargs['extra_params'] = {k: v for k, v in data.items() if k not in known_fields}
+        kwargs["extra_params"] = {k: v for k, v in data.items() if k not in known_fields}
 
         try:
             return cls(**kwargs)
@@ -160,8 +170,9 @@ class ModelConfig:
 @dataclass
 class ConstitutionBinding:
     """Binding between agent and constitutional documents."""
-    supreme_path: Optional[Path] = None   # Path to supreme constitution
-    agent_path: Optional[Path] = None     # Path to agent-specific constitution
+
+    supreme_path: Optional[Path] = None  # Path to supreme constitution
+    agent_path: Optional[Path] = None  # Path to agent-specific constitution
     role_paths: List[Path] = field(default_factory=list)  # Role constitutions
     task_paths: List[Path] = field(default_factory=list)  # Task constitutions
 
@@ -180,10 +191,11 @@ class ConstitutionBinding:
 @dataclass
 class AgentConfig:
     """Complete configuration for an agent."""
+
     # Identity
-    name: str                           # Agent name
-    version: str = "0.1.0"              # Agent version
-    description: str = ""               # Agent description
+    name: str  # Agent name
+    version: str = "0.1.0"  # Agent version
+    description: str = ""  # Agent description
 
     # Model configuration
     model: Optional[ModelConfig] = None
@@ -196,12 +208,12 @@ class AgentConfig:
     supported_intents: List[str] = field(default_factory=list)
 
     # Runtime settings
-    requires_memory: bool = False       # Uses memory system
-    requires_smith: bool = True         # Requires Smith validation
-    can_escalate: bool = True           # Can escalate to human
+    requires_memory: bool = False  # Uses memory system
+    requires_smith: bool = True  # Requires Smith validation
+    can_escalate: bool = True  # Can escalate to human
 
     # Process isolation
-    isolation_level: str = "none"       # none, process, container
+    isolation_level: str = "none"  # none, process, container
     resource_limits: Dict[str, Any] = field(default_factory=dict)
 
     # Communication
@@ -224,51 +236,53 @@ class AgentConfig:
         if not isinstance(data, dict):
             raise ValueError(f"Agent config must be a dictionary, got {type(data).__name__}")
 
-        if 'name' not in data:
+        if "name" not in data:
             raise ValueError("Agent config missing required field 'name'")
 
         # Parse model config
         model = None
-        if 'model' in data:
+        if "model" in data:
             try:
-                model = ModelConfig.from_dict(data['model'])
+                model = ModelConfig.from_dict(data["model"])
             except ValueError as e:
                 raise ValueError(f"Invalid model configuration: {e}") from e
 
         # Parse constitution binding
         constitution = None
-        if 'constitution' in data:
+        if "constitution" in data:
             try:
-                const_data = data['constitution']
+                const_data = data["constitution"]
                 if not isinstance(const_data, dict):
-                    raise ValueError(f"Constitution config must be a dictionary, got {type(const_data).__name__}")
+                    raise ValueError(
+                        f"Constitution config must be a dictionary, got {type(const_data).__name__}"
+                    )
                 constitution = ConstitutionBinding(
-                    supreme_path=Path(const_data['supreme']) if const_data.get('supreme') else None,
-                    agent_path=Path(const_data['agent']) if const_data.get('agent') else None,
-                    role_paths=[Path(p) for p in const_data.get('roles', [])],
-                    task_paths=[Path(p) for p in const_data.get('tasks', [])],
+                    supreme_path=Path(const_data["supreme"]) if const_data.get("supreme") else None,
+                    agent_path=Path(const_data["agent"]) if const_data.get("agent") else None,
+                    role_paths=[Path(p) for p in const_data.get("roles", [])],
+                    task_paths=[Path(p) for p in const_data.get("tasks", [])],
                 )
             except (TypeError, ValueError) as e:
                 raise ValueError(f"Invalid constitution binding: {e}") from e
 
         try:
             return cls(
-                name=data['name'],
-                version=data.get('version', '0.1.0'),
-                description=data.get('description', ''),
+                name=data["name"],
+                version=data.get("version", "0.1.0"),
+                description=data.get("description", ""),
                 model=model,
                 constitution=constitution,
-                capabilities=set(data.get('capabilities', [])),
-                supported_intents=data.get('supported_intents', []),
-                requires_memory=data.get('requires_memory', False),
-                requires_smith=data.get('requires_smith', True),
-                can_escalate=data.get('can_escalate', True),
-                isolation_level=data.get('isolation_level', 'none'),
-                resource_limits=data.get('resource_limits', {}),
-                message_bus_channel=data.get('message_bus_channel'),
-                log_level=data.get('log_level', 'INFO'),
-                metrics_enabled=data.get('metrics_enabled', True),
-                custom=data.get('custom', {}),
+                capabilities=set(data.get("capabilities", [])),
+                supported_intents=data.get("supported_intents", []),
+                requires_memory=data.get("requires_memory", False),
+                requires_smith=data.get("requires_smith", True),
+                can_escalate=data.get("can_escalate", True),
+                isolation_level=data.get("isolation_level", "none"),
+                resource_limits=data.get("resource_limits", {}),
+                message_bus_channel=data.get("message_bus_channel"),
+                log_level=data.get("log_level", "INFO"),
+                metrics_enabled=data.get("metrics_enabled", True),
+                custom=data.get("custom", {}),
             )
         except TypeError as e:
             raise ValueError(f"Invalid agent config parameters: {e}") from e
@@ -276,32 +290,32 @@ class AgentConfig:
     def to_dict(self) -> Dict[str, Any]:
         """Convert configuration to dictionary."""
         result = {
-            'name': self.name,
-            'version': self.version,
-            'description': self.description,
-            'capabilities': list(self.capabilities),
-            'supported_intents': self.supported_intents,
-            'requires_memory': self.requires_memory,
-            'requires_smith': self.requires_smith,
-            'can_escalate': self.can_escalate,
-            'isolation_level': self.isolation_level,
-            'resource_limits': self.resource_limits,
-            'log_level': self.log_level,
-            'metrics_enabled': self.metrics_enabled,
-            'custom': self.custom,
+            "name": self.name,
+            "version": self.version,
+            "description": self.description,
+            "capabilities": list(self.capabilities),
+            "supported_intents": self.supported_intents,
+            "requires_memory": self.requires_memory,
+            "requires_smith": self.requires_smith,
+            "can_escalate": self.can_escalate,
+            "isolation_level": self.isolation_level,
+            "resource_limits": self.resource_limits,
+            "log_level": self.log_level,
+            "metrics_enabled": self.metrics_enabled,
+            "custom": self.custom,
         }
 
         if self.model:
-            result['model'] = {
-                'name': self.model.name,
-                'endpoint': self.model.endpoint,
-                'context_window': self.model.context_window,
-                'max_output_tokens': self.model.max_output_tokens,
-                'temperature': self.model.temperature,
+            result["model"] = {
+                "name": self.model.name,
+                "endpoint": self.model.endpoint,
+                "context_window": self.model.context_window,
+                "max_output_tokens": self.model.max_output_tokens,
+                "temperature": self.model.temperature,
             }
 
         if self.message_bus_channel:
-            result['message_bus_channel'] = self.message_bus_channel
+            result["message_bus_channel"] = self.message_bus_channel
 
         return result
 
@@ -312,7 +326,7 @@ class ConfigLoader:
     """
 
     # Pattern for environment variable references: ${VAR_NAME} or ${VAR_NAME:-default}
-    ENV_PATTERN = re.compile(r'\$\{([^}:]+)(?::-([^}]*))?\}')
+    ENV_PATTERN = re.compile(r"\$\{([^}:]+)(?::-([^}]*))?\}")
 
     def __init__(self, base_path: Optional[Path] = None):
         """
@@ -362,11 +376,11 @@ class ConfigLoader:
 
         # Parse based on extension
         try:
-            if path.suffix in ('.yaml', '.yml'):
+            if path.suffix in (".yaml", ".yml"):
                 if not YAML_AVAILABLE:
                     raise ValueError("YAML support requires PyYAML package")
                 data = yaml.safe_load(content)
-            elif path.suffix == '.json':
+            elif path.suffix == ".json":
                 data = json.loads(content)
             else:
                 raise ValueError(f"Unsupported config format: {path.suffix}")
@@ -432,6 +446,7 @@ class ConfigLoader:
         - ${VAR_NAME} - value of VAR_NAME env var
         - ${VAR_NAME:-default} - value or default if not set
         """
+
         def replacer(match):
             var_name = match.group(1)
             default = match.group(2)
@@ -484,7 +499,7 @@ class ConfigLoader:
                     errors.append(f"Constitution file not found: {path}")
 
         # Isolation level
-        valid_isolation = {'none', 'process', 'container'}
+        valid_isolation = {"none", "process", "container"}
         if config.isolation_level not in valid_isolation:
             errors.append(f"Invalid isolation level: {config.isolation_level}")
 

@@ -126,7 +126,9 @@ class HealthCheck:
                     status=status,
                     message=result.get("message"),
                     latency_ms=latency_ms,
-                    details={k: v for k, v in result.items() if k not in ("healthy", "status", "message")},
+                    details={
+                        k: v for k, v in result.items() if k not in ("healthy", "status", "message")
+                    },
                 )
             elif isinstance(result, HealthCheckResult):
                 result.latency_ms = latency_ms
@@ -244,7 +246,10 @@ class HealthAggregator:
 
                 if result.status == HealthStatus.UNHEALTHY and is_critical:
                     overall_status = HealthStatus.UNHEALTHY
-                elif result.status == HealthStatus.DEGRADED and overall_status != HealthStatus.UNHEALTHY:
+                elif (
+                    result.status == HealthStatus.DEGRADED
+                    and overall_status != HealthStatus.UNHEALTHY
+                ):
                     overall_status = HealthStatus.DEGRADED
                 elif result.status == HealthStatus.UNHEALTHY and not is_critical:
                     if overall_status == HealthStatus.HEALTHY:
@@ -252,9 +257,7 @@ class HealthAggregator:
 
         return {
             "status": overall_status.value,
-            "checks": {
-                r.name: r.to_dict() for r in results if isinstance(r, HealthCheckResult)
-            },
+            "checks": {r.name: r.to_dict() for r in results if isinstance(r, HealthCheckResult)},
             "checked_at": datetime.utcnow().isoformat(),
         }
 

@@ -9,16 +9,15 @@ Implements cryptographic proofs for vault creation and integrity:
 """
 
 import hashlib
-import secrets
 import json
 import logging
+import secrets
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, Dict, Any, List, Tuple
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 from .index import VaultIndex
-
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +30,7 @@ class GenesisRecord:
     This is the root of trust for the memory vault - it proves
     when and how the vault was created.
     """
+
     proof_id: str
     created_at: datetime
     created_by: str
@@ -79,6 +79,7 @@ class IntegrityProof:
 
     Used to verify the vault hasn't been tampered with.
     """
+
     proof_id: str
     created_at: datetime
     genesis_proof_id: str  # Reference to genesis
@@ -172,9 +173,7 @@ class GenesisProofSystem:
             constitution_hash = hashlib.sha256(content).hexdigest()
 
         # Calculate initial state hash
-        initial_hash = self._calculate_initial_hash(
-            vault_id, created_by, encryption_profiles
-        )
+        initial_hash = self._calculate_initial_hash(vault_id, created_by, encryption_profiles)
 
         # Create proof data for signing
         proof_data = {
@@ -346,7 +345,10 @@ class GenesisProofSystem:
         current_state_hash = self._calculate_state_hash()
 
         if current_state_hash != self._latest_integrity_proof.state_hash:
-            return False, f"State hash mismatch: {current_state_hash} vs {self._latest_integrity_proof.state_hash}"
+            return (
+                False,
+                f"State hash mismatch: {current_state_hash} vs {self._latest_integrity_proof.state_hash}",
+            )
 
         # Verify signature
         proof_data = {
@@ -418,8 +420,7 @@ class GenesisProofSystem:
         return {
             "genesis": self._genesis_record.to_dict() if self._genesis_record else None,
             "latest_integrity": (
-                self._latest_integrity_proof.to_dict()
-                if self._latest_integrity_proof else None
+                self._latest_integrity_proof.to_dict() if self._latest_integrity_proof else None
             ),
             "chain": self._proof_chain,
             "exported_at": datetime.now().isoformat(),
@@ -432,11 +433,14 @@ class GenesisProofSystem:
         encryption_profiles: List[str],
     ) -> str:
         """Calculate hash of initial vault state."""
-        data = json.dumps({
-            "vault_id": vault_id,
-            "created_by": created_by,
-            "encryption_profiles": sorted(encryption_profiles),
-        }, sort_keys=True)
+        data = json.dumps(
+            {
+                "vault_id": vault_id,
+                "created_by": created_by,
+                "encryption_profiles": sorted(encryption_profiles),
+            },
+            sort_keys=True,
+        )
         return hashlib.sha256(data.encode()).hexdigest()
 
     def _calculate_state_hash(self) -> str:
@@ -477,6 +481,7 @@ class GenesisProofSystem:
         For now, we use HMAC with a derived key.
         """
         import hmac
+
         data = json.dumps(proof_data, sort_keys=True).encode()
         # In production: use hardware-bound key
         key = b"vault_proof_key"  # Would be derived from secure key store
@@ -497,7 +502,7 @@ class GenesisProofSystem:
             return
 
         try:
-            with open(genesis_path, 'r') as f:
+            with open(genesis_path, "r") as f:
                 data = json.load(f)
             self._genesis_record = GenesisRecord.from_dict(data)
             self._proof_chain.append(self._genesis_record.proof_id)
@@ -513,7 +518,7 @@ class GenesisProofSystem:
         self._proof_dir.mkdir(parents=True, exist_ok=True)
         genesis_path = self._proof_dir / "genesis.json"
 
-        with open(genesis_path, 'w') as f:
+        with open(genesis_path, "w") as f:
             json.dump(record.to_dict(), f, indent=2)
 
 

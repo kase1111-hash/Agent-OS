@@ -88,19 +88,17 @@ class ConversationalKernel:
     def _init_components(self) -> None:
         """Initialize kernel components."""
         # Rule registry
-        self.rule_registry = RuleRegistry(
-            db_path=self.config.data_dir / "rules.db"
-        )
+        self.rule_registry = RuleRegistry(db_path=self.config.data_dir / "rules.db")
 
         # Context memory
-        self.context = ContextMemory(
-            db_path=self.config.data_dir / "context.db"
-        )
+        self.context = ContextMemory(db_path=self.config.data_dir / "context.db")
 
         # Policy interpreter
         self.interpreter = PolicyInterpreter(
             parser=IntentParser(),
-            clarification_handler=self._handle_clarification if self.config.clarification_enabled else None,
+            clarification_handler=(
+                self._handle_clarification if self.config.clarification_enabled else None
+            ),
         )
 
         # Policy compiler
@@ -108,9 +106,7 @@ class ConversationalKernel:
 
         # Audit log
         if self.config.enable_audit:
-            self.audit_log = AuditLog(
-                db_path=self.config.data_dir / "audit.db"
-            )
+            self.audit_log = AuditLog(db_path=self.config.data_dir / "audit.db")
         else:
             self.audit_log = None
 
@@ -225,9 +221,7 @@ class ConversationalKernel:
                 "error": str(e),
             }
 
-    def _create_rule(
-        self, intent: ParsedIntent, user_id: Optional[str]
-    ) -> Dict[str, Any]:
+    def _create_rule(self, intent: ParsedIntent, user_id: Optional[str]) -> Dict[str, Any]:
         """Create a new rule from intent."""
         rule = intent.to_rule()
         rule.created_by = user_id or "system"
@@ -331,9 +325,7 @@ class ConversationalKernel:
             "count": len(rules),
         }
 
-    def _check_access(
-        self, intent: ParsedIntent, context: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _check_access(self, intent: ParsedIntent, context: Dict[str, Any]) -> Dict[str, Any]:
         """Check access for a specific operation."""
         if not intent.target:
             return {
@@ -383,9 +375,7 @@ class ConversationalKernel:
             "message": f"Found {len(explanations)} rules for {intent.target}",
         }
 
-    def _suggest_rules(
-        self, intent: ParsedIntent, context: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _suggest_rules(self, intent: ParsedIntent, context: Dict[str, Any]) -> Dict[str, Any]:
         """Suggest rules based on context."""
         path = intent.target or context.get("cwd", "")
 
@@ -460,6 +450,7 @@ class ConversationalKernel:
                 seccomp = self.ebpf.create_seccomp_filter(filter_id)
                 for syscall in policy.syscalls:
                     from .ebpf import SeccompAction
+
                     action = (
                         SeccompAction.ALLOW
                         if policy.action.value == "allow"
@@ -467,9 +458,7 @@ class ConversationalKernel:
                     )
                     seccomp.add_syscall(syscall, action)
 
-    def _handle_clarification(
-        self, question: str, options: List[str]
-    ) -> str:
+    def _handle_clarification(self, question: str, options: List[str]) -> str:
         """Handle clarification request."""
         if self._clarification_handler:
             return self._clarification_handler(question, options)
@@ -504,10 +493,12 @@ class ConversationalKernel:
         # Notify event handlers
         for handler in self._event_handlers:
             try:
-                handler({
-                    "type": "monitor_event",
-                    "event": event.to_dict(),
-                })
+                handler(
+                    {
+                        "type": "monitor_event",
+                        "event": event.to_dict(),
+                    }
+                )
             except Exception as e:
                 logger.error(f"Event handler error: {e}")
 
@@ -536,7 +527,9 @@ class ConversationalKernel:
 
         entry = AuditEntry(
             entry_id=f"fuse_{uuid.uuid4().hex[:8]}",
-            timestamp=datetime.fromisoformat(event_data.get("timestamp", datetime.now().isoformat())),
+            timestamp=datetime.fromisoformat(
+                event_data.get("timestamp", datetime.now().isoformat())
+            ),
             event_type=event_data.get("operation", "unknown"),
             path=event_data.get("path", ""),
             action="audited" if event_data.get("allowed") else "denied",
@@ -550,9 +543,7 @@ class ConversationalKernel:
         """Register an event handler."""
         self._event_handlers.append(handler)
 
-    def set_clarification_handler(
-        self, handler: Callable[[str, List[str]], str]
-    ) -> None:
+    def set_clarification_handler(self, handler: Callable[[str, List[str]], str]) -> None:
         """Set the clarification handler."""
         self._clarification_handler = handler
 
@@ -568,11 +559,13 @@ class ConversationalKernel:
 
         if paths is None:
             # Get paths from existing rules
-            paths = list(set(
-                rule.target
-                for rule in self.rule_registry.list_rules()
-                if rule.scope in (RuleScope.FILE, RuleScope.FOLDER)
-            ))
+            paths = list(
+                set(
+                    rule.target
+                    for rule in self.rule_registry.list_rules()
+                    if rule.scope in (RuleScope.FILE, RuleScope.FOLDER)
+                )
+            )
 
         for path in paths:
             self.monitor.add_watch(path, recursive=True)
@@ -605,9 +598,7 @@ class ConversationalKernel:
         """Export full kernel configuration."""
         return {
             "rules": self.rule_registry.export_rules(),
-            "policies": self.compiler.compile_rules(
-                self.rule_registry.list_rules()
-            ),
+            "policies": self.compiler.compile_rules(self.rule_registry.list_rules()),
             "context": {
                 "analysis": self.context.analyze_patterns(),
             },

@@ -135,10 +135,15 @@ class NotificationPayload:
                 "body": self.body,
             },
             "android": {
-                "priority": "high" if self.priority in (
-                    NotificationPriority.HIGH,
-                    NotificationPriority.CRITICAL,
-                ) else "normal",
+                "priority": (
+                    "high"
+                    if self.priority
+                    in (
+                        NotificationPriority.HIGH,
+                        NotificationPriority.CRITICAL,
+                    )
+                    else "normal"
+                ),
                 "notification": {
                     "sound": self.sound,
                     "click_action": f"CATEGORY_{self.category.value.upper()}",
@@ -243,9 +248,7 @@ class APNsProvider:
     def is_configured(self) -> bool:
         """Check if APNs is configured."""
         return bool(
-            self.config.apns_key_id
-            and self.config.apns_team_id
-            and self.config.apns_bundle_id
+            self.config.apns_key_id and self.config.apns_team_id and self.config.apns_bundle_id
         )
 
     async def connect(self) -> bool:
@@ -281,10 +284,12 @@ class APNsProvider:
             json.dumps({"alg": "ES256", "kid": self.config.apns_key_id}).encode()
         ).decode()
         payload = base64.b64encode(
-            json.dumps({
-                "iss": self.config.apns_team_id,
-                "iat": int(time.time()),
-            }).encode()
+            json.dumps(
+                {
+                    "iss": self.config.apns_team_id,
+                    "iat": int(time.time()),
+                }
+            ).encode()
         ).decode()
         # Mock signature
         signature = base64.b64encode(b"mock_signature").decode()
@@ -593,9 +598,7 @@ class PushNotificationService:
         while self._running:
             try:
                 # Get notification from queue
-                notification = await asyncio.wait_for(
-                    self._queue.get(), timeout=1.0
-                )
+                notification = await asyncio.wait_for(self._queue.get(), timeout=1.0)
 
                 await self._deliver(notification)
 
@@ -639,9 +642,7 @@ class PushNotificationService:
                 notification.retry_count += 1
                 if notification.retry_count < self.config.max_retry_count:
                     # Re-queue for retry
-                    await asyncio.sleep(
-                        self.config.retry_delay * notification.retry_count
-                    )
+                    await asyncio.sleep(self.config.retry_delay * notification.retry_count)
                     await self._queue.put(notification)
                 else:
                     notification.status = DeliveryStatus.FAILED
@@ -729,10 +730,7 @@ class PushNotificationService:
         Returns:
             List of notifications
         """
-        notifications = [
-            n for n in self._notifications.values()
-            if n.device_id == device_id
-        ]
+        notifications = [n for n in self._notifications.values() if n.device_id == device_id]
 
         if status:
             notifications = [n for n in notifications if n.status == status]
@@ -744,8 +742,7 @@ class PushNotificationService:
         status_counts = {}
         for status in DeliveryStatus:
             status_counts[status.value] = sum(
-                1 for n in self._notifications.values()
-                if n.status == status
+                1 for n in self._notifications.values() if n.status == status
             )
 
         return {
@@ -765,11 +762,7 @@ class PushNotificationService:
             Number of notifications removed
         """
         cutoff = datetime.now() - timedelta(days=older_than_days)
-        old_ids = [
-            n.notification_id
-            for n in self._notifications.values()
-            if n.created_at < cutoff
-        ]
+        old_ids = [n.notification_id for n in self._notifications.values() if n.created_at < cutoff]
 
         for notification_id in old_ids:
             del self._notifications[notification_id]

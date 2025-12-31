@@ -10,20 +10,20 @@ import json
 import logging
 import threading
 from datetime import datetime
-from typing import Callable, Dict, List, Optional, Union, Any
+from typing import Any, Callable, Dict, List, Optional, Union
 from uuid import UUID, uuid4
 
-from .models import (
-    FlowRequest,
-    FlowResponse,
-    DeadLetterMessage,
-    AuditLogEntry,
-)
 from .bus import (
+    ChannelStats,
     MessageBus,
     MessageHandler,
     Subscription,
-    ChannelStats,
+)
+from .models import (
+    AuditLogEntry,
+    DeadLetterMessage,
+    FlowRequest,
+    FlowResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -33,6 +33,7 @@ try:
     import redis
     from redis import Redis
     from redis.client import PubSub
+
     REDIS_AVAILABLE = True
 except ImportError:
     REDIS_AVAILABLE = False
@@ -83,9 +84,7 @@ class RedisMessageBus(MessageBus):
             connection_pool_size: Size of connection pool
         """
         if not REDIS_AVAILABLE:
-            raise ImportError(
-                "Redis is not installed. Install with: pip install redis"
-            )
+            raise ImportError("Redis is not installed. Install with: pip install redis")
 
         self._host = host
         self._port = port
@@ -147,9 +146,7 @@ class RedisMessageBus(MessageBus):
             # Log to audit
             self._log_audit(message, channel)
 
-            logger.debug(
-                f"Published to {channel}, {subscriber_count} subscribers received"
-            )
+            logger.debug(f"Published to {channel}, {subscriber_count} subscribers received")
 
             return True
 
@@ -240,9 +237,7 @@ class RedisMessageBus(MessageBus):
                         subscription.handler(message)
                         subscription.increment_count()
                     except Exception as e:
-                        logger.error(
-                            f"Handler error for {subscription.subscriber_name}: {e}"
-                        )
+                        logger.error(f"Handler error for {subscription.subscriber_name}: {e}")
 
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse message: {e}")
@@ -476,11 +471,7 @@ class RedisMessageBus(MessageBus):
             return False
 
 
-def create_redis_bus(
-    host: str = "localhost",
-    port: int = 6379,
-    **kwargs
-) -> RedisMessageBus:
+def create_redis_bus(host: str = "localhost", port: int = 6379, **kwargs) -> RedisMessageBus:
     """
     Create a Redis message bus instance.
 

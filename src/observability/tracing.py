@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 try:
     from opentelemetry import trace as otel_trace
     from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import SimpleSpanProcessor, ConsoleSpanExporter
+    from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
 
     OTEL_AVAILABLE = True
 except ImportError:

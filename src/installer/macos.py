@@ -424,11 +424,11 @@ class MacOSInstaller(Installer):
         bin_dir = self.config.install_path / "bin"
 
         # Create agent-os script
-        script_content = f'''#!/bin/bash
+        script_content = f"""#!/bin/bash
 export AGENT_OS_HOME="{self.config.install_path}"
 export PYTHONPATH="$AGENT_OS_HOME/lib:$PYTHONPATH"
 python3 -m agent_os "$@"
-'''
+"""
         try:
             script_path = bin_dir / "agent-os"
             script_path.write_text(script_content)

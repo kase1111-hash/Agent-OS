@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 class MessageRole(str, Enum):
     """Message role in conversation."""
+
     USER = "user"
     ASSISTANT = "assistant"
     SYSTEM = "system"
@@ -36,6 +37,7 @@ class MessageRole(str, Enum):
 @dataclass
 class StoredMessage:
     """A persistable chat message."""
+
     id: str
     conversation_id: str
     role: MessageRole
@@ -71,6 +73,7 @@ class StoredMessage:
 @dataclass
 class Conversation:
     """A chat conversation with metadata."""
+
     id: str
     title: str
     created_at: datetime
@@ -169,7 +172,8 @@ class ConversationStore:
                 cursor = self._conn.cursor()
 
                 # Conversations table
-                cursor.execute("""
+                cursor.execute(
+                    """
                     CREATE TABLE IF NOT EXISTS conversations (
                         id TEXT PRIMARY KEY,
                         title TEXT NOT NULL,
@@ -179,10 +183,12 @@ class ConversationStore:
                         metadata_json TEXT,
                         archived INTEGER DEFAULT 0
                     )
-                """)
+                """
+                )
 
                 # Messages table
-                cursor.execute("""
+                cursor.execute(
+                    """
                     CREATE TABLE IF NOT EXISTS messages (
                         id TEXT PRIMARY KEY,
                         conversation_id TEXT NOT NULL,
@@ -194,30 +200,39 @@ class ConversationStore:
                         FOREIGN KEY (conversation_id) REFERENCES conversations(id)
                             ON DELETE CASCADE
                     )
-                """)
+                """
+                )
 
                 # Indexes
-                cursor.execute("""
+                cursor.execute(
+                    """
                     CREATE INDEX IF NOT EXISTS idx_messages_conversation
                     ON messages(conversation_id)
-                """)
-                cursor.execute("""
+                """
+                )
+                cursor.execute(
+                    """
                     CREATE INDEX IF NOT EXISTS idx_messages_timestamp
                     ON messages(timestamp)
-                """)
-                cursor.execute("""
+                """
+                )
+                cursor.execute(
+                    """
                     CREATE INDEX IF NOT EXISTS idx_conversations_updated
                     ON conversations(updated_at DESC)
-                """)
+                """
+                )
 
                 # Full-text search for messages (optional)
-                cursor.execute("""
+                cursor.execute(
+                    """
                     CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
                         content,
                         content=messages,
                         content_rowid=rowid
                     )
-                """)
+                """
+                )
 
                 self._conn.commit()
             except sqlite3.Error as e:
@@ -253,18 +268,21 @@ class ConversationStore:
         with self._lock:
             try:
                 cursor = self._conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO conversations (id, title, created_at, updated_at, message_count, metadata_json, archived)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    conv.id,
-                    conv.title,
-                    conv.created_at.isoformat(),
-                    conv.updated_at.isoformat(),
-                    0,
-                    json.dumps(conv.metadata),
-                    0,
-                ))
+                """,
+                    (
+                        conv.id,
+                        conv.title,
+                        conv.created_at.isoformat(),
+                        conv.updated_at.isoformat(),
+                        0,
+                        json.dumps(conv.metadata),
+                        0,
+                    ),
+                )
                 self._conn.commit()
             except sqlite3.IntegrityError as e:
                 self._conn.rollback()
@@ -281,10 +299,7 @@ class ConversationStore:
         """Get a conversation by ID."""
         with self._lock:
             cursor = self._conn.cursor()
-            cursor.execute(
-                "SELECT * FROM conversations WHERE id = ?",
-                (conversation_id,)
-            )
+            cursor.execute("SELECT * FROM conversations WHERE id = ?", (conversation_id,))
             row = cursor.fetchone()
 
             if not row:
@@ -333,10 +348,7 @@ class ConversationStore:
 
         with self._lock:
             cursor = self._conn.cursor()
-            cursor.execute(
-                f"UPDATE conversations SET {', '.join(updates)} WHERE id = ?",
-                params
-            )
+            cursor.execute(f"UPDATE conversations SET {', '.join(updates)} WHERE id = ?", params)
             self._conn.commit()
             return cursor.rowcount > 0
 
@@ -344,10 +356,7 @@ class ConversationStore:
         """Delete a conversation and all its messages."""
         with self._lock:
             cursor = self._conn.cursor()
-            cursor.execute(
-                "DELETE FROM conversations WHERE id = ?",
-                (conversation_id,)
-            )
+            cursor.execute("DELETE FROM conversations WHERE id = ?", (conversation_id,))
             self._conn.commit()
             deleted = cursor.rowcount > 0
 
@@ -423,45 +432,53 @@ class ConversationStore:
                 cursor = self._conn.cursor()
 
                 # Insert message
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO messages (id, conversation_id, role, content, timestamp, metadata_json, parent_message_id)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    msg.id,
-                    msg.conversation_id,
-                    msg.role.value,
-                    msg.content,
-                    msg.timestamp.isoformat(),
-                    json.dumps(msg.metadata),
-                    msg.parent_message_id,
-                ))
+                """,
+                    (
+                        msg.id,
+                        msg.conversation_id,
+                        msg.role.value,
+                        msg.content,
+                        msg.timestamp.isoformat(),
+                        json.dumps(msg.metadata),
+                        msg.parent_message_id,
+                    ),
+                )
 
                 # Update conversation
                 new_count = conv.message_count + 1
-                cursor.execute("""
+                cursor.execute(
+                    """
                     UPDATE conversations
                     SET updated_at = ?, message_count = ?
                     WHERE id = ?
-                """, (
-                    msg.timestamp.isoformat(),
-                    new_count,
-                    conversation_id,
-                ))
+                """,
+                    (
+                        msg.timestamp.isoformat(),
+                        new_count,
+                        conversation_id,
+                    ),
+                )
 
                 # Auto-title from first user message
                 if self.auto_title and new_count == 1 and role == MessageRole.USER:
                     title = content[:50] + ("..." if len(content) > 50 else "")
                     cursor.execute(
-                        "UPDATE conversations SET title = ? WHERE id = ?",
-                        (title, conversation_id)
+                        "UPDATE conversations SET title = ? WHERE id = ?", (title, conversation_id)
                     )
 
                 # Update FTS index
                 try:
-                    cursor.execute("""
+                    cursor.execute(
+                        """
                         INSERT INTO messages_fts(rowid, content)
                         SELECT rowid, content FROM messages WHERE id = ?
-                    """, (msg.id,))
+                    """,
+                        (msg.id,),
+                    )
                 except sqlite3.Error as e:
                     # FTS index update is not critical, log and continue
                     logger.warning(f"Failed to update FTS index for message {msg.id}: {e}")
@@ -515,14 +532,17 @@ class ConversationStore:
         """Get the most recent messages from a conversation."""
         with self._lock:
             cursor = self._conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT * FROM (
                     SELECT * FROM messages
                     WHERE conversation_id = ?
                     ORDER BY timestamp DESC
                     LIMIT ?
                 ) ORDER BY timestamp ASC
-            """, (conversation_id, count))
+            """,
+                (conversation_id, count),
+            )
             return [self._row_to_message(row) for row in cursor.fetchall()]
 
     def search_messages(
@@ -536,21 +556,27 @@ class ConversationStore:
             cursor = self._conn.cursor()
 
             if conversation_id:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT m.* FROM messages m
                     JOIN messages_fts fts ON m.rowid = fts.rowid
                     WHERE messages_fts MATCH ? AND m.conversation_id = ?
                     ORDER BY rank
                     LIMIT ?
-                """, (query, conversation_id, limit))
+                """,
+                    (query, conversation_id, limit),
+                )
             else:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT m.* FROM messages m
                     JOIN messages_fts fts ON m.rowid = fts.rowid
                     WHERE messages_fts MATCH ?
                     ORDER BY rank
                     LIMIT ?
-                """, (query, limit))
+                """,
+                    (query, limit),
+                )
 
             return [self._row_to_message(row) for row in cursor.fetchall()]
 
@@ -560,10 +586,7 @@ class ConversationStore:
             cursor = self._conn.cursor()
 
             # Get conversation_id first
-            cursor.execute(
-                "SELECT conversation_id FROM messages WHERE id = ?",
-                (message_id,)
-            )
+            cursor.execute("SELECT conversation_id FROM messages WHERE id = ?", (message_id,))
             row = cursor.fetchone()
             if not row:
                 return False
@@ -574,12 +597,15 @@ class ConversationStore:
             cursor.execute("DELETE FROM messages WHERE id = ?", (message_id,))
 
             # Update conversation count
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE conversations
                 SET message_count = message_count - 1,
                     updated_at = ?
                 WHERE id = ?
-            """, (datetime.utcnow().isoformat(), conversation_id))
+            """,
+                (datetime.utcnow().isoformat(), conversation_id),
+            )
 
             self._conn.commit()
             return True
@@ -628,16 +654,21 @@ class ConversationStore:
             conv = Conversation.from_dict(conv_data)
             with self._lock:
                 cursor = self._conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO conversations (id, title, created_at, updated_at, message_count, metadata_json, archived)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    conv.id, conv.title,
-                    conv.created_at.isoformat(),
-                    conv.updated_at.isoformat(),
-                    0, json.dumps(conv.metadata),
-                    1 if conv.archived else 0,
-                ))
+                """,
+                    (
+                        conv.id,
+                        conv.title,
+                        conv.created_at.isoformat(),
+                        conv.updated_at.isoformat(),
+                        0,
+                        json.dumps(conv.metadata),
+                        1 if conv.archived else 0,
+                    ),
+                )
                 self._conn.commit()
 
             # Import messages
@@ -694,9 +725,11 @@ class ConversationStore:
             cursor.execute("SELECT COUNT(*) FROM messages")
             total_messages = cursor.fetchone()[0]
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT MAX(updated_at) FROM conversations
-            """)
+            """
+            )
             last_activity = cursor.fetchone()[0]
 
             return {

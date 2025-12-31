@@ -8,13 +8,12 @@ import re
 from typing import Any, List, Optional, Pattern, Set, Union
 
 from src.agents.interface import (
-    BaseAgent,
     AgentCapabilities,
+    BaseAgent,
     CapabilityType,
     RequestValidationResult,
 )
 from src.messaging.models import FlowResponse, MessageStatus
-
 
 # Use the builtin AssertionError for compatibility with pytest
 

@@ -52,7 +52,9 @@ class EncryptionService:
     Requires the 'cryptography' library - no insecure fallbacks.
     """
 
-    def __init__(self, master_key: Optional[bytes] = None, config: Optional[EncryptionConfig] = None):
+    def __init__(
+        self, master_key: Optional[bytes] = None, config: Optional[EncryptionConfig] = None
+    ):
         self.config = config or EncryptionConfig()
         self._check_crypto()  # Will raise if not available
 
@@ -106,6 +108,7 @@ class EncryptionService:
         """Try to load master key from OS keyring."""
         try:
             import keyring
+
             key_b64 = keyring.get_password("agent-os", "master-key")
             if key_b64:
                 logger.debug("Loaded master key from OS keyring")
@@ -147,8 +150,8 @@ class EncryptionService:
         Uses machine-specific identifiers to derive a key that is unique to
         this machine, making the stored key file less useful if copied.
         """
-        import platform
         import getpass
+        import platform
 
         # Combine machine-specific identifiers
         machine_id_parts = [
@@ -207,6 +210,7 @@ class EncryptionService:
         # Try OS keyring first
         try:
             import keyring
+
             keyring.set_password("agent-os", "master-key", base64.b64encode(key).decode())
             logger.info("Stored master key in OS keyring")
             return
@@ -329,13 +333,13 @@ class EncryptionService:
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
         iv = secrets.token_bytes(self.config.iv_length)
-        aesgcm = AESGCM(key[:self.config.key_length])
+        aesgcm = AESGCM(key[: self.config.key_length])
 
         ciphertext_with_tag = aesgcm.encrypt(iv, plaintext, associated_data)
 
         # Split ciphertext and tag
-        ciphertext = ciphertext_with_tag[:-self.config.tag_length]
-        tag = ciphertext_with_tag[-self.config.tag_length:]
+        ciphertext = ciphertext_with_tag[: -self.config.tag_length]
+        tag = ciphertext_with_tag[-self.config.tag_length :]
 
         # Encode as base64
         iv_b64 = base64.b64encode(iv).decode()
@@ -362,7 +366,7 @@ class EncryptionService:
             ciphertext = base64.b64decode(parts[2])
             tag = base64.b64decode(parts[3])
 
-            aesgcm = AESGCM(key[:self.config.key_length])
+            aesgcm = AESGCM(key[: self.config.key_length])
             plaintext = aesgcm.decrypt(iv, ciphertext + tag, associated_data)
 
             return plaintext.decode("utf-8")
@@ -421,6 +425,7 @@ class CredentialManager:
 
             # Serialize and encrypt the whole credentials dict
             import json
+
             data = json.dumps(self._credentials)
             encrypted = self.encryption.encrypt(data)
 
@@ -442,6 +447,7 @@ class CredentialManager:
                 encrypted = f.read()
 
             import json
+
             data = self.encryption.decrypt(encrypted)
             self._credentials = json.loads(data)
 
@@ -473,95 +479,101 @@ class SensitiveDataRedactor:
         self.patterns: List[RedactionPattern] = [
             # API Keys
             RedactionPattern(
-                re.compile(r'([a-zA-Z0-9_-]*(?:api[_-]?key|apikey)[a-zA-Z0-9_-]*)[=:]\s*["\']?([a-zA-Z0-9_-]{20,})["\']?', re.I),
-                r'\1=[REDACTED]',
-                "API key assignments"
+                re.compile(
+                    r'([a-zA-Z0-9_-]*(?:api[_-]?key|apikey)[a-zA-Z0-9_-]*)[=:]\s*["\']?([a-zA-Z0-9_-]{20,})["\']?',
+                    re.I,
+                ),
+                r"\1=[REDACTED]",
+                "API key assignments",
             ),
             RedactionPattern(
-                re.compile(r'sk-[a-zA-Z0-9]{20,}'),
-                '[REDACTED_OPENAI_KEY]',
-                "OpenAI API keys"
+                re.compile(r"sk-[a-zA-Z0-9]{20,}"), "[REDACTED_OPENAI_KEY]", "OpenAI API keys"
             ),
             RedactionPattern(
-                re.compile(r'hf_[a-zA-Z0-9]{20,}'),
-                '[REDACTED_HF_TOKEN]',
-                "Hugging Face tokens"
+                re.compile(r"hf_[a-zA-Z0-9]{20,}"), "[REDACTED_HF_TOKEN]", "Hugging Face tokens"
             ),
             RedactionPattern(
-                re.compile(r'ghp_[a-zA-Z0-9]{20,}'),
-                '[REDACTED_GITHUB_TOKEN]',
-                "GitHub personal access tokens"
+                re.compile(r"ghp_[a-zA-Z0-9]{20,}"),
+                "[REDACTED_GITHUB_TOKEN]",
+                "GitHub personal access tokens",
             ),
-
             # Auth headers
             RedactionPattern(
-                re.compile(r'Bearer\s+[a-zA-Z0-9_.-]{20,}', re.I),
-                'Bearer [REDACTED]',
-                "Bearer tokens"
+                re.compile(r"Bearer\s+[a-zA-Z0-9_.-]{20,}", re.I),
+                "Bearer [REDACTED]",
+                "Bearer tokens",
             ),
             RedactionPattern(
-                re.compile(r'Basic\s+[a-zA-Z0-9+/=]{20,}', re.I),
-                'Basic [REDACTED]',
-                "Basic auth"
+                re.compile(r"Basic\s+[a-zA-Z0-9+/=]{20,}", re.I), "Basic [REDACTED]", "Basic auth"
             ),
-
             # Passwords
             RedactionPattern(
                 re.compile(r'(password|passwd|pwd)[=:]\s*["\']?[^"\'\s&]+["\']?', re.I),
-                r'\1=[REDACTED]',
-                "Password fields"
+                r"\1=[REDACTED]",
+                "Password fields",
             ),
-
             # Connection strings
             RedactionPattern(
-                re.compile(r'(mongodb|postgresql|mysql|redis):\/\/[^:]+:[^@]+@', re.I),
-                r'\1://[REDACTED]:[REDACTED]@',
-                "Database connection strings"
+                re.compile(r"(mongodb|postgresql|mysql|redis):\/\/[^:]+:[^@]+@", re.I),
+                r"\1://[REDACTED]:[REDACTED]@",
+                "Database connection strings",
             ),
-
             # JWT tokens
             RedactionPattern(
-                re.compile(r'eyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*'),
-                '[REDACTED_JWT]',
-                "JWT tokens"
+                re.compile(r"eyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*"),
+                "[REDACTED_JWT]",
+                "JWT tokens",
             ),
-
             # Private keys
             RedactionPattern(
-                re.compile(r'-----BEGIN\s+(?:RSA\s+)?PRIVATE\s+KEY-----[\s\S]*?-----END\s+(?:RSA\s+)?PRIVATE\s+KEY-----'),
-                '[REDACTED_PRIVATE_KEY]',
-                "Private keys"
+                re.compile(
+                    r"-----BEGIN\s+(?:RSA\s+)?PRIVATE\s+KEY-----[\s\S]*?-----END\s+(?:RSA\s+)?PRIVATE\s+KEY-----"
+                ),
+                "[REDACTED_PRIVATE_KEY]",
+                "Private keys",
             ),
-
             # AWS keys
             RedactionPattern(
-                re.compile(r'AKIA[0-9A-Z]{16}'),
-                '[REDACTED_AWS_KEY]',
-                "AWS access keys"
+                re.compile(r"AKIA[0-9A-Z]{16}"), "[REDACTED_AWS_KEY]", "AWS access keys"
             ),
-
             # Credit cards (basic)
             RedactionPattern(
-                re.compile(r'\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b'),
-                '[REDACTED_CARD]',
-                "Credit card numbers"
+                re.compile(r"\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b"),
+                "[REDACTED_CARD]",
+                "Credit card numbers",
             ),
-
             # SSN
             RedactionPattern(
-                re.compile(r'\b\d{3}-\d{2}-\d{4}\b'),
-                '[REDACTED_SSN]',
-                "Social Security numbers"
+                re.compile(r"\b\d{3}-\d{2}-\d{4}\b"), "[REDACTED_SSN]", "Social Security numbers"
             ),
         ]
 
         # Sensitive field names
         self.sensitive_fields = {
-            "password", "passwd", "pwd", "secret", "token", "apikey", "api_key",
-            "apiKey", "auth", "authorization", "credential", "credentials",
-            "private_key", "privateKey", "access_token", "accessToken",
-            "refresh_token", "refreshToken", "session_id", "sessionId",
-            "encryption_key", "encryptionKey", "master_key", "masterKey"
+            "password",
+            "passwd",
+            "pwd",
+            "secret",
+            "token",
+            "apikey",
+            "api_key",
+            "apiKey",
+            "auth",
+            "authorization",
+            "credential",
+            "credentials",
+            "private_key",
+            "privateKey",
+            "access_token",
+            "accessToken",
+            "refresh_token",
+            "refreshToken",
+            "session_id",
+            "sessionId",
+            "encryption_key",
+            "encryptionKey",
+            "master_key",
+            "masterKey",
         }
 
     def redact(self, text: str) -> str:
@@ -588,7 +600,9 @@ class SensitiveDataRedactor:
             # Check if field name indicates sensitive data
             if key_lower in self.sensitive_fields or key in self.sensitive_fields:
                 result[key] = "[REDACTED]"
-            elif any(s in key_lower for s in ["password", "secret", "token", "key", "credential", "auth"]):
+            elif any(
+                s in key_lower for s in ["password", "secret", "token", "key", "credential", "auth"]
+            ):
                 result[key] = "[REDACTED]"
             elif isinstance(value, str):
                 result[key] = self.redact(value)
@@ -596,9 +610,11 @@ class SensitiveDataRedactor:
                 result[key] = self.redact_dict(value, depth + 1)
             elif isinstance(value, list):
                 result[key] = [
-                    self.redact_dict(v, depth + 1) if isinstance(v, dict)
-                    else self.redact(v) if isinstance(v, str)
-                    else v
+                    (
+                        self.redact_dict(v, depth + 1)
+                        if isinstance(v, dict)
+                        else self.redact(v) if isinstance(v, str) else v
+                    )
                     for v in value
                 ]
             else:
@@ -609,18 +625,22 @@ class SensitiveDataRedactor:
     def redact_url(self, url: str) -> str:
         """Redact sensitive parts of a URL."""
         # Redact password in URL
-        url = re.sub(r'(https?://[^:]+:)[^@]+(@)', r'\1[REDACTED]\2', url)
+        url = re.sub(r"(https?://[^:]+:)[^@]+(@)", r"\1[REDACTED]\2", url)
 
         # Redact sensitive query parameters
-        sensitive_params = ["token", "key", "secret", "password", "auth", "credential", "api_key", "apikey"]
+        sensitive_params = [
+            "token",
+            "key",
+            "secret",
+            "password",
+            "auth",
+            "credential",
+            "api_key",
+            "apikey",
+        ]
 
         for param in sensitive_params:
-            url = re.sub(
-                rf'([?&]{param}=)[^&]+',
-                rf'\1[REDACTED]',
-                url,
-                flags=re.I
-            )
+            url = re.sub(rf"([?&]{param}=)[^&]+", rf"\1[REDACTED]", url, flags=re.I)
 
         return url
 

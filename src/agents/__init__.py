@@ -11,66 +11,67 @@ Provides the agent base interface and infrastructure for Agent OS:
 All agents MUST implement the AgentInterface.
 """
 
-from .interface import (
-    AgentInterface,
-    BaseAgent,
-    AgentState,
-    CapabilityType,
-    AgentCapabilities,
-    RequestValidationResult,
-    AgentMetrics,
-)
 from .config import (
     AgentConfig,
-    ModelConfig,
-    ConstitutionBinding,
     ConfigLoader,
+    ConstitutionBinding,
+    ModelConfig,
     create_default_config,
     generate_config_template,
 )
-from .loader import (
-    AgentRegistry,
-    AgentLoader,
-    RegisteredAgent,
-    create_loader,
+from .constitution_loader import (
+    ConstitutionalContext,
+    ConstitutionLoader,
+    build_system_prompt_with_constitution,
+    get_constitution_loader,
+    load_constitutional_context,
 )
 from .enforcement import (
     ConstitutionalEnforcer,
-    EnforcementMiddleware,
     EnforcementConfig,
+    EnforcementMiddleware,
     ViolationRecord,
     create_enforced_agent,
 )
+from .interface import (
+    AgentCapabilities,
+    AgentInterface,
+    AgentMetrics,
+    AgentState,
+    BaseAgent,
+    CapabilityType,
+    RequestValidationResult,
+)
 from .isolation import (
-    IsolationLevel,
-    ResourceLimits,
-    ProcessIsolator,
-    ThreadIsolator,
     ContainerIsolator,
     IsolatedProcessInfo,
+    IsolationLevel,
+    ProcessIsolator,
+    ResourceLimits,
+    ThreadIsolator,
     create_isolator,
 )
-from .constitution_loader import (
-    ConstitutionLoader,
-    ConstitutionalContext,
-    get_constitution_loader,
-    load_constitutional_context,
-    build_system_prompt_with_constitution,
+from .loader import (
+    AgentLoader,
+    AgentRegistry,
+    RegisteredAgent,
+    create_loader,
 )
 
 # Ollama is optional (requires httpx)
 try:
     from .ollama import (
         OllamaClient,
+        OllamaConnectionError,
+        OllamaError,
         OllamaMessage,
-        OllamaResponse,
+        OllamaModelError,
         OllamaModelInfo,
         OllamaModelManager,
-        OllamaError,
-        OllamaConnectionError,
-        OllamaModelError,
+        OllamaResponse,
         create_ollama_client,
     )
+
     OLLAMA_AVAILABLE = True
 except ImportError:
     OllamaClient = None
@@ -87,17 +88,18 @@ except ImportError:
 # Llama.cpp is optional (requires llama-cpp-python or httpx)
 try:
     from .llama_cpp import (
+        LLAMA_CPP_PYTHON_AVAILABLE,
         LlamaCppClient,
+        LlamaCppConnectionError,
+        LlamaCppError,
         LlamaCppMessage,
-        LlamaCppResponse,
+        LlamaCppModelError,
         LlamaCppModelInfo,
         LlamaCppModelManager,
-        LlamaCppError,
-        LlamaCppConnectionError,
-        LlamaCppModelError,
+        LlamaCppResponse,
         create_llama_cpp_client,
-        LLAMA_CPP_PYTHON_AVAILABLE,
     )
+
     LLAMA_CPP_AVAILABLE = True
 except ImportError:
     LlamaCppClient = None

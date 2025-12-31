@@ -78,8 +78,7 @@ class DeviceInfo:
             self.platform = PlatformType(self.platform)
         if isinstance(self.capabilities, (list, tuple)):
             self.capabilities = {
-                DeviceCapability(c) if isinstance(c, str) else c
-                for c in self.capabilities
+                DeviceCapability(c) if isinstance(c, str) else c for c in self.capabilities
             }
 
     def has_capability(self, capability: DeviceCapability) -> bool:
@@ -282,6 +281,7 @@ class Platform:
     def _version_gte(version: str, required: str) -> bool:
         """Check if version is greater than or equal to required."""
         try:
+
             def parse_version(v: str) -> List[int]:
                 return [int(x) for x in re.split(r"[._-]", v) if x.isdigit()]
 

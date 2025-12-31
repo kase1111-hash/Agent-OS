@@ -38,10 +38,11 @@ logger = logging.getLogger(__name__)
 # Check for prometheus_client availability
 try:
     import prometheus_client
+    from prometheus_client import CONTENT_TYPE_LATEST
     from prometheus_client import Counter as PromCounter
     from prometheus_client import Gauge as PromGauge
     from prometheus_client import Histogram as PromHistogram
-    from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+    from prometheus_client import generate_latest
 
     PROMETHEUS_AVAILABLE = True
 except ImportError:
@@ -50,9 +51,7 @@ except ImportError:
 
 
 # Default histogram buckets (in seconds)
-DEFAULT_BUCKETS = (
-    0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1.0, 2.5, 5.0, 7.5, 10.0
-)
+DEFAULT_BUCKETS = (0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1.0, 2.5, 5.0, 7.5, 10.0)
 
 
 @dataclass
@@ -122,10 +121,7 @@ class Counter(Metric):
     def collect(self) -> List[MetricValue]:
         """Collect current counter values."""
         with self._lock:
-            return [
-                MetricValue(value=v, labels=dict(labels))
-                for labels, v in self._values.items()
-            ]
+            return [MetricValue(value=v, labels=dict(labels)) for labels, v in self._values.items()]
 
 
 class CounterChild:
@@ -191,10 +187,7 @@ class Gauge(Metric):
     def collect(self) -> List[MetricValue]:
         """Collect current gauge values."""
         with self._lock:
-            return [
-                MetricValue(value=v, labels=dict(labels))
-                for labels, v in self._values.items()
-            ]
+            return [MetricValue(value=v, labels=dict(labels)) for labels, v in self._values.items()]
 
 
 class GaugeChild:
@@ -285,21 +278,27 @@ class Histogram(Metric):
             for labels, data in self._values.items():
                 label_dict = dict(labels)
                 # Sum
-                results.append(MetricValue(
-                    value=data["sum"],
-                    labels={**label_dict, "_type": "sum"},
-                ))
+                results.append(
+                    MetricValue(
+                        value=data["sum"],
+                        labels={**label_dict, "_type": "sum"},
+                    )
+                )
                 # Count
-                results.append(MetricValue(
-                    value=data["count"],
-                    labels={**label_dict, "_type": "count"},
-                ))
+                results.append(
+                    MetricValue(
+                        value=data["count"],
+                        labels={**label_dict, "_type": "count"},
+                    )
+                )
                 # Buckets
                 for bucket, count in data["buckets"].items():
-                    results.append(MetricValue(
-                        value=count,
-                        labels={**label_dict, "_type": "bucket", "le": str(bucket)},
-                    ))
+                    results.append(
+                        MetricValue(
+                            value=count,
+                            labels={**label_dict, "_type": "bucket", "le": str(bucket)},
+                        )
+                    )
         return results
 
 
@@ -418,10 +417,12 @@ class MetricsRegistry:
                 "values": [],
             }
             for mv in values:
-                metric_data["values"].append({
-                    "labels": mv.labels,
-                    "value": mv.value,
-                })
+                metric_data["values"].append(
+                    {
+                        "labels": mv.labels,
+                        "value": mv.value,
+                    }
+                )
             summary[name] = metric_data
         return summary
 

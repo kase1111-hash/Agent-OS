@@ -171,12 +171,8 @@ class TunnelStats:
             "bytes_received": self.bytes_received,
             "packets_sent": self.packets_sent,
             "packets_received": self.packets_received,
-            "last_handshake": self.last_handshake.isoformat()
-            if self.last_handshake
-            else None,
-            "connected_since": self.connected_since.isoformat()
-            if self.connected_since
-            else None,
+            "last_handshake": self.last_handshake.isoformat() if self.last_handshake else None,
+            "connected_since": self.connected_since.isoformat() if self.connected_since else None,
             "reconnect_count": self.reconnect_count,
             "current_endpoint": self.current_endpoint,
             "latency_ms": self.latency_ms,
@@ -407,9 +403,7 @@ class VPNTunnel:
             self._reconnect_attempts += 1
             delay = self.config.reconnect_delay * (2 ** (self._reconnect_attempts - 1))
 
-            logger.info(
-                f"Reconnection attempt {self._reconnect_attempts} in {delay}s"
-            )
+            logger.info(f"Reconnection attempt {self._reconnect_attempts} in {delay}s")
             await asyncio.sleep(delay)
 
             try:
@@ -590,7 +584,7 @@ class VPNManager:
         return {
             "active_config": self._active_tunnel,
             "available_configs": self.list_configs(),
-            "active_tunnel": self.get_active_tunnel().get_diagnostics()
-            if self._active_tunnel
-            else None,
+            "active_tunnel": (
+                self.get_active_tunnel().get_diagnostics() if self._active_tunnel else None
+            ),
         }

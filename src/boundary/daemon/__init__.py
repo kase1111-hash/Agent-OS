@@ -38,62 +38,55 @@ Usage:
     # BoundaryDaemon, create_boundary_daemon
 """
 
-from .state_monitor import (
-    StateMonitor,
-    SystemState,
-    NetworkState,
-    ProcessState,
-    HardwareState,
-    NetworkConnection,
-    create_state_monitor,
+from .boundary_daemon import (  # Primary exports (new naming); Backwards compatibility aliases
+    BoundaryConfig,
+    BoundaryDaemon,
+    SmithDaemon,
+    SmithDaemonConfig,
+    create_boundary_daemon,
+    create_smith_daemon,
 )
-
-from .tripwires import (
-    TripwireSystem,
-    Tripwire,
-    TripwireEvent,
-    TripwireType,
-    TripwireState,
-    create_tripwire_system,
-    create_file_tripwire,
-    create_process_tripwire,
-)
-
-from .policy_engine import (
-    PolicyEngine,
-    PolicyRequest,
-    PolicyDecision,
-    PolicyRule,
-    BoundaryMode,
-    RequestType,
-    Decision,
-    create_policy_engine,
-)
-
 from .enforcement import (
-    EnforcementLayer,
-    EnforcementEvent,
     EnforcementAction,
-    EnforcementSeverity,
+    EnforcementEvent,
+    EnforcementLayer,
     EnforcementPolicy,
+    EnforcementSeverity,
     create_enforcement_layer,
 )
-
 from .event_log import (
     ImmutableEventLog,
     LogEntry,
     create_event_log,
 )
-
-from .boundary_daemon import (
-    # Primary exports (new naming)
-    SmithDaemon,
-    SmithDaemonConfig,
-    create_smith_daemon,
-    # Backwards compatibility aliases
-    BoundaryDaemon,
-    BoundaryConfig,
-    create_boundary_daemon,
+from .policy_engine import (
+    BoundaryMode,
+    Decision,
+    PolicyDecision,
+    PolicyEngine,
+    PolicyRequest,
+    PolicyRule,
+    RequestType,
+    create_policy_engine,
+)
+from .state_monitor import (
+    HardwareState,
+    NetworkConnection,
+    NetworkState,
+    ProcessState,
+    StateMonitor,
+    SystemState,
+    create_state_monitor,
+)
+from .tripwires import (
+    Tripwire,
+    TripwireEvent,
+    TripwireState,
+    TripwireSystem,
+    TripwireType,
+    create_file_tripwire,
+    create_process_tripwire,
+    create_tripwire_system,
 )
 
 __all__ = [

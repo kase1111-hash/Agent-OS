@@ -142,9 +142,7 @@ class InstallConfig:
     docker_image: str = "agentoshq/agent-os:latest"
     docker_network: str = "agent-os-network"
     docker_volumes: List[str] = field(default_factory=list)
-    docker_ports: Dict[str, int] = field(
-        default_factory=lambda: {"web": 8080, "api": 8081}
-    )
+    docker_ports: Dict[str, int] = field(default_factory=lambda: {"web": 8080, "api": 8081})
 
     # Advanced options
     data_path: Optional[Path] = None  # Separate data directory

@@ -172,6 +172,7 @@ class FuseWrapper:
                 return True
             # Check fusermount command
             import shutil
+
             return shutil.which("fusermount") is not None or shutil.which("fusermount3") is not None
         except Exception:
             return False
@@ -381,9 +382,7 @@ class FuseWrapper:
             for entry in os.listdir(path):
                 # Check access to each entry
                 entry_path = os.path.join(path, entry)
-                entry_allowed, _ = self.check_access(
-                    entry_path, FuseOperation.GETATTR, context
-                )
+                entry_allowed, _ = self.check_access(entry_path, FuseOperation.GETATTR, context)
                 if entry_allowed:
                     entries.append(entry)
             return entries
@@ -499,9 +498,7 @@ class FuseWrapper:
 
         return True, 0
 
-    def handle_unlink(
-        self, path: str, context: Optional[Dict[str, Any]] = None
-    ) -> int:
+    def handle_unlink(self, path: str, context: Optional[Dict[str, Any]] = None) -> int:
         """Handle unlink (delete) operation.
 
         Args:

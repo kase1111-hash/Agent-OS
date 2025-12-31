@@ -11,15 +11,14 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .state import CeremonyPhase, CeremonyStatus
 from .orchestrator import (
-    CeremonyOrchestrator,
     CeremonyConfig,
     CeremonyEvent,
+    CeremonyOrchestrator,
     create_orchestrator,
 )
 from .phases import PhaseExecutionResult
-
+from .state import CeremonyPhase, CeremonyStatus
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +142,7 @@ class CeremonyCLI:
             print(f"  Current Phase: {status['current_phase']}")
 
         if status.get("progress") is not None:
-            progress = status['progress']
+            progress = status["progress"]
             bar_width = 30
             filled = int(bar_width * progress / 100)
             bar = "█" * filled + "░" * (bar_width - filled)
@@ -185,7 +184,8 @@ class CeremonyCLI:
         """
         self._print_header("BRING-HOME CEREMONY")
 
-        print("""
+        print(
+            """
 This is the first-contact ritual between you and this learning co-worker system.
 It establishes sovereignty, trust boundaries, cryptographic roots, and cognitive consent.
 
@@ -197,7 +197,8 @@ Preconditions:
   • No network cables connected
   • You are not rushed
   • You accept responsibility for what this system learns
-        """)
+        """
+        )
 
         # Wait for confirmation
         try:
@@ -244,7 +245,9 @@ Preconditions:
                     self.orchestrator.reset_ceremony()
                     return False
                 else:
-                    print(f"\n{self._color('Phase failed. Please resolve issues and try again.', 'red')}")
+                    print(
+                        f"\n{self._color('Phase failed. Please resolve issues and try again.', 'red')}"
+                    )
                     return False
 
             # Advance to next phase
@@ -255,7 +258,8 @@ Preconditions:
         self.orchestrator.advance_phase()
 
         self._print_header("CEREMONY COMPLETE")
-        print("""
+        print(
+            """
 The Bring-Home Ceremony is complete.
 
 Your learning co-worker is now:
@@ -274,7 +278,8 @@ Weekly Rituals:
   • Check contract expirations
 
 Trust is not configured. It is earned, rehearsed, and renewed.
-        """)
+        """
+        )
 
         self._print_status(self.orchestrator.get_status())
 
@@ -421,7 +426,8 @@ Examples:
     )
 
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable verbose output",
     )

@@ -15,14 +15,14 @@ from typing import Any, Callable, Dict, List, Optional, Pattern, Set, Union
 from src.agents.interface import CapabilityType
 from src.messaging.models import FlowRequest, FlowResponse, MessageStatus
 
-from .base import AgentTemplate, AgentConfig
-
+from .base import AgentConfig, AgentTemplate
 
 logger = logging.getLogger(__name__)
 
 
 class ValidationSeverity(Enum):
     """Severity level of validation issues."""
+
     INFO = auto()
     WARNING = auto()
     ERROR = auto()
@@ -32,6 +32,7 @@ class ValidationSeverity(Enum):
 @dataclass
 class ValidationIssue:
     """A validation issue found."""
+
     code: str
     message: str
     severity: ValidationSeverity
@@ -53,6 +54,7 @@ class ValidationIssue:
 @dataclass
 class ValidationResult:
     """Result of a validation process."""
+
     is_valid: bool
     issues: List[ValidationIssue] = field(default_factory=list)
     sanitized_content: Optional[str] = None
@@ -60,9 +62,11 @@ class ValidationResult:
 
     @property
     def errors(self) -> List[ValidationIssue]:
-        return [i for i in self.issues if i.severity in (
-            ValidationSeverity.ERROR, ValidationSeverity.CRITICAL
-        )]
+        return [
+            i
+            for i in self.issues
+            if i.severity in (ValidationSeverity.ERROR, ValidationSeverity.CRITICAL)
+        ]
 
     @property
     def warnings(self) -> List[ValidationIssue]:
@@ -80,6 +84,7 @@ class ValidationResult:
 @dataclass
 class ValidationRule:
     """A validation rule."""
+
     code: str
     description: str
     pattern: Optional[Union[str, Pattern]] = None
@@ -100,7 +105,9 @@ class ValidationRule:
         violated = False
 
         if self.pattern:
-            pattern = self.pattern if isinstance(self.pattern, Pattern) else re.compile(self.pattern)
+            pattern = (
+                self.pattern if isinstance(self.pattern, Pattern) else re.compile(self.pattern)
+            )
             if pattern.search(content):
                 violated = True
 
@@ -125,6 +132,7 @@ class ValidationRule:
 @dataclass
 class ValidationConfig(AgentConfig):
     """Configuration for validation agents."""
+
     fail_on_warning: bool = False
     fail_on_error: bool = True
     sanitize_content: bool = True
@@ -314,12 +322,11 @@ class ValidationAgentTemplate(AgentTemplate):
 
         # Run custom validation
         custom_issues = self.validate_content(content, request)
-        issues.extend(custom_issues[:self.validation_config.max_issues - len(issues)])
+        issues.extend(custom_issues[: self.validation_config.max_issues - len(issues)])
 
         # Determine validity
         has_errors = any(
-            i.severity in (ValidationSeverity.ERROR, ValidationSeverity.CRITICAL)
-            for i in issues
+            i.severity in (ValidationSeverity.ERROR, ValidationSeverity.CRITICAL) for i in issues
         )
         has_warnings = any(i.severity == ValidationSeverity.WARNING for i in issues)
 

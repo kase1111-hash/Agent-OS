@@ -9,15 +9,15 @@ llama-cpp-python: https://github.com/abetlen/llama-cpp-python
 """
 
 import json
-import time
+import logging
 import os
 import threading
-import logging
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, List, Dict, Any, Iterator, Callable, Union
-from urllib.parse import urljoin
 from pathlib import Path
+from typing import Any, Callable, Dict, Iterator, List, Optional, Union
+from urllib.parse import urljoin
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 # Check for llama-cpp-python availability
 try:
     from llama_cpp import Llama
+
     LLAMA_CPP_PYTHON_AVAILABLE = True
 except ImportError:
     Llama = None
@@ -33,6 +34,7 @@ except ImportError:
 # Check for httpx (for server mode)
 try:
     import httpx
+
     HTTPX_AVAILABLE = True
 except ImportError:
     httpx = None
@@ -49,6 +51,7 @@ from urllib.parse import urlparse
 
 class SSRFProtectionError(Exception):
     """Raised when a URL fails SSRF protection validation."""
+
     pass
 
 
@@ -74,7 +77,7 @@ def validate_llama_endpoint(url: str) -> str:
         raise SSRFProtectionError(f"Invalid URL format: {e}")
 
     # Validate scheme
-    if parsed.scheme not in ('http', 'https'):
+    if parsed.scheme not in ("http", "https"):
         raise SSRFProtectionError(f"Invalid URL scheme: {parsed.scheme}")
 
     # Validate host exists
@@ -85,9 +88,9 @@ def validate_llama_endpoint(url: str) -> str:
 
     # Check for suspicious internal hostnames
     suspicious_patterns = [
-        'metadata.',           # Cloud metadata services
-        '169.254.',            # AWS metadata IP range
-        'internal.',           # Internal services
+        "metadata.",  # Cloud metadata services
+        "169.254.",  # AWS metadata IP range
+        "internal.",  # Internal services
     ]
 
     for pattern in suspicious_patterns:
@@ -95,8 +98,8 @@ def validate_llama_endpoint(url: str) -> str:
             raise SSRFProtectionError(f"Suspicious hostname pattern: {hostname}")
 
     # Reject .internal, .local, .corp, .lan TLDs (except localhost)
-    if hostname not in ('localhost', '127.0.0.1', '::1'):
-        suspicious_tlds = ['.internal', '.local', '.corp', '.lan']
+    if hostname not in ("localhost", "127.0.0.1", "::1"):
+        suspicious_tlds = [".internal", ".local", ".corp", ".lan"]
         for tld in suspicious_tlds:
             if hostname.endswith(tld):
                 raise SSRFProtectionError(f"Suspicious hostname pattern: {hostname}")
@@ -118,6 +121,7 @@ def validate_llama_endpoint(url: str) -> str:
 @dataclass
 class LlamaCppMessage:
     """A message in a Llama.cpp chat conversation."""
+
     role: str  # "system", "user", "assistant"
     content: str
 
@@ -128,6 +132,7 @@ class LlamaCppMessage:
 @dataclass
 class LlamaCppResponse:
     """Response from Llama.cpp."""
+
     model: str
     content: str
     done: bool = True
@@ -146,6 +151,7 @@ class LlamaCppResponse:
 @dataclass
 class LlamaCppModelInfo:
     """Information about a Llama.cpp model."""
+
     name: str
     path: str
     size: int
@@ -157,21 +163,24 @@ class LlamaCppModelInfo:
 
     @property
     def size_gb(self) -> float:
-        return self.size / (1024 ** 3)
+        return self.size / (1024**3)
 
 
 class LlamaCppError(Exception):
     """Base exception for Llama.cpp errors."""
+
     pass
 
 
 class LlamaCppConnectionError(LlamaCppError):
     """Connection to Llama.cpp server failed."""
+
     pass
 
 
 class LlamaCppModelError(LlamaCppError):
     """Model-related error."""
+
     pass
 
 
@@ -404,12 +413,14 @@ class LlamaCppClient:
             try:
                 response = self._request("GET", "/v1/models")
                 for model in response.get("data", []):
-                    models.append(LlamaCppModelInfo(
-                        name=model.get("id", "unknown"),
-                        path="",
-                        size=0,
-                        loaded=True,
-                    ))
+                    models.append(
+                        LlamaCppModelInfo(
+                            name=model.get("id", "unknown"),
+                            path="",
+                            size=0,
+                            loaded=True,
+                        )
+                    )
             except Exception as e:
                 logger.warning(f"Failed to list models from server: {e}")
         else:
@@ -421,13 +432,16 @@ class LlamaCppClient:
                 for gguf_file in search_path.glob("**/*.gguf"):
                     try:
                         file_size = gguf_file.stat().st_size
-                        models.append(LlamaCppModelInfo(
-                            name=gguf_file.stem,
-                            path=str(gguf_file),
-                            size=file_size,
-                            loaded=(self._model_info and
-                                   self._model_info.path == str(gguf_file)),
-                        ))
+                        models.append(
+                            LlamaCppModelInfo(
+                                name=gguf_file.stem,
+                                path=str(gguf_file),
+                                size=file_size,
+                                loaded=(
+                                    self._model_info and self._model_info.path == str(gguf_file)
+                                ),
+                            )
+                        )
                     except Exception as e:
                         logger.warning(f"Failed to get info for {gguf_file}: {e}")
 
@@ -535,8 +549,11 @@ class LlamaCppClient:
                 prompt_tokens=usage.get("prompt_tokens", 0),
                 completion_tokens=usage.get("completion_tokens", 0),
                 total_tokens=usage.get("total_tokens", 0),
-                tokens_per_second=usage.get("completion_tokens", 0) /
-                                 (duration_ns / 1_000_000_000) if duration_ns > 0 else 0,
+                tokens_per_second=(
+                    usage.get("completion_tokens", 0) / (duration_ns / 1_000_000_000)
+                    if duration_ns > 0
+                    else 0
+                ),
                 finish_reason=choice.get("finish_reason", "stop"),
             )
 
@@ -580,8 +597,9 @@ class LlamaCppClient:
             total_duration_ns=end_time - start_time,
             prompt_tokens=response.get("tokens_evaluated", 0),
             completion_tokens=response.get("tokens_predicted", 0),
-            total_tokens=(response.get("tokens_evaluated", 0) +
-                         response.get("tokens_predicted", 0)),
+            total_tokens=(
+                response.get("tokens_evaluated", 0) + response.get("tokens_predicted", 0)
+            ),
             tokens_per_second=response.get("tokens_per_second", 0),
             finish_reason=response.get("stop_type", "stop"),
         )
@@ -608,13 +626,9 @@ class LlamaCppClient:
             Text chunks as they are generated
         """
         if self._mode == "server":
-            yield from self._generate_stream_server(
-                prompt, max_tokens, temperature, top_p, stop
-            )
+            yield from self._generate_stream_server(prompt, max_tokens, temperature, top_p, stop)
         else:
-            yield from self._generate_stream_direct(
-                prompt, max_tokens, temperature, top_p, stop
-            )
+            yield from self._generate_stream_direct(prompt, max_tokens, temperature, top_p, stop)
 
     def _generate_stream_direct(
         self,
@@ -754,8 +768,11 @@ class LlamaCppClient:
                 prompt_tokens=usage.get("prompt_tokens", 0),
                 completion_tokens=usage.get("completion_tokens", 0),
                 total_tokens=usage.get("total_tokens", 0),
-                tokens_per_second=usage.get("completion_tokens", 0) /
-                                 (duration_ns / 1_000_000_000) if duration_ns > 0 else 0,
+                tokens_per_second=(
+                    usage.get("completion_tokens", 0) / (duration_ns / 1_000_000_000)
+                    if duration_ns > 0
+                    else 0
+                ),
                 finish_reason=choice.get("finish_reason", "stop"),
             )
 

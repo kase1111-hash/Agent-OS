@@ -132,15 +132,15 @@ class ComplianceStandard(str, Enum):
 class CryptoAuditEvent:
     """Cryptographic audit event."""
 
-    event_id: str                               # Unique event ID
-    event_type: AuditEventType                  # Event type
-    timestamp: datetime                         # When it occurred
+    event_id: str  # Unique event ID
+    event_type: AuditEventType  # Event type
+    timestamp: datetime  # When it occurred
     severity: AuditSeverity = AuditSeverity.INFO
 
     # Operation details
-    operation_id: Optional[str] = None          # Related operation ID
-    key_id: Optional[str] = None                # Related key ID
-    algorithm: Optional[str] = None             # Cryptographic algorithm
+    operation_id: Optional[str] = None  # Related operation ID
+    key_id: Optional[str] = None  # Related key ID
+    algorithm: Optional[str] = None  # Cryptographic algorithm
     success: bool = True
     error_message: Optional[str] = None
 
@@ -151,9 +151,9 @@ class CryptoAuditEvent:
     component: Optional[str] = None
 
     # Cryptographic details (no secrets!)
-    input_hash: Optional[str] = None            # Hash of input data
-    output_hash: Optional[str] = None           # Hash of output data
-    key_fingerprint: Optional[str] = None       # Public key fingerprint
+    input_hash: Optional[str] = None  # Hash of input data
+    output_hash: Optional[str] = None  # Hash of output data
+    key_fingerprint: Optional[str] = None  # Public key fingerprint
 
     # Chain integrity
     sequence_number: int = 0
@@ -349,9 +349,7 @@ class CryptoAuditLogger:
         self._last_hash: Optional[str] = None
 
         # Async processing
-        self._event_queue: queue.Queue = queue.Queue(
-            maxsize=self.config.queue_size
-        )
+        self._event_queue: queue.Queue = queue.Queue(maxsize=self.config.queue_size)
         self._worker_thread: Optional[threading.Thread] = None
 
         # Callbacks
@@ -728,7 +726,10 @@ class CryptoAuditLogger:
             return
 
         # Rotate file if needed
-        if self._current_file is None or self._current_file_size >= self.config.max_file_size_mb * 1024 * 1024:
+        if (
+            self._current_file is None
+            or self._current_file_size >= self.config.max_file_size_mb * 1024 * 1024
+        ):
             self._rotate_file()
 
         # Write event
@@ -896,7 +897,9 @@ class CryptoAuditLogger:
                 ),
                 "unique_keys_used": self._metrics.unique_keys_used,
                 "unique_users": self._metrics.unique_users,
-                "chain_integrity": "verified" if self.config.enable_chain_verification else "not_enabled",
+                "chain_integrity": (
+                    "verified" if self.config.enable_chain_verification else "not_enabled"
+                ),
             },
             "controls": self._get_compliance_controls(standard),
         }
@@ -961,7 +964,8 @@ def create_production_audit_config(
         enable_console_output=False,
         async_processing=True,
         queue_size=50000,
-        compliance_standards=compliance_standards or [
+        compliance_standards=compliance_standards
+        or [
             ComplianceStandard.SOC2,
             ComplianceStandard.FIPS_140_3,
         ],

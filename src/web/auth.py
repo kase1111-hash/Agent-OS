@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 class UserRole(str, Enum):
     """User roles for access control."""
+
     ADMIN = "admin"
     USER = "user"
     GUEST = "guest"
@@ -45,6 +46,7 @@ class AuthError(Exception):
 @dataclass
 class User:
     """User account model."""
+
     user_id: str
     username: str
     email: Optional[str]
@@ -79,6 +81,7 @@ class User:
 @dataclass
 class Session:
     """User session model."""
+
     session_id: str
     user_id: str
     token: str
@@ -116,6 +119,7 @@ class Session:
 @dataclass
 class LoginAttempt:
     """Record of a login attempt for rate limiting."""
+
     identifier: str  # Username or IP address
     attempt_time: datetime
     success: bool
@@ -216,8 +220,7 @@ class RateLimiter:
 
         cutoff = datetime.now() - self.ATTEMPT_WINDOW
         return sum(
-            1 for a in self._attempts[identifier]
-            if not a.success and a.attempt_time > cutoff
+            1 for a in self._attempts[identifier] if not a.success and a.attempt_time > cutoff
         )
 
     def _cleanup_old_attempts(self, identifier: str) -> None:
@@ -227,8 +230,7 @@ class RateLimiter:
 
         cutoff = datetime.now() - self.ATTEMPT_WINDOW
         self._attempts[identifier] = [
-            a for a in self._attempts[identifier]
-            if a.attempt_time > cutoff
+            a for a in self._attempts[identifier] if a.attempt_time > cutoff
         ]
 
 
@@ -269,13 +271,13 @@ class PasswordHasher:
         if len(password) > cls.MAX_PASSWORD_LENGTH:
             return False, f"Password must be at most {cls.MAX_PASSWORD_LENGTH} characters"
 
-        if not re.search(r'[A-Z]', password):
+        if not re.search(r"[A-Z]", password):
             return False, "Password must contain at least one uppercase letter"
 
-        if not re.search(r'[a-z]', password):
+        if not re.search(r"[a-z]", password):
             return False, "Password must contain at least one lowercase letter"
 
-        if not re.search(r'\d', password):
+        if not re.search(r"\d", password):
             return False, "Password must contain at least one digit"
 
         if not re.search(r'[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\;\'`~]', password):
@@ -298,15 +300,11 @@ class PasswordHasher:
         if salt is None:
             salt = secrets.token_hex(cls.SALT_LENGTH)  # 32 bytes = 64 hex chars
 
-        password_bytes = password.encode('utf-8')
-        salt_bytes = salt.encode('utf-8')
+        password_bytes = password.encode("utf-8")
+        salt_bytes = salt.encode("utf-8")
 
         hash_bytes = hashlib.pbkdf2_hmac(
-            'sha256',
-            password_bytes,
-            salt_bytes,
-            cls.ITERATIONS,
-            dklen=cls.HASH_LENGTH
+            "sha256", password_bytes, salt_bytes, cls.ITERATIONS, dklen=cls.HASH_LENGTH
         )
 
         return hash_bytes.hex(), salt
@@ -399,11 +397,7 @@ class UserStore:
 
         # Generate HMAC over binding data + random component
         message = binding_data.encode() + random_component
-        signature = hmac.new(
-            self._token_secret,
-            message,
-            hashlib.sha256
-        ).digest()
+        signature = hmac.new(self._token_secret, message, hashlib.sha256).digest()
 
         # Token format: random_component || signature (both in base64)
         token_bytes = random_component + signature
@@ -446,11 +440,7 @@ class UserStore:
 
             # Recompute expected signature
             message = binding_data.encode() + random_component
-            expected_signature = hmac.new(
-                self._token_secret,
-                message,
-                hashlib.sha256
-            ).digest()
+            expected_signature = hmac.new(self._token_secret, message, hashlib.sha256).digest()
 
             return hmac.compare_digest(provided_signature, expected_signature)
 
@@ -486,7 +476,8 @@ class UserStore:
         cursor = self._connection.cursor()
 
         # Users table
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS users (
                 user_id TEXT PRIMARY KEY,
                 username TEXT UNIQUE NOT NULL,
@@ -501,10 +492,12 @@ class UserStore:
                 is_active INTEGER DEFAULT 1,
                 metadata_json TEXT
             )
-        """)
+        """
+        )
 
         # Sessions table
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS sessions (
                 session_id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -517,21 +510,30 @@ class UserStore:
                 is_active INTEGER DEFAULT 1,
                 FOREIGN KEY (user_id) REFERENCES users(user_id)
             )
-        """)
+        """
+        )
 
         # Indexes
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)
-        """)
-        cursor.execute("""
+        """
+        )
+        cursor.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)
-        """)
-        cursor.execute("""
+        """
+        )
+        cursor.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token)
-        """)
-        cursor.execute("""
+        """
+        )
+        cursor.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)
-        """)
+        """
+        )
 
         self._connection.commit()
 
@@ -606,26 +608,29 @@ class UserStore:
 
         with self._lock:
             cursor = self._connection.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO users (
                     user_id, username, email, password_hash, salt, role,
                     display_name, created_at, updated_at, last_login,
                     is_active, metadata_json
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                user.user_id,
-                user.username,
-                user.email,
-                user.password_hash,
-                user.salt,
-                user.role.value,
-                user.display_name,
-                user.created_at.isoformat(),
-                user.updated_at.isoformat(),
-                None,
-                1 if user.is_active else 0,
-                json.dumps(user.metadata),
-            ))
+            """,
+                (
+                    user.user_id,
+                    user.username,
+                    user.email,
+                    user.password_hash,
+                    user.salt,
+                    user.role.value,
+                    user.display_name,
+                    user.created_at.isoformat(),
+                    user.updated_at.isoformat(),
+                    None,
+                    1 if user.is_active else 0,
+                    json.dumps(user.metadata),
+                ),
+            )
             self._connection.commit()
 
         logger.info(f"Created user: {username} ({user_id})")
@@ -697,9 +702,12 @@ class UserStore:
         # Update last login
         with self._lock:
             cursor = self._connection.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE users SET last_login = ? WHERE user_id = ?
-            """, (datetime.now().isoformat(), user.user_id))
+            """,
+                (datetime.now().isoformat(), user.user_id),
+            )
             self._connection.commit()
 
         user.last_login = datetime.now()
@@ -771,10 +779,7 @@ class UserStore:
 
         with self._lock:
             cursor = self._connection.cursor()
-            cursor.execute(
-                f"UPDATE users SET {', '.join(updates)} WHERE user_id = ?",
-                params
-            )
+            cursor.execute(f"UPDATE users SET {', '.join(updates)} WHERE user_id = ?", params)
             self._connection.commit()
             return cursor.rowcount > 0
 
@@ -788,10 +793,13 @@ class UserStore:
 
         with self._lock:
             cursor = self._connection.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE users SET password_hash = ?, salt = ?, updated_at = ?
                 WHERE user_id = ?
-            """, (password_hash, salt, datetime.now().isoformat(), user_id))
+            """,
+                (password_hash, salt, datetime.now().isoformat(), user_id),
+            )
             self._connection.commit()
             return cursor.rowcount > 0
 
@@ -884,22 +892,25 @@ class UserStore:
 
         with self._lock:
             cursor = self._connection.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO sessions (
                     session_id, user_id, token, created_at, expires_at,
                     last_activity, ip_address, user_agent, is_active
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                session.session_id,
-                session.user_id,
-                session.token,
-                session.created_at.isoformat(),
-                session.expires_at.isoformat() if session.expires_at else None,
-                session.last_activity.isoformat(),
-                session.ip_address,
-                session.user_agent,
-                1,
-            ))
+            """,
+                (
+                    session.session_id,
+                    session.user_id,
+                    session.token,
+                    session.created_at.isoformat(),
+                    session.expires_at.isoformat() if session.expires_at else None,
+                    session.last_activity.isoformat(),
+                    session.ip_address,
+                    session.user_agent,
+                    1,
+                ),
+            )
             self._connection.commit()
 
         logger.info(f"Created session: {session_id} for user {user_id}")
@@ -958,8 +969,7 @@ class UserStore:
                 # Check if IP matches the bound IP
                 if ip_address != session.ip_address:
                     logger.warning(
-                        f"Session IP mismatch: expected {session.ip_address}, "
-                        f"got {ip_address}"
+                        f"Session IP mismatch: expected {session.ip_address}, " f"got {ip_address}"
                     )
                     return None
 
@@ -986,18 +996,24 @@ class UserStore:
         """Update session last activity time."""
         with self._lock:
             cursor = self._connection.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE sessions SET last_activity = ? WHERE session_id = ?
-            """, (datetime.now().isoformat(), session_id))
+            """,
+                (datetime.now().isoformat(), session_id),
+            )
             self._connection.commit()
 
     def invalidate_session(self, session_id: str) -> bool:
         """Invalidate a session."""
         with self._lock:
             cursor = self._connection.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE sessions SET is_active = 0 WHERE session_id = ?
-            """, (session_id,))
+            """,
+                (session_id,),
+            )
             self._connection.commit()
             return cursor.rowcount > 0
 
@@ -1005,9 +1021,12 @@ class UserStore:
         """Invalidate a session by token."""
         with self._lock:
             cursor = self._connection.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE sessions SET is_active = 0 WHERE token = ?
-            """, (token,))
+            """,
+                (token,),
+            )
             self._connection.commit()
             return cursor.rowcount > 0
 
@@ -1015,9 +1034,12 @@ class UserStore:
         """Invalidate all sessions for a user."""
         with self._lock:
             cursor = self._connection.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE sessions SET is_active = 0 WHERE user_id = ?
-            """, (user_id,))
+            """,
+                (user_id,),
+            )
             self._connection.commit()
             return cursor.rowcount
 
@@ -1025,10 +1047,13 @@ class UserStore:
         """Get all active sessions for a user."""
         with self._lock:
             cursor = self._connection.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT * FROM sessions WHERE user_id = ? AND is_active = 1
                 ORDER BY last_activity DESC
-            """, (user_id,))
+            """,
+                (user_id,),
+            )
             rows = cursor.fetchall()
 
         return [self._row_to_session(row) for row in rows]
@@ -1037,10 +1062,13 @@ class UserStore:
         """Clean up expired sessions."""
         with self._lock:
             cursor = self._connection.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE sessions SET is_active = 0
                 WHERE is_active = 1 AND expires_at < ?
-            """, (datetime.now().isoformat(),))
+            """,
+                (datetime.now().isoformat(),),
+            )
             self._connection.commit()
             return cursor.rowcount
 
@@ -1069,6 +1097,7 @@ def get_user_store() -> UserStore:
     if _user_store is None:
         # Default to file-based storage in the current directory
         from .config import get_config
+
         config = get_config()
         db_path = config.static_dir.parent / "users.db"
         _user_store = UserStore(db_path)

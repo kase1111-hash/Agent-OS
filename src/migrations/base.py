@@ -80,15 +80,11 @@ class Migration(ABC):
             return conn.cursor()
         return conn.execute(sql, params)
 
-    def executemany(
-        self, db_name: str, sql: str, params_list: List[tuple]
-    ) -> sqlite3.Cursor:
+    def executemany(self, db_name: str, sql: str, params_list: List[tuple]) -> sqlite3.Cursor:
         """Execute SQL for multiple parameter sets."""
         conn = self.get_connection(db_name)
         if self.context.dry_run:
-            logger.info(
-                f"[DRY RUN] Would execute {len(params_list)} times on {db_name}"
-            )
+            logger.info(f"[DRY RUN] Would execute {len(params_list)} times on {db_name}")
             return conn.cursor()
         return conn.executemany(sql, params_list)
 
@@ -157,9 +153,7 @@ class Migration(ABC):
         Raises:
             NotImplementedError: If downgrade is not supported
         """
-        raise NotImplementedError(
-            f"Migration {self.version} does not support downgrade"
-        )
+        raise NotImplementedError(f"Migration {self.version} does not support downgrade")
 
     def validate(self) -> bool:
         """

@@ -9,19 +9,20 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set
 
+from src.agents.interface import AgentCapabilities, BaseAgent, CapabilityType
 from src.messaging.models import (
     FlowRequest,
     FlowResponse,
+    MessageStatus,
     RequestContent,
     RequestMetadata,
-    MessageStatus,
 )
-from src.agents.interface import BaseAgent, AgentCapabilities, CapabilityType
 
 
 @dataclass
 class TestContext:
     """Context for a test scenario."""
+
     user_id: str = "test_user"
     session_id: str = field(default_factory=lambda: f"test-session-{uuid.uuid4().hex[:8]}")
     conversation_id: str = field(default_factory=lambda: f"test-conv-{uuid.uuid4().hex[:8]}")
@@ -292,22 +293,19 @@ class AgentTestCase:
 
     def assert_contains(self, response: FlowResponse, text: str) -> None:
         """Assert response output contains text."""
-        assert text in response.content.output, (
-            f"Expected output to contain '{text}', got: {response.content.output}"
-        )
+        assert (
+            text in response.content.output
+        ), f"Expected output to contain '{text}', got: {response.content.output}"
 
     def assert_not_contains(self, response: FlowResponse, text: str) -> None:
         """Assert response output does not contain text."""
-        assert text not in response.content.output, (
-            f"Expected output not to contain '{text}'"
-        )
+        assert text not in response.content.output, f"Expected output not to contain '{text}'"
 
     def assert_output_matches(self, response: FlowResponse, pattern: str) -> None:
         """Assert response output matches regex pattern."""
         import re
-        assert re.search(pattern, response.content.output), (
-            f"Expected output to match '{pattern}'"
-        )
+
+        assert re.search(pattern, response.content.output), f"Expected output to match '{pattern}'"
 
     def assert_has_reasoning(self, response: FlowResponse) -> None:
         """Assert response has reasoning."""
@@ -318,6 +316,6 @@ class AgentTestCase:
         if not self.agent:
             raise RuntimeError("No agent configured")
         caps = self.agent.get_capabilities()
-        assert capability in caps.capabilities, (
-            f"Expected agent to have capability {capability.value}"
-        )
+        assert (
+            capability in caps.capabilities
+        ), f"Expected agent to have capability {capability.value}"

@@ -68,24 +68,28 @@ class AlgorithmConfig:
 
     # Key encapsulation
     default_kem_algorithm: str = "ml-kem-768"
-    allowed_kem_algorithms: List[str] = field(default_factory=lambda: [
-        "ml-kem-512",
-        "ml-kem-768",
-        "ml-kem-1024",
-        "x25519-ml-kem-768",
-        "x25519-ml-kem-1024",
-    ])
+    allowed_kem_algorithms: List[str] = field(
+        default_factory=lambda: [
+            "ml-kem-512",
+            "ml-kem-768",
+            "ml-kem-1024",
+            "x25519-ml-kem-768",
+            "x25519-ml-kem-1024",
+        ]
+    )
     min_kem_security_level: int = 3  # NIST Level 3
 
     # Digital signatures
     default_sig_algorithm: str = "ml-dsa-65"
-    allowed_sig_algorithms: List[str] = field(default_factory=lambda: [
-        "ml-dsa-44",
-        "ml-dsa-65",
-        "ml-dsa-87",
-        "ed25519-ml-dsa-65",
-        "ed25519-ml-dsa-87",
-    ])
+    allowed_sig_algorithms: List[str] = field(
+        default_factory=lambda: [
+            "ml-dsa-44",
+            "ml-dsa-65",
+            "ml-dsa-87",
+            "ed25519-ml-dsa-65",
+            "ed25519-ml-dsa-87",
+        ]
+    )
     min_sig_security_level: int = 3  # NIST Level 3
 
     # Hybrid mode
@@ -94,10 +98,7 @@ class AlgorithmConfig:
 
     def is_algorithm_allowed(self, algorithm: str) -> bool:
         """Check if algorithm is allowed."""
-        return (
-            algorithm in self.allowed_kem_algorithms or
-            algorithm in self.allowed_sig_algorithms
-        )
+        return algorithm in self.allowed_kem_algorithms or algorithm in self.allowed_sig_algorithms
 
 
 # =============================================================================
@@ -155,17 +156,21 @@ class SecurityConfig:
     # Network security
     require_tls: bool = True
     min_tls_version: str = "1.3"
-    allowed_cipher_suites: List[str] = field(default_factory=lambda: [
-        "TLS_AES_256_GCM_SHA384",
-        "TLS_CHACHA20_POLY1305_SHA256",
-    ])
+    allowed_cipher_suites: List[str] = field(
+        default_factory=lambda: [
+            "TLS_AES_256_GCM_SHA384",
+            "TLS_CHACHA20_POLY1305_SHA256",
+        ]
+    )
 
     # Certificate validation
     require_certificate_validation: bool = True
-    allowed_certificate_algorithms: List[str] = field(default_factory=lambda: [
-        "ed25519-ml-dsa-65",
-        "ed25519-ml-dsa-87",
-    ])
+    allowed_certificate_algorithms: List[str] = field(
+        default_factory=lambda: [
+            "ed25519-ml-dsa-65",
+            "ed25519-ml-dsa-87",
+        ]
+    )
     max_certificate_chain_length: int = 5
 
     # Threat protection
@@ -199,10 +204,12 @@ class AuditConfig:
     alert_threshold_failed_ops: int = 10  # Per hour
 
     # Compliance standards
-    compliance_standards: List[str] = field(default_factory=lambda: [
-        "soc2",
-        "fips_140_3",
-    ])
+    compliance_standards: List[str] = field(
+        default_factory=lambda: [
+            "soc2",
+            "fips_140_3",
+        ]
+    )
 
     # Chain integrity
     enable_chain_verification: bool = True
@@ -551,8 +558,12 @@ class PQConfig:
                 if value is not None:
                     setattr(self, key, Path(value))
 
-        for key in ["enable_hybrid_mode", "enable_key_rotation",
-                    "enable_certificate_management", "enable_federation"]:
+        for key in [
+            "enable_hybrid_mode",
+            "enable_key_rotation",
+            "enable_certificate_management",
+            "enable_federation",
+        ]:
             if key in data:
                 setattr(self, key, data[key])
 
@@ -633,7 +644,9 @@ class PQConfig:
 
         # Check paths
         if self.key_store_path and not self.key_store_path.parent.exists():
-            errors.append(f"Key store parent directory does not exist: {self.key_store_path.parent}")
+            errors.append(
+                f"Key store parent directory does not exist: {self.key_store_path.parent}"
+            )
 
         return errors
 

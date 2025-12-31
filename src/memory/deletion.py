@@ -13,21 +13,21 @@ import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, Dict, Any, List, Callable
 from enum import Enum, auto
 from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
 
-from .profiles import EncryptionTier
-from .storage import BlobStorage, BlobStatus
-from .index import VaultIndex, AccessType
+from .index import AccessType, VaultIndex
 from .keys import KeyManager
-
+from .profiles import EncryptionTier
+from .storage import BlobStatus, BlobStorage
 
 logger = logging.getLogger(__name__)
 
 
 class DeletionStatus(Enum):
     """Status of a deletion request."""
+
     PENDING = auto()
     IN_PROGRESS = auto()
     COMPLETED = auto()
@@ -38,6 +38,7 @@ class DeletionStatus(Enum):
 
 class DeletionScope(Enum):
     """Scope of deletion."""
+
     SINGLE_BLOB = auto()
     CONSENT_CASCADE = auto()
     TIER_PURGE = auto()
@@ -47,6 +48,7 @@ class DeletionScope(Enum):
 @dataclass
 class DeletionRequest:
     """Request to delete data."""
+
     request_id: str
     scope: DeletionScope
     requested_by: str
@@ -62,6 +64,7 @@ class DeletionRequest:
 @dataclass
 class DeletionResult:
     """Result of a deletion operation."""
+
     request: DeletionRequest
     status: DeletionStatus
     blobs_deleted: int = 0
@@ -151,6 +154,7 @@ class DeletionManager:
             Created DeletionRequest
         """
         import secrets
+
         request_id = f"del_{secrets.token_hex(16)}"
 
         request = DeletionRequest(
@@ -184,8 +188,7 @@ class DeletionManager:
         )
 
         logger.info(
-            f"Deletion request created: {request_id} "
-            f"(scope={scope.name}, by={requested_by})"
+            f"Deletion request created: {request_id} " f"(scope={scope.name}, by={requested_by})"
         )
         return request
 
@@ -214,10 +217,7 @@ class DeletionManager:
             # Get blobs to delete based on scope
             blob_ids = self._get_blobs_for_deletion(request)
 
-            logger.info(
-                f"Executing deletion {request_id}: "
-                f"{len(blob_ids)} blobs to delete"
-            )
+            logger.info(f"Executing deletion {request_id}: " f"{len(blob_ids)} blobs to delete")
 
             # Delete each blob
             for blob_id in blob_ids:
@@ -370,9 +370,7 @@ class DeletionManager:
         """
         # Require confirmation for full purge
         if not confirmation_code or confirmation_code != "CONFIRM_FULL_PURGE":
-            raise ValueError(
-                "Full purge requires confirmation code 'CONFIRM_FULL_PURGE'"
-            )
+            raise ValueError("Full purge requires confirmation code 'CONFIRM_FULL_PURGE'")
 
         request = self.request_deletion(
             scope=DeletionScope.FULL_PURGE,

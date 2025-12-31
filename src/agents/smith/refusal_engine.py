@@ -8,36 +8,37 @@ Implements security checks S9-S12 for refusing harmful requests:
 - S12: Ambiguity handler
 """
 
-from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Optional, List, Dict, Any, Tuple, Callable
-from enum import Enum, auto
 import logging
 import re
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum, auto
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from src.messaging.models import FlowRequest, FlowResponse, MessageStatus
-
 
 logger = logging.getLogger(__name__)
 
 
 class RefusalType(Enum):
     """Types of refusals."""
-    HARD_BLOCK = auto()      # Absolute refusal, no appeal
-    SOFT_BLOCK = auto()      # Refusal with explanation
-    ESCALATE = auto()        # Escalate to human
-    CLARIFY = auto()         # Request clarification
-    CONSTRAIN = auto()       # Allow with constraints
+
+    HARD_BLOCK = auto()  # Absolute refusal, no appeal
+    SOFT_BLOCK = auto()  # Refusal with explanation
+    ESCALATE = auto()  # Escalate to human
+    CLARIFY = auto()  # Request clarification
+    CONSTRAIN = auto()  # Allow with constraints
 
 
 @dataclass
 class RefusalDecision:
     """Decision from the refusal engine."""
+
     refused: bool
     refusal_type: Optional[RefusalType] = None
-    check_id: str = ""       # S9, S10, etc.
+    check_id: str = ""  # S9, S10, etc.
     reason: str = ""
-    explanation: str = ""    # User-friendly explanation
+    explanation: str = ""  # User-friendly explanation
     suggested_action: Optional[str] = None
     confidence: float = 1.0  # Confidence in decision
     details: Dict[str, Any] = field(default_factory=dict)
@@ -47,6 +48,7 @@ class RefusalDecision:
 @dataclass
 class RefusalResponse:
     """Complete refusal response."""
+
     decisions: List[RefusalDecision]
     final_action: RefusalType
     message: str
@@ -106,8 +108,10 @@ class RefusalEngine:
 
     # Ambiguous request patterns
     AMBIGUITY_PATTERNS = [
-        (r"\b(it|that|this|they)\b(?!\s+(?:is|are|was|were|have|has|will|would|can|could))",
-         "pronoun_ambiguity"),
+        (
+            r"\b(it|that|this|they)\b(?!\s+(?:is|are|was|were|have|has|will|would|can|could))",
+            "pronoun_ambiguity",
+        ),
         (r"do\s+(?:that|it|the\s+thing)\b", "vague_action"),
         (r"you\s+know\s+what\s+i\s+mean", "implicit_understanding"),
         (r"(?:just|simply)\s+(?:do|make|give)\s+(?:it|that)", "vague_request"),
@@ -131,9 +135,7 @@ class RefusalEngine:
             "This request is too vague for me to safely proceed. Could you please "
             "clarify exactly what you're asking for?"
         ),
-        "generic": (
-            "I cannot fulfill this request as it conflicts with my guidelines."
-        ),
+        "generic": ("I cannot fulfill this request as it conflicts with my guidelines."),
     }
 
     def __init__(
@@ -153,20 +155,16 @@ class RefusalEngine:
 
         # Compile patterns
         self._escalation_patterns = [
-            (re.compile(p, re.IGNORECASE), name)
-            for p, name in self.ESCALATION_PATTERNS
+            (re.compile(p, re.IGNORECASE), name) for p, name in self.ESCALATION_PATTERNS
         ]
         self._deception_patterns = [
-            (re.compile(p, re.IGNORECASE), name)
-            for p, name in self.DECEPTION_PATTERNS
+            (re.compile(p, re.IGNORECASE), name) for p, name in self.DECEPTION_PATTERNS
         ]
         self._manipulation_patterns = [
-            (re.compile(p, re.IGNORECASE), name)
-            for p, name in self.MANIPULATION_PATTERNS
+            (re.compile(p, re.IGNORECASE), name) for p, name in self.MANIPULATION_PATTERNS
         ]
         self._ambiguity_patterns = [
-            (re.compile(p, re.IGNORECASE), name)
-            for p, name in self.AMBIGUITY_PATTERNS
+            (re.compile(p, re.IGNORECASE), name) for p, name in self.AMBIGUITY_PATTERNS
         ]
 
         # Metrics
@@ -245,9 +243,10 @@ class RefusalEngine:
 
         if detected:
             # Determine severity
-            high_severity = any(d in detected for d in [
-                "constitution_bypass", "security_bypass", "privilege_request"
-            ])
+            high_severity = any(
+                d in detected
+                for d in ["constitution_bypass", "security_bypass", "privilege_request"]
+            )
 
             return RefusalDecision(
                 refused=True,
@@ -285,9 +284,9 @@ class RefusalEngine:
 
         if detected:
             # Some framings are more benign than others
-            high_risk = any(d in detected for d in [
-                "story_exploit", "constraint_removal", "alternate_reality"
-            ])
+            high_risk = any(
+                d in detected for d in ["story_exploit", "constraint_removal", "alternate_reality"]
+            )
 
             # Check if there's an underlying harmful request
             has_harmful_content = self._check_harmful_with_framing(prompt)
@@ -300,7 +299,10 @@ class RefusalEngine:
                     reason=f"Deceptive framing: {detected[0]}",
                     explanation=self.REFUSAL_MESSAGES["deceptive_compliance"],
                     confidence=0.85 if high_risk else 0.75,
-                    details={"detected_patterns": detected, "has_harmful_content": has_harmful_content},
+                    details={
+                        "detected_patterns": detected,
+                        "has_harmful_content": has_harmful_content,
+                    },
                 )
             else:
                 # Flag but don't block benign creative requests
@@ -543,8 +545,6 @@ class RefusalEngine:
             "escalations": self._escalations,
             "clarifications": self._clarifications,
             "refusal_rate": (
-                self._refusals / self._total_evaluations
-                if self._total_evaluations > 0
-                else 0.0
+                self._refusals / self._total_evaluations if self._total_evaluations > 0 else 0.0
             ),
         }

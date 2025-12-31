@@ -34,30 +34,24 @@ Usage:
     # BoundaryClient, create_boundary_client
 """
 
-from .client import (
-    # Primary exports (new naming)
-    SmithClient,
-    SmithClientConfig,
-    create_smith_client,
-    # Backwards compatibility aliases
+from .client import (  # Primary exports (new naming); Backwards compatibility aliases
     BoundaryClient,
     BoundaryClientConfig,
+    SmithClient,
+    SmithClientConfig,
     create_boundary_client,
+    create_smith_client,
 )
-
-from .daemon import (
-    # Primary exports (new naming)
+from .daemon import (  # Primary exports (new naming); Backwards compatibility aliases; Shared types
+    BoundaryConfig,
+    BoundaryDaemon,
+    BoundaryMode,
+    Decision,
+    RequestType,
     SmithDaemon,
     SmithDaemonConfig,
-    create_smith_daemon,
-    # Backwards compatibility aliases
-    BoundaryDaemon,
-    BoundaryConfig,
     create_boundary_daemon,
-    # Shared types
-    BoundaryMode,
-    RequestType,
-    Decision,
+    create_smith_daemon,
 )
 
 __all__ = [

@@ -9,28 +9,21 @@ This module provides the FederationNode class that coordinates:
 """
 
 import asyncio
+import json
 import logging
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set
-from datetime import datetime
-import json
 
-from .identity import Identity, IdentityManager, create_identity
-from .protocol import (
-    FederationMessage,
-    FederationProtocol,
-    MessageType,
-    ProtocolHandler,
-    create_protocol,
-)
 from .crypto import (
     CryptoProvider,
     EncryptedMessage,
-    SessionKey,
     KeyExchangeMethod,
+    SessionKey,
     create_crypto_provider,
 )
+from .identity import Identity, IdentityManager, create_identity
 from .permissions import (
     Permission,
     PermissionGrant,
@@ -38,6 +31,13 @@ from .permissions import (
     PermissionManager,
     PermissionRequest,
     create_permission_manager,
+)
+from .protocol import (
+    FederationMessage,
+    FederationProtocol,
+    MessageType,
+    ProtocolHandler,
+    create_protocol,
 )
 
 logger = logging.getLogger(__name__)
@@ -196,9 +196,7 @@ class FederationNode:
         self._on_peer_connected: List[Callable[[str], None]] = []
         self._on_peer_disconnected: List[Callable[[str], None]] = []
         self._on_message: List[Callable[[str, FederationMessage], None]] = []
-        self._on_permission_request: List[
-            Callable[[str, PermissionRequest], None]
-        ] = []
+        self._on_permission_request: List[Callable[[str, PermissionRequest], None]] = []
 
         # Background tasks
         self._heartbeat_task: Optional[asyncio.Task] = None
@@ -424,7 +422,10 @@ class FederationNode:
             logger.warning(f"Cannot send message: peer '{peer_id}' not connected")
             return False
 
-        if connection.peer_info.state not in (ConnectionState.CONNECTED, ConnectionState.AUTHENTICATED):
+        if connection.peer_info.state not in (
+            ConnectionState.CONNECTED,
+            ConnectionState.AUTHENTICATED,
+        ):
             logger.warning(
                 f"Cannot send message to peer '{peer_id}': connection state is "
                 f"'{connection.peer_info.state.value}', expected 'connected' or 'authenticated'"
@@ -449,9 +450,7 @@ class FederationNode:
 
             # Encrypt if required
             if encrypted and self._crypto and connection.peer_info.session_key:
-                encrypted_msg = self._crypto.encrypt(
-                    message_data, connection.peer_info.session_key
-                )
+                encrypted_msg = self._crypto.encrypt(message_data, connection.peer_info.session_key)
                 if encrypted_msg:
                     message_data = json.dumps(
                         {
@@ -599,9 +598,7 @@ class FederationNode:
         """Register handler for incoming messages."""
         self._on_message.append(handler)
 
-    def on_permission_request(
-        self, handler: Callable[[str, PermissionRequest], None]
-    ):
+    def on_permission_request(self, handler: Callable[[str, PermissionRequest], None]):
         """Register handler for permission requests."""
         self._on_permission_request.append(handler)
 
@@ -630,13 +627,9 @@ class FederationNode:
         self._crypto = create_crypto_provider()
 
         # Permission manager
-        self._permission_manager = create_permission_manager(
-            node_id=self.config.node_id
-        )
+        self._permission_manager = create_permission_manager(node_id=self.config.node_id)
 
-    async def _handle_connection(
-        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
-    ):
+    async def _handle_connection(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         """Handle incoming connection."""
         addr = writer.get_extra_info("peername")
         logger.info(f"Incoming connection from {addr}")
@@ -690,8 +683,14 @@ class FederationNode:
                 }
 
                 if self._identity_manager and self._identity_manager.identity:
-                    handshake["public_key"] = self._identity_manager.identity.public_key.key_data.hex()
-                    handshake["certificate"] = self._identity_manager.identity.certificate.to_dict() if self._identity_manager.identity.certificate else None
+                    handshake["public_key"] = (
+                        self._identity_manager.identity.public_key.key_data.hex()
+                    )
+                    handshake["certificate"] = (
+                        self._identity_manager.identity.certificate.to_dict()
+                        if self._identity_manager.identity.certificate
+                        else None
+                    )
 
                 await connection.send(json.dumps(handshake).encode())
 
@@ -724,8 +723,14 @@ class FederationNode:
                 }
 
                 if self._identity_manager and self._identity_manager.identity:
-                    response["public_key"] = self._identity_manager.identity.public_key.key_data.hex()
-                    response["certificate"] = self._identity_manager.identity.certificate.to_dict() if self._identity_manager.identity.certificate else None
+                    response["public_key"] = (
+                        self._identity_manager.identity.public_key.key_data.hex()
+                    )
+                    response["certificate"] = (
+                        self._identity_manager.identity.certificate.to_dict()
+                        if self._identity_manager.identity.certificate
+                        else None
+                    )
 
                 await connection.send(json.dumps(response).encode())
 
@@ -743,7 +748,7 @@ class FederationNode:
             # Create peer identity
             peer_identity = None
             if "public_key" in peer_handshake:
-                from .identity import PublicKey, KeyType
+                from .identity import KeyType, PublicKey
 
                 peer_public_key = PublicKey(
                     key_type=KeyType.ED25519,
@@ -770,9 +775,7 @@ class FederationNode:
                     # Send key exchange init
                     key_init = self._crypto.create_key_exchange()
                     await connection.send(
-                        json.dumps(
-                            {"type": "key_exchange", "public_key": key_init.hex()}
-                        ).encode()
+                        json.dumps({"type": "key_exchange", "public_key": key_init.hex()}).encode()
                     )
 
                     # Receive response
@@ -807,9 +810,7 @@ class FederationNode:
                 identity=peer_identity,
                 address=connection.peer_info.address,
                 port=connection.peer_info.port,
-                state=ConnectionState.AUTHENTICATED
-                if peer_identity
-                else ConnectionState.CONNECTED,
+                state=ConnectionState.AUTHENTICATED if peer_identity else ConnectionState.CONNECTED,
                 connected_at=datetime.now(),
                 last_seen=datetime.now(),
                 session_key=session_key,
@@ -824,9 +825,7 @@ class FederationNode:
             self._peer_info[peer_id] = peer_info
 
             # Start receive loop
-            connection._receive_task = asyncio.create_task(
-                self._receive_loop(connection)
-            )
+            connection._receive_task = asyncio.create_task(self._receive_loop(connection))
 
             # Notify handlers
             for handler in self._on_peer_connected:
@@ -895,7 +894,9 @@ class FederationNode:
                     if msg_dict.get("encrypted") and self._crypto:
                         enc_data = msg_dict.get("data")
                         if not enc_data:
-                            logger.warning(f"Received encrypted message from {peer_id} without data field")
+                            logger.warning(
+                                f"Received encrypted message from {peer_id} without data field"
+                            )
                             continue
                         try:
                             enc_msg = EncryptedMessage.from_dict(enc_data)
@@ -921,17 +922,23 @@ class FederationNode:
                     consecutive_errors += 1
                     logger.warning(f"Invalid JSON received from {peer_id}: {e}")
                     if consecutive_errors >= max_consecutive_errors:
-                        logger.error(f"Too many consecutive parse errors from {peer_id}, disconnecting")
+                        logger.error(
+                            f"Too many consecutive parse errors from {peer_id}, disconnecting"
+                        )
                         break
                 except (KeyError, ValueError) as e:
                     consecutive_errors += 1
                     logger.warning(f"Malformed message from {peer_id}: {e}")
                     if consecutive_errors >= max_consecutive_errors:
-                        logger.error(f"Too many consecutive parse errors from {peer_id}, disconnecting")
+                        logger.error(
+                            f"Too many consecutive parse errors from {peer_id}, disconnecting"
+                        )
                         break
                 except Exception as e:
                     consecutive_errors += 1
-                    logger.error(f"Failed to process message from {peer_id}: {type(e).__name__}: {e}")
+                    logger.error(
+                        f"Failed to process message from {peer_id}: {type(e).__name__}: {e}"
+                    )
                     if consecutive_errors >= max_consecutive_errors:
                         logger.error(f"Too many consecutive errors from {peer_id}, disconnecting")
                         break
@@ -950,9 +957,7 @@ class FederationNode:
         if self._protocol:
             response = await self._protocol.receive_message(message)
             if response:
-                await self.send_message(
-                    peer_id, response.message_type, response.payload
-                )
+                await self.send_message(peer_id, response.message_type, response.payload)
 
         # Handle permission requests
         if message.message_type == MessageType.PERMISSION_REQUEST:

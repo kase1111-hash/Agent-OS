@@ -5,26 +5,26 @@ Integrates agents with the Constitutional Kernel for rule enforcement.
 Provides middleware for validating requests against constitutional rules.
 """
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, List, Dict, Any, Callable
-import logging
+from typing import Any, Callable, Dict, List, Optional
 
 from src.core.constitution import (
     ConstitutionalKernel,
-    RequestContext,
     EnforcementResult,
+    RequestContext,
 )
 from src.core.models import Rule, RuleType, ValidationResult
 from src.messaging.models import (
+    CheckStatus,
+    ConstitutionalCheck,
     FlowRequest,
     FlowResponse,
     MessageStatus,
-    CheckStatus,
-    ConstitutionalCheck,
 )
-from .interface import AgentInterface, RequestValidationResult
 
+from .interface import AgentInterface, RequestValidationResult
 
 logger = logging.getLogger(__name__)
 
@@ -32,17 +32,19 @@ logger = logging.getLogger(__name__)
 @dataclass
 class EnforcementConfig:
     """Configuration for constitutional enforcement."""
-    strict_mode: bool = True                  # Fail on any violation
-    allow_conditional: bool = True             # Allow conditional approvals
-    max_violations_before_block: int = 3       # Block after N violations in session
-    escalation_timeout_seconds: int = 300      # Timeout for human escalation
-    cache_enforcement_results: bool = True     # Cache enforcement decisions
-    cache_ttl_seconds: int = 60                # Cache TTL
+
+    strict_mode: bool = True  # Fail on any violation
+    allow_conditional: bool = True  # Allow conditional approvals
+    max_violations_before_block: int = 3  # Block after N violations in session
+    escalation_timeout_seconds: int = 300  # Timeout for human escalation
+    cache_enforcement_results: bool = True  # Cache enforcement decisions
+    cache_ttl_seconds: int = 60  # Cache TTL
 
 
 @dataclass
 class ViolationRecord:
     """Record of a constitutional violation."""
+
     timestamp: datetime
     request_id: str
     agent_name: str
@@ -220,10 +222,7 @@ class ConstitutionalEnforcer:
         )
         return request
 
-    def register_escalation_callback(
-        self,
-        callback: Callable[[ViolationRecord], None]
-    ) -> None:
+    def register_escalation_callback(self, callback: Callable[[ViolationRecord], None]) -> None:
         """
         Register a callback for when escalation is required.
 
@@ -345,10 +344,12 @@ class EnforcementMiddleware:
                 output="This request requires human approval.",
                 reasoning=validation.escalation_reason,
             )
-            response.next_actions.append({
-                "action": "escalate_to_human",
-                "reason": validation.escalation_reason,
-            })
+            response.next_actions.append(
+                {
+                    "action": "escalate_to_human",
+                    "reason": validation.escalation_reason,
+                }
+            )
             return response
 
         # Mark request as approved

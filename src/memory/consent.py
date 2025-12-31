@@ -8,32 +8,33 @@ Implements consent-gated memory operations:
 - Consent lifecycle management
 """
 
-import secrets
 import hashlib
 import logging
+import secrets
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List, Set, Callable
 from enum import Enum, auto
-import threading
+from typing import Any, Callable, Dict, List, Optional, Set
 
+from .index import AccessType, ConsentRecord, VaultIndex
 from .profiles import EncryptionTier
-from .index import VaultIndex, ConsentRecord, AccessType
-
 
 logger = logging.getLogger(__name__)
 
 
 class ConsentType(Enum):
     """Types of consent."""
-    OBSERVATION = auto()   # Observe but don't store
-    SESSION = auto()       # Store for session only
-    PERSISTENT = auto()    # Store persistently
-    LEARNING = auto()      # Allow learning/generalization
+
+    OBSERVATION = auto()  # Observe but don't store
+    SESSION = auto()  # Store for session only
+    PERSISTENT = auto()  # Store persistently
+    LEARNING = auto()  # Allow learning/generalization
 
 
 class ConsentOperation(Enum):
     """Operations that require consent."""
+
     READ = "read"
     WRITE = "write"
     DELETE = "delete"
@@ -44,6 +45,7 @@ class ConsentOperation(Enum):
 
 class ConsentStatus(Enum):
     """Status of a consent check."""
+
     GRANTED = auto()
     DENIED = auto()
     EXPIRED = auto()
@@ -55,6 +57,7 @@ class ConsentStatus(Enum):
 @dataclass
 class ConsentRequest:
     """Request for consent."""
+
     request_id: str
     requestor: str
     operation: ConsentOperation
@@ -69,6 +72,7 @@ class ConsentRequest:
 @dataclass
 class ConsentDecision:
     """Result of a consent check."""
+
     request: ConsentRequest
     status: ConsentStatus
     consent_id: Optional[str] = None
@@ -492,8 +496,7 @@ class ConsentManager:
 
         with self._lock:
             expired = [
-                c for c in self._active_consents.values()
-                if c.expires_at and c.expires_at < now
+                c for c in self._active_consents.values() if c.expires_at and c.expires_at < now
             ]
 
             for consent in expired:

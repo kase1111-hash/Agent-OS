@@ -260,15 +260,17 @@ class SeccompFilter:
         }
 
         return {
-            "defaultAction": action_map.get(
-                self.default_action, "SCMP_ACT_ALLOW"
-            ),
+            "defaultAction": action_map.get(self.default_action, "SCMP_ACT_ALLOW"),
             "architectures": [f"SCMP_ARCH_{a.upper()}" for a in self.architectures],
             "syscalls": [
                 {
                     "names": [sf.syscall],
                     "action": action_map.get(sf.action, "SCMP_ACT_ERRNO")
-                    + (f"({sf.errno_value})" if sf.action in (SeccompAction.ERRNO, SeccompAction.DENY) else ""),
+                    + (
+                        f"({sf.errno_value})"
+                        if sf.action in (SeccompAction.ERRNO, SeccompAction.DENY)
+                        else ""
+                    ),
                     "args": [
                         {
                             "index": arg.index,
@@ -428,7 +430,7 @@ class EbpfFilter:
         """
         # This would generate actual eBPF C code
         # For now, return a template
-        return f'''
+        return f"""
 #include <linux/bpf.h>
 #include <linux/ptrace.h>
 #include <bpf/bpf_helpers.h>
@@ -473,7 +475,7 @@ int trace_openat(struct trace_event_raw_sys_enter* ctx)
 }}
 
 char LICENSE[] SEC("license") = "GPL";
-'''
+"""
 
     def generate_network_filter(self, allowed_ports: List[int]) -> str:
         """Generate eBPF source for network filtering.
@@ -486,7 +488,7 @@ char LICENSE[] SEC("license") = "GPL";
         """
         ports_array = ", ".join(str(p) for p in allowed_ports)
 
-        return f'''
+        return f"""
 #include <linux/bpf.h>
 #include <linux/if_ether.h>
 #include <linux/ip.h>
@@ -533,7 +535,7 @@ int network_filter(struct __sk_buff *skb)
 }}
 
 char LICENSE[] SEC("license") = "GPL";
-'''
+"""
 
     def create_deny_filter(
         self,
@@ -636,20 +638,24 @@ char LICENSE[] SEC("license") = "GPL";
         result = []
 
         for filter_obj in self._seccomp_filters.values():
-            result.append({
-                "filter_id": filter_obj.filter_id,
-                "type": "seccomp",
-                "default_action": filter_obj.default_action.value,
-                "syscall_count": len(filter_obj.syscalls),
-            })
+            result.append(
+                {
+                    "filter_id": filter_obj.filter_id,
+                    "type": "seccomp",
+                    "default_action": filter_obj.default_action.value,
+                    "syscall_count": len(filter_obj.syscalls),
+                }
+            )
 
         for program in self._programs.values():
-            result.append({
-                "program_id": program.program_id,
-                "type": "ebpf",
-                "prog_type": program.prog_type.value,
-                "loaded": program.loaded,
-            })
+            result.append(
+                {
+                    "program_id": program.program_id,
+                    "type": "ebpf",
+                    "prog_type": program.prog_type.value,
+                    "loaded": program.loaded,
+                }
+            )
 
         return result
 
@@ -657,11 +663,7 @@ char LICENSE[] SEC("license") = "GPL";
         """Export all filters as JSON-compatible dict."""
         return {
             "seccomp_filters": {
-                fid: json.loads(f.to_json())
-                for fid, f in self._seccomp_filters.items()
+                fid: json.loads(f.to_json()) for fid, f in self._seccomp_filters.items()
             },
-            "ebpf_programs": {
-                pid: p.to_dict()
-                for pid, p in self._programs.items()
-            },
+            "ebpf_programs": {pid: p.to_dict() for pid, p in self._programs.items()},
         }

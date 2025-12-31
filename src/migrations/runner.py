@@ -55,9 +55,7 @@ class MigrationRunner:
             migrations_dir: Directory containing migration scripts
         """
         self.data_dir = Path(data_dir)
-        self.migrations_dir = migrations_dir or (
-            Path(__file__).parent / "versions"
-        )
+        self.migrations_dir = migrations_dir or (Path(__file__).parent / "versions")
         self._migrations: Dict[str, Type[Migration]] = {}
         self._connection: Optional[sqlite3.Connection] = None
 
@@ -72,7 +70,8 @@ class MigrationRunner:
 
     def _init_migrations_table(self) -> None:
         """Create the migrations tracking table if needed."""
-        self._connection.execute(f"""
+        self._connection.execute(
+            f"""
             CREATE TABLE IF NOT EXISTS {self.MIGRATIONS_TABLE} (
                 version TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -82,7 +81,8 @@ class MigrationRunner:
                 execution_time_ms REAL NOT NULL,
                 error_message TEXT
             )
-        """)
+        """
+        )
         self._connection.commit()
 
     def discover_migrations(self) -> Dict[str, Type[Migration]]:
@@ -103,9 +103,7 @@ class MigrationRunner:
                 continue
 
             try:
-                spec = importlib.util.spec_from_file_location(
-                    f"migrations.{path.stem}", path
-                )
+                spec = importlib.util.spec_from_file_location(f"migrations.{path.stem}", path)
                 if spec and spec.loader:
                     module = importlib.util.module_from_spec(spec)
                     spec.loader.exec_module(module)
@@ -131,11 +129,13 @@ class MigrationRunner:
     def get_applied_migrations(self) -> List[MigrationRecord]:
         """Get list of all applied migrations."""
         conn = self._get_connection()
-        cursor = conn.execute(f"""
+        cursor = conn.execute(
+            f"""
             SELECT * FROM {self.MIGRATIONS_TABLE}
             WHERE success = 1
             ORDER BY version
-        """)
+        """
+        )
         return [
             MigrationRecord(
                 version=row["version"],
@@ -170,9 +170,7 @@ class MigrationRunner:
         content = f"{migration_class.version}:{migration_class.name}:{source}"
         return hashlib.sha256(content.encode()).hexdigest()[:16]
 
-    def _resolve_dependencies(
-        self, migrations: List[Type[Migration]]
-    ) -> List[Type[Migration]]:
+    def _resolve_dependencies(self, migrations: List[Type[Migration]]) -> List[Type[Migration]]:
         """
         Order migrations based on dependencies.
 
@@ -188,9 +186,7 @@ class MigrationRunner:
             version = migration_class.version
 
             if version in stack:
-                raise MigrationError(
-                    f"Circular dependency detected involving {version}"
-                )
+                raise MigrationError(f"Circular dependency detected involving {version}")
 
             if version in seen:
                 return
@@ -335,9 +331,7 @@ class MigrationRunner:
             results.append(record)
 
             if not record.success:
-                logger.error(
-                    f"Stopping migrations due to failure at {migration_class.version}"
-                )
+                logger.error(f"Stopping migrations due to failure at {migration_class.version}")
                 break
 
         return results
@@ -400,9 +394,7 @@ class MigrationRunner:
             except NotImplementedError:
                 error_message = "Downgrade not supported"
                 logger.error(f"Migration {migration.version} cannot be reverted")
-                raise MigrationError(
-                    f"Migration {migration.version} does not support downgrade"
-                )
+                raise MigrationError(f"Migration {migration.version} does not support downgrade")
 
             except Exception as e:
                 error_message = str(e)
@@ -455,17 +447,14 @@ class MigrationRunner:
             "applied_count": len(applied),
             "pending_count": len(pending),
             "applied": [
-                {"version": m.version, "name": m.name, "applied_at": m.applied_at}
-                for m in applied
+                {"version": m.version, "name": m.name, "applied_at": m.applied_at} for m in applied
             ],
             "pending": [
                 {"version": m.version, "name": m.name, "description": m.description}
                 for m in pending
             ],
             "current_version": applied[-1].version if applied else None,
-            "latest_available": (
-                sorted(self._migrations.keys())[-1] if self._migrations else None
-            ),
+            "latest_available": (sorted(self._migrations.keys())[-1] if self._migrations else None),
         }
 
     def close(self) -> None:

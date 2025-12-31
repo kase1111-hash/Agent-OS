@@ -18,21 +18,22 @@ router = APIRouter()
 # Try to import real contracts module
 try:
     from src.contracts import (
-        ContractStore,
-        LearningContract,
-        ContractType,
-        ContractStatus,
-        ContractScope,
-        LearningScope,
-        ContractQuery,
-        create_contract_store,
         CONTRACT_TEMPLATES,
+        ContractQuery,
+        ContractScope,
+        ContractStatus,
+        ContractStore,
         ContractTemplate,
+        ContractType,
+        LearningContract,
+        LearningScope,
+        create_contract_from_template,
+        create_contract_store,
+        ensure_default_contracts,
         get_template,
         list_templates,
-        create_contract_from_template,
-        ensure_default_contracts,
     )
+
     REAL_CONTRACTS_AVAILABLE = True
 except ImportError as e:
     REAL_CONTRACTS_AVAILABLE = False
@@ -248,7 +249,11 @@ class ContractsStore:
                 created_at=now - timedelta(days=30),
                 expires_at=now + timedelta(days=335),
                 description="Enables Agent-OS to learn your coding patterns, style preferences, and project conventions for better code assistance.",
-                metadata={"category": "technical", "trust_level": "medium", "created_by": "agent_os_defaults"},
+                metadata={
+                    "category": "technical",
+                    "trust_level": "medium",
+                    "created_by": "agent_os_defaults",
+                },
             ),
             # 2. Memory Management Contract (Seshat)
             "aos-memory-002": ContractModel(
@@ -260,7 +265,11 @@ class ContractsStore:
                 created_at=now - timedelta(days=30),
                 expires_at=None,
                 description="Allows the Seshat memory agent to store conversation context and recall relevant information without cross-context generalization.",
-                metadata={"category": "memory", "agent": "seshat", "created_by": "agent_os_defaults"},
+                metadata={
+                    "category": "memory",
+                    "agent": "seshat",
+                    "created_by": "agent_os_defaults",
+                },
             ),
             # 3. Constitutional Compliance Contract (Smith)
             "aos-smith-003": ContractModel(
@@ -280,7 +289,14 @@ class ContractsStore:
                 user_id="default",
                 contract_type="PROHIBITED",
                 status="ACTIVE",
-                domains=["credentials", "passwords", "api_keys", "secrets", "tokens", "private_keys"],
+                domains=[
+                    "credentials",
+                    "passwords",
+                    "api_keys",
+                    "secrets",
+                    "tokens",
+                    "private_keys",
+                ],
                 created_at=now - timedelta(days=30),
                 expires_at=None,
                 description="Explicitly prohibits Agent-OS from learning or storing any credentials, API keys, passwords, or other security-sensitive data.",
@@ -296,7 +312,11 @@ class ContractsStore:
                 created_at=now - timedelta(days=30),
                 expires_at=now + timedelta(days=150),
                 description="Enables the Whisper agent to learn user intent patterns for improved request classification and agent routing.",
-                metadata={"category": "routing", "agent": "whisper", "created_by": "agent_os_defaults"},
+                metadata={
+                    "category": "routing",
+                    "agent": "whisper",
+                    "created_by": "agent_os_defaults",
+                },
             ),
             # 6. Personal Data Protection Contract
             "aos-privacy-006": ContractModel(
@@ -329,13 +349,19 @@ class ContractsStore:
         return ContractModel(
             id=contract.id,
             user_id=contract.user_id,
-            contract_type=contract.contract_type.name if hasattr(contract.contract_type, 'name') else str(contract.contract_type),
-            status=contract.status.name if hasattr(contract.status, 'name') else str(contract.status),
-            domains=list(contract.scope.domains) if hasattr(contract.scope, 'domains') else [],
+            contract_type=(
+                contract.contract_type.name
+                if hasattr(contract.contract_type, "name")
+                else str(contract.contract_type)
+            ),
+            status=(
+                contract.status.name if hasattr(contract.status, "name") else str(contract.status)
+            ),
+            domains=list(contract.scope.domains) if hasattr(contract.scope, "domains") else [],
             created_at=contract.created_at,
             expires_at=contract.expires_at,
-            description=contract.description if hasattr(contract, 'description') else "",
-            metadata=contract.metadata if hasattr(contract, 'metadata') else {},
+            description=contract.description if hasattr(contract, "description") else "",
+            metadata=contract.metadata if hasattr(contract, "metadata") else {},
         )
 
     def _convert_real_template(self, template: Any) -> ContractTemplateModel:
@@ -344,10 +370,22 @@ class ContractsStore:
             id=template.id,
             name=template.name,
             description=template.description,
-            contract_type=template.contract_type.name if hasattr(template.contract_type, 'name') else str(template.contract_type),
-            default_domains=list(template.default_domains) if hasattr(template, 'default_domains') else [],
-            default_duration_days=template.default_duration_days if hasattr(template, 'default_duration_days') else None,
-            recommended_for=template.recommended_for if hasattr(template, 'recommended_for') else "",
+            contract_type=(
+                template.contract_type.name
+                if hasattr(template.contract_type, "name")
+                else str(template.contract_type)
+            ),
+            default_domains=(
+                list(template.default_domains) if hasattr(template, "default_domains") else []
+            ),
+            default_duration_days=(
+                template.default_duration_days
+                if hasattr(template, "default_duration_days")
+                else None
+            ),
+            recommended_for=(
+                template.recommended_for if hasattr(template, "recommended_for") else ""
+            ),
         )
 
     def get_templates(self) -> List[ContractTemplateModel]:
@@ -371,7 +409,9 @@ class ContractsStore:
                 logger.error(f"Error getting template {template_id}: {e}")
         return self._mock_templates.get(template_id)
 
-    def get_contracts(self, status: Optional[str] = None, user_id: str = "default") -> List[ContractModel]:
+    def get_contracts(
+        self, status: Optional[str] = None, user_id: str = "default"
+    ) -> List[ContractModel]:
         """Get all contracts, optionally filtered by status."""
         if self._use_real_contracts and self._real_store:
             try:
@@ -444,7 +484,9 @@ class ContractsStore:
             raise ValueError(f"Template not found: {request.template_id}")
 
         domains = request.domains if request.domains else template.default_domains
-        duration = request.duration_days if request.duration_days else template.default_duration_days
+        duration = (
+            request.duration_days if request.duration_days else template.default_duration_days
+        )
 
         create_request = CreateContractRequest(
             user_id=request.user_id,
@@ -693,8 +735,7 @@ async def create_contract(
     valid_types = [t.name for t in store.get_contract_types()]
     if body.contract_type not in valid_types:
         raise HTTPException(
-            status_code=400,
-            detail=f"Invalid contract type. Valid types: {valid_types}"
+            status_code=400, detail=f"Invalid contract type. Valid types: {valid_types}"
         )
 
     contract = store.create_contract(body)
@@ -702,11 +743,16 @@ async def create_contract(
     # Log intent
     try:
         from ..intent_log import IntentType, log_user_intent
+
         log_user_intent(
             user_id=user_id,
             intent_type=IntentType.CONTRACT_CREATE,
             description=f"Created {body.contract_type} contract for domains: {body.domains}",
-            details={"contract_id": contract.id, "contract_type": body.contract_type, "domains": body.domains},
+            details={
+                "contract_id": contract.id,
+                "contract_type": body.contract_type,
+                "domains": body.domains,
+            },
             related_entity_type="contract",
             related_entity_id=contract.id,
         )
@@ -735,6 +781,7 @@ async def create_contract_from_template(
         # Log intent
         try:
             from ..intent_log import IntentType, log_user_intent
+
             log_user_intent(
                 user_id=user_id,
                 intent_type=IntentType.CONTRACT_CREATE,
@@ -778,6 +825,7 @@ async def revoke_contract(
         # Log intent
         try:
             from ..intent_log import IntentType, log_user_intent
+
             log_user_intent(
                 user_id=user_id,
                 intent_type=IntentType.CONTRACT_REVOKE,

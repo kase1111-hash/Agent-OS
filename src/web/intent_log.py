@@ -21,31 +21,33 @@ logger = logging.getLogger(__name__)
 
 class IntentType(Enum):
     """Types of user intents."""
-    CHAT_MESSAGE = auto()        # User sent a chat message
-    COMMAND = auto()             # User executed a command
-    NAVIGATION = auto()          # User navigated to a view
-    CONTRACT_CREATE = auto()     # User created a contract
-    CONTRACT_REVOKE = auto()     # User revoked a contract
-    CONTRACT_VIEW = auto()       # User viewed contracts
-    MEMORY_CREATE = auto()       # User created a memory
-    MEMORY_DELETE = auto()       # User deleted a memory
-    MEMORY_SEARCH = auto()       # User searched memories
-    AGENT_INTERACT = auto()      # User interacted with an agent
-    RULE_CREATE = auto()         # User created a rule
-    RULE_UPDATE = auto()         # User updated a rule
-    RULE_DELETE = auto()         # User deleted a rule
-    AUTH_LOGIN = auto()          # User logged in
-    AUTH_LOGOUT = auto()         # User logged out
-    AUTH_REGISTER = auto()       # User registered
-    SETTINGS_CHANGE = auto()     # User changed settings
-    SYSTEM_ACTION = auto()       # Other system action
-    EXPORT = auto()              # User exported data
-    IMPORT = auto()              # User imported data
+
+    CHAT_MESSAGE = auto()  # User sent a chat message
+    COMMAND = auto()  # User executed a command
+    NAVIGATION = auto()  # User navigated to a view
+    CONTRACT_CREATE = auto()  # User created a contract
+    CONTRACT_REVOKE = auto()  # User revoked a contract
+    CONTRACT_VIEW = auto()  # User viewed contracts
+    MEMORY_CREATE = auto()  # User created a memory
+    MEMORY_DELETE = auto()  # User deleted a memory
+    MEMORY_SEARCH = auto()  # User searched memories
+    AGENT_INTERACT = auto()  # User interacted with an agent
+    RULE_CREATE = auto()  # User created a rule
+    RULE_UPDATE = auto()  # User updated a rule
+    RULE_DELETE = auto()  # User deleted a rule
+    AUTH_LOGIN = auto()  # User logged in
+    AUTH_LOGOUT = auto()  # User logged out
+    AUTH_REGISTER = auto()  # User registered
+    SETTINGS_CHANGE = auto()  # User changed settings
+    SYSTEM_ACTION = auto()  # Other system action
+    EXPORT = auto()  # User exported data
+    IMPORT = auto()  # User imported data
 
 
 @dataclass
 class IntentLogEntry:
     """A single intent log entry."""
+
     entry_id: str
     user_id: str
     intent_type: IntentType
@@ -95,6 +97,7 @@ class IntentLogEntry:
 @dataclass
 class IntentLogQuery:
     """Query parameters for finding intent log entries."""
+
     user_id: Optional[str] = None
     intent_type: Optional[IntentType] = None
     intent_types: Optional[List[IntentType]] = None
@@ -261,34 +264,40 @@ class IntentLogStore:
             }
 
             # Total entries
-            cursor.execute(
-                "SELECT COUNT(*) FROM intent_log WHERE user_id = ?",
-                (user_id,)
-            )
+            cursor.execute("SELECT COUNT(*) FROM intent_log WHERE user_id = ?", (user_id,))
             stats["total_entries"] = cursor.fetchone()[0]
 
             # By type
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT intent_type, COUNT(*)
                 FROM intent_log
                 WHERE user_id = ?
                 GROUP BY intent_type
-            """, (user_id,))
+            """,
+                (user_id,),
+            )
             for row in cursor.fetchall():
                 stats["by_type"][row[0]] = row[1]
 
             # Recent 24h
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT COUNT(*) FROM intent_log
                 WHERE user_id = ? AND created_at > ?
-            """, (user_id, (datetime.now() - timedelta(hours=24)).isoformat()))
+            """,
+                (user_id, (datetime.now() - timedelta(hours=24)).isoformat()),
+            )
             stats["recent_24h"] = cursor.fetchone()[0]
 
             # Recent 7d
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT COUNT(*) FROM intent_log
                 WHERE user_id = ? AND created_at > ?
-            """, (user_id, (datetime.now() - timedelta(days=7)).isoformat()))
+            """,
+                (user_id, (datetime.now() - timedelta(days=7)).isoformat()),
+            )
             stats["recent_7d"] = cursor.fetchone()[0]
 
             return stats
@@ -297,10 +306,7 @@ class IntentLogStore:
         """Delete all entries for a user. Returns count deleted."""
         with self._lock:
             cursor = self._connection.cursor()
-            cursor.execute(
-                "DELETE FROM intent_log WHERE user_id = ?",
-                (user_id,)
-            )
+            cursor.execute("DELETE FROM intent_log WHERE user_id = ?", (user_id,))
             self._connection.commit()
             count = cursor.rowcount
             logger.info(f"Deleted {count} intent log entries for user {user_id}")
@@ -311,10 +317,7 @@ class IntentLogStore:
         with self._lock:
             cursor = self._connection.cursor()
             cutoff = (datetime.now() - timedelta(days=days)).isoformat()
-            cursor.execute(
-                "DELETE FROM intent_log WHERE created_at < ?",
-                (cutoff,)
-            )
+            cursor.execute("DELETE FROM intent_log WHERE created_at < ?", (cutoff,))
             self._connection.commit()
             count = cursor.rowcount
             logger.info(f"Deleted {count} intent log entries older than {days} days")
@@ -324,7 +327,8 @@ class IntentLogStore:
         """Create database tables."""
         cursor = self._connection.cursor()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS intent_log (
                 entry_id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -338,62 +342,71 @@ class IntentLogStore:
                 user_agent TEXT,
                 created_at TEXT NOT NULL
             )
-        """)
+        """
+        )
 
         # Indexes for common queries
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_intent_log_user_id
             ON intent_log(user_id)
-        """)
+        """
+        )
 
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_intent_log_user_created
             ON intent_log(user_id, created_at DESC)
-        """)
+        """
+        )
 
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_intent_log_session
             ON intent_log(session_id)
-        """)
+        """
+        )
 
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_intent_log_type
             ON intent_log(intent_type)
-        """)
+        """
+        )
 
         self._connection.commit()
 
     def _insert_entry(self, entry: IntentLogEntry) -> None:
         """Insert an entry into the database."""
         cursor = self._connection.cursor()
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO intent_log (
                 entry_id, user_id, intent_type, description, details_json,
                 session_id, related_entity_type, related_entity_id,
                 ip_address, user_agent, created_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            entry.entry_id,
-            entry.user_id,
-            entry.intent_type.name,
-            entry.description,
-            json.dumps(entry.details) if entry.details else None,
-            entry.session_id,
-            entry.related_entity_type,
-            entry.related_entity_id,
-            entry.ip_address,
-            entry.user_agent,
-            entry.created_at.isoformat(),
-        ))
+        """,
+            (
+                entry.entry_id,
+                entry.user_id,
+                entry.intent_type.name,
+                entry.description,
+                json.dumps(entry.details) if entry.details else None,
+                entry.session_id,
+                entry.related_entity_type,
+                entry.related_entity_id,
+                entry.ip_address,
+                entry.user_agent,
+                entry.created_at.isoformat(),
+            ),
+        )
         self._connection.commit()
 
     def _get_entry(self, entry_id: str) -> Optional[IntentLogEntry]:
         """Get an entry from the database."""
         cursor = self._connection.cursor()
-        cursor.execute(
-            "SELECT * FROM intent_log WHERE entry_id = ?",
-            (entry_id,)
-        )
+        cursor.execute("SELECT * FROM intent_log WHERE entry_id = ?", (entry_id,))
         row = cursor.fetchone()
         if not row:
             return None
@@ -476,6 +489,7 @@ def get_intent_log_store() -> IntentLogStore:
     global _intent_log_store
     if _intent_log_store is None:
         from .config import get_config
+
         config = get_config()
         db_path = config.data_dir / "intent_log.db"
         _intent_log_store = IntentLogStore(db_path=db_path)

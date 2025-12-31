@@ -12,45 +12,14 @@ Features:
 - Genesis proof system
 """
 
-from .profiles import (
-    EncryptionTier,
-    EncryptionProfile,
-    KeyDerivation,
-    KeyBinding,
-    ProfileManager,
-    WORKING_PROFILE,
-    PRIVATE_PROFILE,
-    SEALED_PROFILE,
-    VAULTED_PROFILE,
-)
-from .keys import (
-    KeyManager,
-    KeyMetadata,
-    KeyStatus,
-    DerivedKey,
-    HardwareBindingInterface,
-)
-from .storage import (
-    BlobStorage,
-    BlobMetadata,
-    BlobType,
-    BlobStatus,
-    EncryptedBlob,
-)
-from .index import (
-    VaultIndex,
-    ConsentRecord,
-    AccessLogEntry,
-    AccessType,
-)
 from .consent import (
-    ConsentManager,
-    ConsentType,
-    ConsentOperation,
-    ConsentStatus,
-    ConsentRequest,
     ConsentDecision,
+    ConsentManager,
+    ConsentOperation,
     ConsentPolicy,
+    ConsentRequest,
+    ConsentStatus,
+    ConsentType,
     create_default_observation_contract,
     create_explicit_learning_contract,
 )
@@ -58,8 +27,8 @@ from .deletion import (
     DeletionManager,
     DeletionRequest,
     DeletionResult,
-    DeletionStatus,
     DeletionScope,
+    DeletionStatus,
     TTLEnforcer,
 )
 from .genesis import (
@@ -67,14 +36,44 @@ from .genesis import (
     GenesisRecord,
     IntegrityProof,
 )
+from .index import (
+    AccessLogEntry,
+    AccessType,
+    ConsentRecord,
+    VaultIndex,
+)
+from .keys import (
+    DerivedKey,
+    HardwareBindingInterface,
+    KeyManager,
+    KeyMetadata,
+    KeyStatus,
+)
+from .profiles import (
+    PRIVATE_PROFILE,
+    SEALED_PROFILE,
+    VAULTED_PROFILE,
+    WORKING_PROFILE,
+    EncryptionProfile,
+    EncryptionTier,
+    KeyBinding,
+    KeyDerivation,
+    ProfileManager,
+)
+from .storage import (
+    BlobMetadata,
+    BlobStatus,
+    BlobStorage,
+    BlobType,
+    EncryptedBlob,
+)
 from .vault import (
     MemoryVault,
-    VaultConfig,
-    StoreResult,
     RetrieveResult,
+    StoreResult,
+    VaultConfig,
     create_vault,
 )
-
 
 __all__ = [
     # Profiles

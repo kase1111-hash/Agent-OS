@@ -5,36 +5,38 @@ Provides pre-execution and post-execution hooks for Smith (Guardian) validation.
 All requests passing through Whisper must be validated by Smith.
 """
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, List, Dict, Any, Callable
 from enum import Enum, auto
-import logging
+from typing import Any, Callable, Dict, List, Optional
 
 from src.messaging.models import (
+    CheckStatus,
+    ConstitutionalCheck,
     FlowRequest,
     FlowResponse,
     MessageStatus,
-    CheckStatus,
-    ConstitutionalCheck,
 )
-from .intent import IntentClassification, IntentCategory
 
+from .intent import IntentCategory, IntentClassification
 
 logger = logging.getLogger(__name__)
 
 
 class SmithCheckType(Enum):
     """Types of Smith validation checks."""
-    PRE_EXECUTION = auto()   # Before routing to agent
+
+    PRE_EXECUTION = auto()  # Before routing to agent
     POST_EXECUTION = auto()  # After agent response
-    MEMORY_ACCESS = auto()   # Before memory operations
-    EXTERNAL_ACCESS = auto() # Before external system access
+    MEMORY_ACCESS = auto()  # Before memory operations
+    EXTERNAL_ACCESS = auto()  # Before external system access
 
 
 @dataclass
 class SmithValidation:
     """Result of Smith validation."""
+
     approved: bool
     check_type: SmithCheckType
     violations: List[str] = field(default_factory=list)
@@ -122,9 +124,7 @@ class SmithIntegration:
             return self.smith_validator(request, SmithCheckType.PRE_EXECUTION)
 
         # Default validation (rule-based)
-        return self._default_validation(
-            request, SmithCheckType.PRE_EXECUTION, classification
-        )
+        return self._default_validation(request, SmithCheckType.PRE_EXECUTION, classification)
 
     def post_validate(
         self,
@@ -271,12 +271,14 @@ class SmithIntegration:
             reasoning=validation.approval_reason or "Escalation required",
         )
 
-        response.next_actions.append({
-            "action": "escalate_to_human",
-            "reason": validation.approval_reason,
-            "request_id": str(request.request_id),
-            "violations": validation.violations,
-        })
+        response.next_actions.append(
+            {
+                "action": "escalate_to_human",
+                "reason": validation.approval_reason,
+                "request_id": str(request.request_id),
+                "violations": validation.violations,
+            }
+        )
 
         return response
 
@@ -434,8 +436,6 @@ class SmithIntegration:
             "denials": self._denials,
             "escalations": self._escalations,
             "approval_rate": (
-                self._approvals / self._validations
-                if self._validations > 0
-                else 0.0
+                self._approvals / self._validations if self._validations > 0 else 0.0
             ),
         }

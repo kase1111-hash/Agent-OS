@@ -20,29 +20,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from .state_monitor import (
-    StateMonitor,
-    SystemState,
-    NetworkState,
-    create_state_monitor,
-)
-from .tripwires import (
-    TripwireSystem,
-    TripwireEvent,
-    create_tripwire_system,
-)
-from .policy_engine import (
-    PolicyEngine,
-    PolicyRequest,
-    PolicyDecision,
-    BoundaryMode,
-    RequestType,
-    Decision,
-    create_policy_engine,
-)
 from .enforcement import (
-    EnforcementLayer,
     EnforcementEvent,
+    EnforcementLayer,
     EnforcementSeverity,
     create_enforcement_layer,
 )
@@ -50,7 +30,26 @@ from .event_log import (
     ImmutableEventLog,
     create_event_log,
 )
-
+from .policy_engine import (
+    BoundaryMode,
+    Decision,
+    PolicyDecision,
+    PolicyEngine,
+    PolicyRequest,
+    RequestType,
+    create_policy_engine,
+)
+from .state_monitor import (
+    NetworkState,
+    StateMonitor,
+    SystemState,
+    create_state_monitor,
+)
+from .tripwires import (
+    TripwireEvent,
+    TripwireSystem,
+    create_tripwire_system,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +57,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SmithDaemonConfig:
     """Configuration for the Smith Daemon (Agent Smith's system-level enforcer)."""
+
     initial_mode: BoundaryMode = BoundaryMode.RESTRICTED
     log_path: Optional[Path] = None
     state_poll_interval: float = 1.0

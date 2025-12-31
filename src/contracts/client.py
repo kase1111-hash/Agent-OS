@@ -11,33 +11,32 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set
 
-from .store import (
-    ContractStore,
-    LearningContract,
-    ContractType,
-    ContractScope,
-    LearningScope,
-    ContractStatus,
-)
-from .enforcement import (
-    LearningContractsEngine,
-    EnforcementResult,
-    EnforcementDecision,
-    EnforcementConfig,
-    create_learning_contracts_engine,
-)
-from .consent import (
-    ConsentPrompt,
-    ConsentRequest,
-    ConsentDecision,
-    ConsentResponse,
-    ConsentMode,
-)
 from .abstraction import (
     AbstractionLevel,
     AbstractionResult,
 )
-
+from .consent import (
+    ConsentDecision,
+    ConsentMode,
+    ConsentPrompt,
+    ConsentRequest,
+    ConsentResponse,
+)
+from .enforcement import (
+    EnforcementConfig,
+    EnforcementDecision,
+    EnforcementResult,
+    LearningContractsEngine,
+    create_learning_contracts_engine,
+)
+from .store import (
+    ContractScope,
+    ContractStatus,
+    ContractStore,
+    ContractType,
+    LearningContract,
+    LearningScope,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +44,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ContractsClientConfig:
     """Configuration for the contracts client."""
+
     db_path: Optional[Path] = None
     default_deny: bool = True
     enable_abstraction: bool = True
@@ -395,7 +395,9 @@ class ContractsClient:
             "request_count": self._request_count,
             "allowed_count": self._allowed_count,
             "denied_count": self._denied_count,
-            "allowed_ratio": self._allowed_count / self._request_count if self._request_count > 0 else 0,
+            "allowed_ratio": (
+                self._allowed_count / self._request_count if self._request_count > 0 else 0
+            ),
             "engine_stats": self._engine.get_statistics(),
         }
 
@@ -409,6 +411,7 @@ class ContractsClient:
         if cached:
             result, timestamp = cached
             from datetime import datetime
+
             if (datetime.now() - timestamp).total_seconds() < self.config.cache_ttl_minutes * 60:
                 return result
             del self._decision_cache[cache_key]
@@ -418,6 +421,7 @@ class ContractsClient:
         """Cache a decision result."""
         if self.config.cache_decisions:
             from datetime import datetime
+
             self._decision_cache[cache_key] = (result, datetime.now())
 
             # Limit cache size

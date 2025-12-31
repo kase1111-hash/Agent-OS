@@ -131,10 +131,7 @@ async def get_health() -> HealthResponse:
 
     return HealthResponse(
         status=result["status"],
-        checks={
-            name: HealthCheckDetail(**data)
-            for name, data in result.get("checks", {}).items()
-        },
+        checks={name: HealthCheckDetail(**data) for name, data in result.get("checks", {}).items()},
         checked_at=result["checked_at"],
     )
 
@@ -262,9 +259,9 @@ async def get_observability_status() -> Dict[str, Any]:
     Returns information about what observability features are available
     and their current state.
     """
-    from src.observability.metrics import get_metrics, PROMETHEUS_AVAILABLE
-    from src.observability.tracing import get_tracer, OTEL_AVAILABLE
     from src.observability.health import get_health_aggregator
+    from src.observability.metrics import PROMETHEUS_AVAILABLE, get_metrics
+    from src.observability.tracing import OTEL_AVAILABLE, get_tracer
 
     registry = get_metrics()
     tracer = get_tracer()

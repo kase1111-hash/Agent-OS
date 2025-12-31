@@ -117,9 +117,7 @@ class BackupManager:
                 sha256.update(chunk)
         return sha256.hexdigest()
 
-    def _backup_database(
-        self, db_path: Path, backup_path: Path
-    ) -> Optional[str]:
+    def _backup_database(self, db_path: Path, backup_path: Path) -> Optional[str]:
         """
         Backup a SQLite database using the backup API.
 
@@ -144,9 +142,7 @@ class BackupManager:
             source.close()
             raise BackupError(f"Failed to backup {db_path}: {e}")
 
-    def _backup_blob_storage(
-        self, backup_staging: Path
-    ) -> Dict[str, str]:
+    def _backup_blob_storage(self, backup_staging: Path) -> Dict[str, str]:
         """
         Backup encrypted blob storage.
 
@@ -369,9 +365,7 @@ class BackupManager:
 
                         # Create backup of current if exists
                         if target_db.exists():
-                            target_db.rename(
-                                target_db.with_suffix(".db.pre_restore")
-                            )
+                            target_db.rename(target_db.with_suffix(".db.pre_restore"))
 
                         shutil.copy2(backup_db, target_db)
                         logger.info(f"Restored database: {db_name}")
@@ -385,9 +379,7 @@ class BackupManager:
 
                         # Backup current
                         if target.exists():
-                            target.rename(
-                                target.with_suffix(".pre_restore")
-                            )
+                            target.rename(target.with_suffix(".pre_restore"))
 
                         shutil.copytree(source, target)
                         logger.info(f"Restored {subdir} storage")
@@ -398,9 +390,7 @@ class BackupManager:
             if staging_dir and staging_dir.exists():
                 shutil.rmtree(staging_dir)
 
-    def _verify_checksums(
-        self, source_dir: Path, checksums: Dict[str, str]
-    ) -> None:
+    def _verify_checksums(self, source_dir: Path, checksums: Dict[str, str]) -> None:
         """Verify file checksums match manifest."""
         for rel_path, expected_checksum in checksums.items():
             file_path = source_dir / rel_path
@@ -430,9 +420,7 @@ class BackupManager:
         else:
             raise BackupError(f"Backup not found: {backup_id}")
 
-    def cleanup_old_backups(
-        self, keep_count: int = 5, keep_days: Optional[int] = None
-    ) -> int:
+    def cleanup_old_backups(self, keep_count: int = 5, keep_days: Optional[int] = None) -> int:
         """
         Remove old backups.
 
@@ -480,6 +468,4 @@ def create_pre_migration_backup(data_dir: Path) -> BackupManifest:
         BackupManifest of created backup
     """
     manager = BackupManager(data_dir)
-    return manager.create_backup(
-        metadata={"type": "pre_migration", "automated": True}
-    )
+    return manager.create_backup(metadata={"type": "pre_migration", "automated": True})
