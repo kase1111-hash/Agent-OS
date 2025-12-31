@@ -210,6 +210,14 @@ AGENT_OS_WEB_HOST=0.0.0.0
 AGENT_OS_DATA_DIR=/app/data
 AGENT_OS_WEB_DEBUG=false
 
+# Ollama AI Backend
+OLLAMA_ENDPOINT=http://localhost:11434
+OLLAMA_MODEL=mistral
+OLLAMA_TIMEOUT=120
+
+# Boundary Security
+AGENT_OS_BOUNDARY_NETWORK_ALLOWED=true  # Allow network access to Ollama
+
 # Authentication & Rate Limiting
 AGENT_OS_REQUIRE_AUTH=false
 AGENT_OS_RATE_LIMIT_ENABLED=true
