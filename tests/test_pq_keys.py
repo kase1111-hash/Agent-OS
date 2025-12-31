@@ -9,6 +9,23 @@ import tempfile
 from pathlib import Path
 from datetime import timedelta
 
+
+def _check_liboqs_available() -> bool:
+    """Check if liboqs is available for post-quantum cryptography."""
+    try:
+        import oqs
+        return "Kyber768" in oqs.get_enabled_kem_mechanisms()
+    except ImportError:
+        return False
+
+
+# Skip all tests if liboqs is not available
+pytestmark = pytest.mark.skipif(
+    not _check_liboqs_available(),
+    reason="liboqs library required for post-quantum cryptography tests"
+)
+
+
 from src.memory.pq_keys import (
     PostQuantumKeyManager,
     QuantumKeyType,
