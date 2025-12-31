@@ -12,6 +12,63 @@ from typing import Any, Dict, Optional
 
 from .config import WebConfig, get_config
 
+# API version
+API_VERSION = "1.0.0"
+
+# OpenAPI Tags with descriptions for documentation
+OPENAPI_TAGS = [
+    {
+        "name": "Authentication",
+        "description": "User authentication, registration, and session management. "
+        "Supports both cookie-based sessions and Bearer token authentication.",
+    },
+    {
+        "name": "Chat",
+        "description": "Conversational AI interface. Send messages, manage conversations, "
+        "and interact with AI agents through chat. Supports WebSocket for real-time streaming.",
+    },
+    {
+        "name": "Agents",
+        "description": "Monitor and manage AI agents. View agent status, metrics, logs, "
+        "and control agent lifecycle (start, stop, restart).",
+    },
+    {
+        "name": "Constitution",
+        "description": "Constitutional governance management. View, search, and manage "
+        "the rules that govern AI behavior. Core principles are immutable.",
+    },
+    {
+        "name": "Contracts",
+        "description": "Learning contracts and consent management. Create and manage "
+        "user consent for data storage and AI learning capabilities.",
+    },
+    {
+        "name": "Memory",
+        "description": "User memory management with consent-based storage. "
+        "View, search, export, and delete stored memories. Supports right to inspect and delete.",
+    },
+    {
+        "name": "Images",
+        "description": "AI image generation and gallery management. "
+        "Generate images with various models and manage your image gallery.",
+    },
+    {
+        "name": "Voice",
+        "description": "Voice interface for speech-to-text and text-to-speech. "
+        "Supports real-time voice streaming via WebSocket.",
+    },
+    {
+        "name": "Intent Log",
+        "description": "Immutable audit log of all AI decisions and actions. "
+        "Provides transparency and accountability for AI behavior.",
+    },
+    {
+        "name": "System",
+        "description": "System status, health checks, and configuration. "
+        "Monitor system resources and component health.",
+    },
+]
+
 logger = logging.getLogger(__name__)
 
 
@@ -132,10 +189,49 @@ def create_app(config: Optional[WebConfig] = None) -> Any:
                 pass
 
     app = FastAPI(
-        title="Agent OS",
-        description="Web interface for Agent OS - Your Personal AI Operating System",
-        version="1.0.0",
+        title="Agent OS API",
+        description="""
+## Constitutional Operating System for Local AI
+
+Agent OS provides a REST API for interacting with your personal AI operating system.
+All AI behavior is governed by a transparent, natural language constitution.
+
+### Key Features
+
+- **Constitutional Governance**: AI behavior governed by readable, amendable rules
+- **Consent-Based Memory**: Long-term memory requires explicit user approval
+- **Multi-Agent Architecture**: Specialized agents (Whisper, Smith, Seshat, Sage, Quill, Muse)
+- **Privacy First**: All data stays local on your machine
+
+### Authentication
+
+Most endpoints require authentication. Use one of these methods:
+
+- **Session Cookie**: Set automatically after login via `/api/auth/login`
+- **Bearer Token**: Pass `Authorization: Bearer <token>` header
+
+### Rate Limits
+
+Currently no rate limits are enforced for local deployments.
+
+### WebSocket Endpoints
+
+Real-time streaming is available via WebSocket:
+- `/api/chat/ws` - Chat message streaming
+- `/api/images/ws` - Image generation progress
+- `/api/voice/ws` - Voice streaming
+        """,
+        version=API_VERSION,
         lifespan=lifespan,
+        openapi_tags=OPENAPI_TAGS,
+        license_info={
+            "name": "MIT",
+            "url": "https://opensource.org/licenses/MIT",
+        },
+        contact={
+            "name": "Agent OS Community",
+            "url": "https://github.com/kase1111-hash/Agent-OS",
+        },
     )
 
     # CORS middleware

@@ -13,6 +13,8 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from ..models import AgentControlResponse, AgentsOverviewResponse, NOT_FOUND_RESPONSE
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
@@ -406,9 +408,23 @@ async def list_agents(
     ]
 
 
-@router.get("/{agent_name}", response_model=AgentInfo)
+@router.get("/{agent_name}", response_model=AgentInfo, responses={**NOT_FOUND_RESPONSE})
 async def get_agent(agent_name: str) -> AgentInfo:
-    """Get detailed information about a specific agent."""
+    """
+    Get detailed information about a specific agent.
+
+    Returns comprehensive agent information including capabilities,
+    supported intents, metrics, and current configuration.
+
+    Args:
+        agent_name: The unique name of the agent (e.g., 'whisper', 'smith', 'seshat')
+
+    Returns:
+        AgentInfo: Detailed agent information
+
+    Raises:
+        404: Agent with the specified name not found
+    """
     store = get_store()
     agent = store.get(agent_name)
 
@@ -430,12 +446,22 @@ async def get_agent_metrics(agent_name: str) -> AgentMetrics:
     return agent.metrics
 
 
-@router.post("/{agent_name}/start")
+@router.post("/{agent_name}/start", response_model=AgentControlResponse)
 async def start_agent(
     agent_name: str,
     request: Optional[StartAgentRequest] = None,
-) -> Dict[str, Any]:
-    """Start an agent."""
+) -> AgentControlResponse:
+    """
+    Start an agent.
+
+    Activates a stopped or idle agent so it can process requests.
+
+    Returns:
+        AgentControlResponse with status 'started' or 'already_active'
+
+    Raises:
+        404: Agent not found
+    """
     store = get_store()
     agent = store.get(agent_name)
 
@@ -443,24 +469,34 @@ async def start_agent(
         raise HTTPException(status_code=404, detail=f"Agent not found: {agent_name}")
 
     if agent.status == AgentStatus.ACTIVE:
-        return {"status": "already_active", "agent": agent_name}
+        return AgentControlResponse(status="already_active", agent=agent_name)
 
     store.update_status(agent_name, AgentStatus.ACTIVE)
     store.add_log(
         AgentLogEntry(
             timestamp=datetime.utcnow(),
             level="INFO",
-            message=f"Agent started",
+            message="Agent started",
             agent_name=agent_name,
         )
     )
 
-    return {"status": "started", "agent": agent_name}
+    return AgentControlResponse(status="started", agent=agent_name)
 
 
-@router.post("/{agent_name}/stop")
-async def stop_agent(agent_name: str) -> Dict[str, Any]:
-    """Stop an agent."""
+@router.post("/{agent_name}/stop", response_model=AgentControlResponse)
+async def stop_agent(agent_name: str) -> AgentControlResponse:
+    """
+    Stop an agent.
+
+    Deactivates an agent so it will no longer process requests.
+
+    Returns:
+        AgentControlResponse with status 'stopped' or 'already_stopped'
+
+    Raises:
+        404: Agent not found
+    """
     store = get_store()
     agent = store.get(agent_name)
 
@@ -468,24 +504,34 @@ async def stop_agent(agent_name: str) -> Dict[str, Any]:
         raise HTTPException(status_code=404, detail=f"Agent not found: {agent_name}")
 
     if agent.status == AgentStatus.DISABLED:
-        return {"status": "already_stopped", "agent": agent_name}
+        return AgentControlResponse(status="already_stopped", agent=agent_name)
 
     store.update_status(agent_name, AgentStatus.DISABLED)
     store.add_log(
         AgentLogEntry(
             timestamp=datetime.utcnow(),
             level="INFO",
-            message=f"Agent stopped",
+            message="Agent stopped",
             agent_name=agent_name,
         )
     )
 
-    return {"status": "stopped", "agent": agent_name}
+    return AgentControlResponse(status="stopped", agent=agent_name)
 
 
-@router.post("/{agent_name}/restart")
-async def restart_agent(agent_name: str) -> Dict[str, Any]:
-    """Restart an agent."""
+@router.post("/{agent_name}/restart", response_model=AgentControlResponse)
+async def restart_agent(agent_name: str) -> AgentControlResponse:
+    """
+    Restart an agent.
+
+    Stops and immediately restarts an agent. Useful for applying configuration changes.
+
+    Returns:
+        AgentControlResponse with status 'restarted'
+
+    Raises:
+        404: Agent not found
+    """
     store = get_store()
     agent = store.get(agent_name)
 
@@ -497,12 +543,12 @@ async def restart_agent(agent_name: str) -> Dict[str, Any]:
         AgentLogEntry(
             timestamp=datetime.utcnow(),
             level="INFO",
-            message=f"Agent restarted",
+            message="Agent restarted",
             agent_name=agent_name,
         )
     )
 
-    return {"status": "restarted", "agent": agent_name}
+    return AgentControlResponse(status="restarted", agent=agent_name)
 
 
 @router.get("/{agent_name}/logs", response_model=List[AgentLogEntry])
@@ -531,9 +577,16 @@ async def get_all_logs(
     return store.get_logs(level=level, limit=limit)
 
 
-@router.get("/stats/overview")
-async def get_agents_overview() -> Dict[str, Any]:
-    """Get overview statistics for all agents."""
+@router.get("/stats/overview", response_model=AgentsOverviewResponse)
+async def get_agents_overview() -> AgentsOverviewResponse:
+    """
+    Get overview statistics for all agents.
+
+    Returns aggregate metrics across all registered agents including:
+    - Total agent count and status distribution
+    - Request counts (total, success, failed)
+    - Overall success rate
+    """
     store = get_store()
     agents = store.get_all()
 
@@ -546,11 +599,11 @@ async def get_agents_overview() -> Dict[str, Any]:
         status = agent.status.value
         status_counts[status] = status_counts.get(status, 0) + 1
 
-    return {
-        "total_agents": len(agents),
-        "status_distribution": status_counts,
-        "total_requests": total_requests,
-        "total_success": total_success,
-        "total_failed": total_failed,
-        "success_rate": (total_success / total_requests * 100) if total_requests > 0 else 0,
-    }
+    return AgentsOverviewResponse(
+        total_agents=len(agents),
+        status_distribution=status_counts,
+        total_requests=total_requests,
+        total_success=total_success,
+        total_failed=total_failed,
+        success_rate=(total_success / total_requests * 100) if total_requests > 0 else 0,
+    )
