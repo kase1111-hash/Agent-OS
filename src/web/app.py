@@ -67,6 +67,11 @@ OPENAPI_TAGS = [
         "description": "System status, health checks, and configuration. "
         "Monitor system resources and component health.",
     },
+    {
+        "name": "Observability",
+        "description": "Metrics, tracing, and health monitoring endpoints. "
+        "Prometheus-compatible metrics export at /api/observability/metrics.",
+    },
 ]
 
 logger = logging.getLogger(__name__)
@@ -256,6 +261,15 @@ Real-time streaming is available via WebSocket:
     # Store app state
     app.state.app_state = _app_state
 
+    # Set up observability (metrics and tracing middleware)
+    try:
+        from src.observability.middleware import setup_observability
+
+        setup_observability(app, enable_metrics=True, enable_tracing=True)
+        logger.info("Observability middleware enabled")
+    except ImportError:
+        logger.debug("Observability module not available, skipping middleware")
+
     # Include routers
     from .routes import agents, auth, chat, constitution, contracts, images, intent_log, memory, system, voice
 
@@ -269,6 +283,17 @@ Real-time streaming is available via WebSocket:
     app.include_router(memory.router, prefix="/api/memory", tags=["Memory"])
     app.include_router(system.router, prefix="/api/system", tags=["System"])
     app.include_router(voice.router, prefix="/api/voice", tags=["Voice"])
+
+    # Observability routes (metrics, health, tracing)
+    try:
+        from .routes import observability
+
+        app.include_router(
+            observability.router, prefix="/api/observability", tags=["Observability"]
+        )
+        logger.info("Observability routes enabled")
+    except ImportError:
+        logger.debug("Observability routes not available")
 
     # Root endpoint
     @app.get("/")
