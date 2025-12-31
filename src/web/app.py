@@ -217,7 +217,16 @@ Most endpoints require authentication. Use one of these methods:
 
 ### Rate Limits
 
-Currently no rate limits are enforced for local deployments.
+Default rate limits (configurable via environment variables):
+- **60 requests/minute** per client
+- **1000 requests/hour** per client
+
+Rate limit headers are included in responses:
+- `X-RateLimit-Limit`: Maximum requests allowed
+- `X-RateLimit-Remaining`: Requests remaining in window
+- `X-RateLimit-Reset`: Unix timestamp when limit resets
+
+When rate limited, responses return HTTP 429 with `Retry-After` header.
 
 ### WebSocket Endpoints
 
@@ -260,6 +269,30 @@ Real-time streaming is available via WebSocket:
 
     # Store app state
     app.state.app_state = _app_state
+
+    # Set up rate limiting
+    if config.rate_limit_enabled:
+        try:
+            from .ratelimit import RateLimitMiddleware, create_limiter
+
+            limiter = create_limiter(
+                requests_per_minute=config.rate_limit_requests_per_minute,
+                requests_per_hour=config.rate_limit_requests_per_hour,
+                strategy=config.rate_limit_strategy,
+                use_redis=config.rate_limit_use_redis,
+                redis_url=config.rate_limit_redis_url,
+            )
+            app.add_middleware(
+                RateLimitMiddleware,
+                limiter=limiter,
+                exclude_paths=["/health", "/metrics", "/docs", "/redoc", "/openapi.json"],
+            )
+            logger.info(
+                f"Rate limiting enabled: {config.rate_limit_requests_per_minute}/min, "
+                f"{config.rate_limit_requests_per_hour}/hour ({config.rate_limit_strategy})"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to enable rate limiting: {e}")
 
     # Set up observability (metrics and tracing middleware)
     try:

@@ -51,8 +51,12 @@ class WebConfig:
     ws_max_connections: int = 100
 
     # Rate limiting
-    rate_limit_requests: int = 100
-    rate_limit_window: int = 60  # seconds
+    rate_limit_enabled: bool = True
+    rate_limit_requests_per_minute: int = 60
+    rate_limit_requests_per_hour: int = 1000
+    rate_limit_strategy: str = "sliding_window"  # fixed_window, sliding_window, token_bucket
+    rate_limit_use_redis: bool = False
+    rate_limit_redis_url: str = "redis://localhost:6379"
 
     # Session
     session_timeout: int = 3600  # seconds
@@ -80,6 +84,12 @@ class WebConfig:
             debug=os.getenv("AGENT_OS_WEB_DEBUG", "").lower() in ("1", "true", "yes"),
             api_key=os.getenv("AGENT_OS_API_KEY"),
             require_auth=os.getenv("AGENT_OS_REQUIRE_AUTH", "").lower() in ("1", "true", "yes"),
+            rate_limit_enabled=os.getenv("AGENT_OS_RATE_LIMIT_ENABLED", "true").lower() in ("1", "true", "yes"),
+            rate_limit_requests_per_minute=int(os.getenv("AGENT_OS_RATE_LIMIT_PER_MINUTE", "60")),
+            rate_limit_requests_per_hour=int(os.getenv("AGENT_OS_RATE_LIMIT_PER_HOUR", "1000")),
+            rate_limit_strategy=os.getenv("AGENT_OS_RATE_LIMIT_STRATEGY", "sliding_window"),
+            rate_limit_use_redis=os.getenv("AGENT_OS_RATE_LIMIT_REDIS", "").lower() in ("1", "true", "yes"),
+            rate_limit_redis_url=os.getenv("AGENT_OS_REDIS_URL", "redis://localhost:6379"),
             voice=voice_config,
         )
 
