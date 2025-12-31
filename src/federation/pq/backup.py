@@ -106,7 +106,7 @@ class ShamirSecretSharing:
 
     @classmethod
     def _init_gf256(cls) -> None:
-        """Initialize GF(2^8) lookup tables."""
+        """Initialize GF(2^8) lookup tables using generator 3."""
         if cls._EXP[0] != 0:
             return
 
@@ -114,9 +114,12 @@ class ShamirSecretSharing:
         for i in range(255):
             cls._EXP[i] = x
             cls._LOG[x] = i
-            x = cls._gf256_mul_nomod(x, 2)
-            if x >= 256:
-                x ^= 0x11B  # AES polynomial
+            # Multiply by generator 3 (which is primitive for polynomial 0x11B)
+            # GF(2^8) multiplication: x * 3 = x * (2 + 1) = (x * 2) ^ x
+            x2 = x << 1
+            if x2 >= 256:
+                x2 ^= 0x11B
+            x = x2 ^ x  # x * 3 = x * 2 + x in GF(2^8)
 
         for i in range(255, 512):
             cls._EXP[i] = cls._EXP[i - 255]
