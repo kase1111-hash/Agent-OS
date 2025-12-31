@@ -242,8 +242,12 @@ class AgentConfig:
         # Parse model config
         model = None
         if "model" in data:
+            model_data = data["model"]
+            # Handle string shorthand (just model name)
+            if isinstance(model_data, str):
+                model_data = {"name": model_data}
             try:
-                model = ModelConfig.from_dict(data["model"])
+                model = ModelConfig.from_dict(model_data)
             except ValueError as e:
                 raise ValueError(f"Invalid model configuration: {e}") from e
 
@@ -391,6 +395,10 @@ class ConfigLoader:
 
         if data is None:
             raise ValueError(f"Config file {path} parsed to empty data")
+
+        # Infer name from parent directory if not specified
+        if isinstance(data, dict) and "name" not in data:
+            data["name"] = path.parent.name
 
         try:
             return AgentConfig.from_dict(data)
