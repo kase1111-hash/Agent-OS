@@ -42,6 +42,8 @@ redis = ["redis>=4.0"]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
+    "pytest-benchmark>=4.0",
+    "pytest-asyncio>=0.21.0",
     "mypy>=1.0",
     "black>=23.0",
     "isort>=5.0",
@@ -109,3 +111,12 @@ addopts = "-v --tb=short"
 [tool.bandit]
 exclude_dirs = ["tests", "docs", "examples"]
 skips = ["B101"]  # Skip assert warnings (used in tests)
+
+[tool.pytest-benchmark]
+# Benchmark configuration
+disable_gc = true
+warmup = true
+warmup_iterations = 3
+min_rounds = 5
+max_time = 1.0
+calibration_precision = 10
