@@ -192,8 +192,13 @@ class TestRoutingEngine:
 
         assert "smith" in [r.agent_name for r in decision.routes]
 
-    def test_add_custom_route(self, router):
+    def test_add_custom_route(self):
         """Add custom route."""
+        # Create router with load balancing disabled to test pure priority-based routing
+        router = RoutingEngine(
+            available_agents={"sage", "muse", "quill", "seshat", "smith"},
+            enable_load_balancing=False,
+        )
         router.add_route(
             IntentCategory.QUERY_FACTUAL,
             AgentRoute(agent_name="custom", priority=100),
