@@ -50,12 +50,15 @@ tags:
 # This config does NOT override constitutional rules.
 # Tool access here must match what is explicitly allowed in constitution.md.
 # Always start with the most restrictive settings and loosen only when justified.
-This is the recommended content for agents/template/config.yaml.
-Key features:
-
-Fully commented for clarity and ease of customization
-Defaults to maximum safety (no tools, moderate temperature)
-Aligns with Agent-OS principles: constitution remains supreme over config
-Ready for future orchestration while useful today for manual runs
-
-When creating a new agent, copy this file as-is and modify only the fields that make sense for that agent's role (e.g., a Researcher might eventually have controlled web_search access if the constitution permits it).
+#
+# This is the recommended content for agents/template/config.yaml.
+# Key features:
+#
+# - Fully commented for clarity and ease of customization
+# - Defaults to maximum safety (no tools, moderate temperature)
+# - Aligns with Agent-OS principles: constitution remains supreme over config
+# - Ready for future orchestration while useful today for manual runs
+#
+# When creating a new agent, copy this file as-is and modify only the fields
+# that make sense for that agent's role (e.g., a Researcher might eventually
+# have controlled web_search access if the constitution permits it).
