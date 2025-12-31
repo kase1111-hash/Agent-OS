@@ -17,18 +17,18 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set
 
-
 logger = logging.getLogger(__name__)
 
 
 class ContractStatus(Enum):
     """Status of a learning contract."""
-    PENDING = auto()      # Contract awaiting user consent
-    ACTIVE = auto()       # Contract is active and enforceable
-    EXPIRED = auto()      # Contract has expired (time-based)
-    REVOKED = auto()      # Contract was revoked by user
-    SUPERSEDED = auto()   # Contract replaced by newer version
-    SUSPENDED = auto()    # Temporarily suspended
+
+    PENDING = auto()  # Contract awaiting user consent
+    ACTIVE = auto()  # Contract is active and enforceable
+    EXPIRED = auto()  # Contract has expired (time-based)
+    REVOKED = auto()  # Contract was revoked by user
+    SUPERSEDED = auto()  # Contract replaced by newer version
+    SUSPENDED = auto()  # Temporarily suspended
 
 
 class ContractType(Enum):
@@ -38,20 +38,21 @@ class ContractType(Enum):
     Aligned with learning-contracts specification:
     https://github.com/kase1111-hash/learning-contracts
     """
+
     # Core contract types from learning-contracts spec
-    OBSERVATION = auto()    # Permits watching signals only; forbids storage/generalization
-    EPISODIC = auto()       # Allows storing specific instances without cross-context application
-    PROCEDURAL = auto()     # Enables deriving reusable heuristics within defined scopes
-    STRATEGIC = auto()      # Permits long-term pattern inference (high-trust only)
-    PROHIBITED = auto()     # Explicitly blocks learning in sensitive domains
+    OBSERVATION = auto()  # Permits watching signals only; forbids storage/generalization
+    EPISODIC = auto()  # Allows storing specific instances without cross-context application
+    PROCEDURAL = auto()  # Enables deriving reusable heuristics within defined scopes
+    STRATEGIC = auto()  # Permits long-term pattern inference (high-trust only)
+    PROHIBITED = auto()  # Explicitly blocks learning in sensitive domains
 
     # Legacy types (mapped for backwards compatibility)
-    FULL_CONSENT = auto()         # -> Maps to STRATEGIC
-    LIMITED_CONSENT = auto()      # -> Maps to PROCEDURAL
-    ABSTRACTION_ONLY = auto()     # -> Maps to EPISODIC
-    NO_LEARNING = auto()          # -> Maps to PROHIBITED
-    TEMPORARY = auto()            # Time-limited (any type)
-    SESSION_ONLY = auto()         # Session-scoped (any type)
+    FULL_CONSENT = auto()  # -> Maps to STRATEGIC
+    LIMITED_CONSENT = auto()  # -> Maps to PROCEDURAL
+    ABSTRACTION_ONLY = auto()  # -> Maps to EPISODIC
+    NO_LEARNING = auto()  # -> Maps to PROHIBITED
+    TEMPORARY = auto()  # Time-limited (any type)
+    SESSION_ONLY = auto()  # Session-scoped (any type)
 
     @classmethod
     def from_legacy(cls, legacy_type: "ContractType") -> "ContractType":
@@ -83,16 +84,18 @@ class ContractType(Enum):
 
 class LearningScope(Enum):
     """Scope of what can be learned."""
-    ALL = auto()                   # All interactions
-    DOMAIN_SPECIFIC = auto()       # Specific domains only
-    TASK_SPECIFIC = auto()         # Specific task types
-    CONTENT_SPECIFIC = auto()      # Specific content categories
-    AGENT_SPECIFIC = auto()        # Specific agent interactions
+
+    ALL = auto()  # All interactions
+    DOMAIN_SPECIFIC = auto()  # Specific domains only
+    TASK_SPECIFIC = auto()  # Specific task types
+    CONTENT_SPECIFIC = auto()  # Specific content categories
+    AGENT_SPECIFIC = auto()  # Specific agent interactions
 
 
 @dataclass
 class ContractScope:
     """Defines the scope of a learning contract."""
+
     scope_type: LearningScope
     domains: Set[str] = field(default_factory=set)
     tasks: Set[str] = field(default_factory=set)
@@ -100,7 +103,9 @@ class ContractScope:
     content_types: Set[str] = field(default_factory=set)
     excluded_domains: Set[str] = field(default_factory=set)
 
-    def matches(self, domain: str = "", task: str = "", agent: str = "", content_type: str = "") -> bool:
+    def matches(
+        self, domain: str = "", task: str = "", agent: str = "", content_type: str = ""
+    ) -> bool:
         """Check if the given parameters match this scope."""
         # Check exclusions first
         if domain and domain in self.excluded_domains:
@@ -146,6 +151,7 @@ class ContractScope:
 @dataclass
 class LearningContract:
     """A learning contract defining consent for AI learning."""
+
     contract_id: str
     user_id: str
     contract_type: ContractType
@@ -242,9 +248,15 @@ class LearningContract:
             scope=ContractScope.from_dict(data["scope"]),
             status=ContractStatus[data["status"]],
             created_at=datetime.fromisoformat(data["created_at"]),
-            activated_at=datetime.fromisoformat(data["activated_at"]) if data.get("activated_at") else None,
-            expires_at=datetime.fromisoformat(data["expires_at"]) if data.get("expires_at") else None,
-            revoked_at=datetime.fromisoformat(data["revoked_at"]) if data.get("revoked_at") else None,
+            activated_at=(
+                datetime.fromisoformat(data["activated_at"]) if data.get("activated_at") else None
+            ),
+            expires_at=(
+                datetime.fromisoformat(data["expires_at"]) if data.get("expires_at") else None
+            ),
+            revoked_at=(
+                datetime.fromisoformat(data["revoked_at"]) if data.get("revoked_at") else None
+            ),
             version=data.get("version", 1),
             previous_contract_id=data.get("previous_contract_id"),
             description=data.get("description", ""),
@@ -263,6 +275,7 @@ class LearningContract:
 @dataclass
 class ContractQuery:
     """Query parameters for finding contracts."""
+
     user_id: Optional[str] = None
     status: Optional[ContractStatus] = None
     statuses: Optional[Set[ContractStatus]] = None
@@ -410,11 +423,14 @@ class ContractStore:
                 return False
 
             cursor = self._connection.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE contracts
                 SET status = ?, activated_at = ?
                 WHERE contract_id = ?
-            """, (ContractStatus.ACTIVE.name, datetime.now().isoformat(), contract_id))
+            """,
+                (ContractStatus.ACTIVE.name, datetime.now().isoformat(), contract_id),
+            )
             self._connection.commit()
 
             self._log_event(contract_id, "activated", activated_by)
@@ -448,11 +464,14 @@ class ContractStore:
                 return False
 
             cursor = self._connection.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE contracts
                 SET status = ?, revoked_at = ?, revocation_reason = ?
                 WHERE contract_id = ?
-            """, (ContractStatus.REVOKED.name, datetime.now().isoformat(), reason, contract_id))
+            """,
+                (ContractStatus.REVOKED.name, datetime.now().isoformat(), reason, contract_id),
+            )
             self._connection.commit()
 
             self._log_event(contract_id, "revoked", revoked_by, reason)
@@ -463,11 +482,14 @@ class ContractStore:
         """Mark a contract as expired."""
         with self._lock:
             cursor = self._connection.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE contracts
                 SET status = ?
                 WHERE contract_id = ? AND status = ?
-            """, (ContractStatus.EXPIRED.name, contract_id, ContractStatus.ACTIVE.name))
+            """,
+                (ContractStatus.EXPIRED.name, contract_id, ContractStatus.ACTIVE.name),
+            )
             self._connection.commit()
 
             if cursor.rowcount > 0:
@@ -492,11 +514,14 @@ class ContractStore:
                 return False
 
             cursor = self._connection.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE contracts
                 SET status = ?
                 WHERE contract_id = ?
-            """, (ContractStatus.SUSPENDED.name, contract_id))
+            """,
+                (ContractStatus.SUSPENDED.name, contract_id),
+            )
             self._connection.commit()
 
             self._log_event(contract_id, "suspended", suspended_by, reason)
@@ -518,11 +543,14 @@ class ContractStore:
                 return False
 
             cursor = self._connection.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE contracts
                 SET status = ?
                 WHERE contract_id = ?
-            """, (ContractStatus.ACTIVE.name, contract_id))
+            """,
+                (ContractStatus.ACTIVE.name, contract_id),
+            )
             self._connection.commit()
 
             self._log_event(contract_id, "resumed", resumed_by)
@@ -571,20 +599,20 @@ class ContractStore:
         valid = [c for c in contracts if c.is_valid()]
 
         # Find matching contracts
-        matching = [
-            c for c in valid
-            if c.allows_learning(domain=domain, task=task, agent=agent)
-        ]
+        matching = [c for c in valid if c.allows_learning(domain=domain, task=task, agent=agent)]
 
         if not matching:
             return None
 
         # Return most specific match (most recent if tie)
-        matching.sort(key=lambda c: (
-            c.scope.scope_type != LearningScope.ALL,  # Prefer specific scopes
-            c.version,
-            c.created_at,
-        ), reverse=True)
+        matching.sort(
+            key=lambda c: (
+                c.scope.scope_type != LearningScope.ALL,  # Prefer specific scopes
+                c.version,
+                c.created_at,
+            ),
+            reverse=True,
+        )
 
         return matching[0]
 
@@ -629,11 +657,14 @@ class ContractStore:
 
             # Mark old contract as superseded
             cursor = self._connection.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE contracts
                 SET status = ?
                 WHERE contract_id = ?
-            """, (ContractStatus.SUPERSEDED.name, old_contract_id))
+            """,
+                (ContractStatus.SUPERSEDED.name, old_contract_id),
+            )
 
             # Update new contract
             new_contract.previous_contract_id = old_contract_id
@@ -666,10 +697,13 @@ class ContractStore:
         count = 0
         with self._lock:
             cursor = self._connection.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT contract_id FROM contracts
                 WHERE status = ? AND expires_at < ?
-            """, (ContractStatus.ACTIVE.name, datetime.now().isoformat()))
+            """,
+                (ContractStatus.ACTIVE.name, datetime.now().isoformat()),
+            )
 
             expired = cursor.fetchall()
             for row in expired:
@@ -685,15 +719,19 @@ class ContractStore:
 
             stats = {"by_status": {}, "by_type": {}}
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT status, COUNT(*) FROM contracts GROUP BY status
-            """)
+            """
+            )
             for row in cursor.fetchall():
                 stats["by_status"][row[0]] = row[1]
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT contract_type, COUNT(*) FROM contracts GROUP BY contract_type
-            """)
+            """
+            )
             for row in cursor.fetchall():
                 stats["by_type"][row[0]] = row[1]
 
@@ -709,7 +747,8 @@ class ContractStore:
         """Create database tables."""
         cursor = self._connection.cursor()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS contracts (
                 contract_id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -728,9 +767,11 @@ class ContractStore:
                 metadata_json TEXT,
                 signature_hash TEXT
             )
-        """)
+        """
+        )
 
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS contract_events (
                 event_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 contract_id TEXT NOT NULL,
@@ -740,48 +781,56 @@ class ContractStore:
                 timestamp TEXT NOT NULL,
                 FOREIGN KEY (contract_id) REFERENCES contracts(contract_id)
             )
-        """)
+        """
+        )
 
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_contracts_user_id
             ON contracts(user_id)
-        """)
+        """
+        )
 
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_contracts_status
             ON contracts(status)
-        """)
+        """
+        )
 
         self._connection.commit()
 
     def _insert_contract(self, contract: LearningContract) -> None:
         """Insert a contract into the database."""
         cursor = self._connection.cursor()
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO contracts (
                 contract_id, user_id, contract_type, scope_json, status,
                 created_at, activated_at, expires_at, revoked_at,
                 version, previous_contract_id, description, consent_method,
                 revocation_reason, metadata_json, signature_hash
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            contract.contract_id,
-            contract.user_id,
-            contract.contract_type.name,
-            json.dumps(contract.scope.to_dict()),
-            contract.status.name,
-            contract.created_at.isoformat(),
-            contract.activated_at.isoformat() if contract.activated_at else None,
-            contract.expires_at.isoformat() if contract.expires_at else None,
-            contract.revoked_at.isoformat() if contract.revoked_at else None,
-            contract.version,
-            contract.previous_contract_id,
-            contract.description,
-            contract.consent_method,
-            contract.revocation_reason,
-            json.dumps(contract.metadata),
-            contract.signature_hash,
-        ))
+        """,
+            (
+                contract.contract_id,
+                contract.user_id,
+                contract.contract_type.name,
+                json.dumps(contract.scope.to_dict()),
+                contract.status.name,
+                contract.created_at.isoformat(),
+                contract.activated_at.isoformat() if contract.activated_at else None,
+                contract.expires_at.isoformat() if contract.expires_at else None,
+                contract.revoked_at.isoformat() if contract.revoked_at else None,
+                contract.version,
+                contract.previous_contract_id,
+                contract.description,
+                contract.consent_method,
+                contract.revocation_reason,
+                json.dumps(contract.metadata),
+                contract.signature_hash,
+            ),
+        )
         self._connection.commit()
 
     def _get_contract(self, contract_id: str) -> Optional[LearningContract]:
@@ -841,7 +890,9 @@ class ContractStore:
             scope=ContractScope.from_dict(json.loads(row["scope_json"])),
             status=ContractStatus[row["status"]],
             created_at=datetime.fromisoformat(row["created_at"]),
-            activated_at=datetime.fromisoformat(row["activated_at"]) if row["activated_at"] else None,
+            activated_at=(
+                datetime.fromisoformat(row["activated_at"]) if row["activated_at"] else None
+            ),
             expires_at=datetime.fromisoformat(row["expires_at"]) if row["expires_at"] else None,
             revoked_at=datetime.fromisoformat(row["revoked_at"]) if row["revoked_at"] else None,
             version=row["version"],
@@ -862,10 +913,13 @@ class ContractStore:
     ) -> None:
         """Log a contract event."""
         cursor = self._connection.cursor()
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO contract_events (contract_id, event_type, actor, details, timestamp)
             VALUES (?, ?, ?, ?, ?)
-        """, (contract_id, event_type, actor, details, datetime.now().isoformat()))
+        """,
+            (contract_id, event_type, actor, details, datetime.now().isoformat()),
+        )
         self._connection.commit()
 
 
@@ -903,6 +957,7 @@ class ContractTemplate:
     Templates from learning-contracts spec:
     https://github.com/kase1111-hash/learning-contracts
     """
+
     name: str
     description: str
     contract_type: ContractType
@@ -935,7 +990,7 @@ CONTRACT_TEMPLATES: Dict[str, ContractTemplate] = {
     "coding": ContractTemplate(
         name="coding",
         description="Learning contract for coding assistance. Allows learning coding patterns, "
-                   "preferences, and project context. Enables procedural heuristics for better suggestions.",
+        "preferences, and project context. Enables procedural heuristics for better suggestions.",
         contract_type=ContractType.PROCEDURAL,
         scope=ContractScope(
             scope_type=LearningScope.DOMAIN_SPECIFIC,
@@ -945,12 +1000,11 @@ CONTRACT_TEMPLATES: Dict[str, ContractTemplate] = {
         ),
         metadata={"category": "technical", "trust_level": "medium"},
     ),
-
     # 2. Gaming Template
     "gaming": ContractTemplate(
         name="gaming",
         description="Learning contract for gaming sessions. Allows episodic memory of game states "
-                   "and preferences without cross-session generalization.",
+        "and preferences without cross-session generalization.",
         contract_type=ContractType.EPISODIC,
         scope=ContractScope(
             scope_type=LearningScope.DOMAIN_SPECIFIC,
@@ -960,12 +1014,11 @@ CONTRACT_TEMPLATES: Dict[str, ContractTemplate] = {
         default_duration=timedelta(hours=24),  # Session-based
         metadata={"category": "entertainment", "trust_level": "low"},
     ),
-
     # 3. Journaling Template
     "journaling": ContractTemplate(
         name="journaling",
         description="Learning contract for personal journaling. Allows long-term memory of "
-                   "personal notes and reflections with high privacy protection.",
+        "personal notes and reflections with high privacy protection.",
         contract_type=ContractType.EPISODIC,
         scope=ContractScope(
             scope_type=LearningScope.DOMAIN_SPECIFIC,
@@ -975,12 +1028,11 @@ CONTRACT_TEMPLATES: Dict[str, ContractTemplate] = {
         ),
         metadata={"category": "personal", "trust_level": "high", "privacy": "strict"},
     ),
-
     # 4. Work Projects Template
     "work_projects": ContractTemplate(
         name="work_projects",
         description="Learning contract for work-related projects. Enables procedural learning "
-                   "of workflows and project patterns within defined work domains.",
+        "of workflows and project patterns within defined work domains.",
         contract_type=ContractType.PROCEDURAL,
         scope=ContractScope(
             scope_type=LearningScope.TASK_SPECIFIC,
@@ -990,12 +1042,11 @@ CONTRACT_TEMPLATES: Dict[str, ContractTemplate] = {
         ),
         metadata={"category": "professional", "trust_level": "medium"},
     ),
-
     # 5. Restricted Domains Template
     "restricted": ContractTemplate(
         name="restricted",
         description="Explicitly prohibits learning in sensitive domains. Use this to block "
-                   "learning for medical, financial, legal, or other restricted areas.",
+        "learning for medical, financial, legal, or other restricted areas.",
         contract_type=ContractType.PROHIBITED,
         scope=ContractScope(
             scope_type=LearningScope.DOMAIN_SPECIFIC,
@@ -1003,12 +1054,11 @@ CONTRACT_TEMPLATES: Dict[str, ContractTemplate] = {
         ),
         metadata={"category": "restricted", "trust_level": "none", "immutable": True},
     ),
-
     # 6. Study Template
     "study": ContractTemplate(
         name="study",
         description="Learning contract for educational content. Allows procedural learning "
-                   "of study material with cross-context application for better retention.",
+        "of study material with cross-context application for better retention.",
         contract_type=ContractType.PROCEDURAL,
         scope=ContractScope(
             scope_type=LearningScope.DOMAIN_SPECIFIC,
@@ -1017,18 +1067,21 @@ CONTRACT_TEMPLATES: Dict[str, ContractTemplate] = {
         ),
         metadata={"category": "education", "trust_level": "medium"},
     ),
-
     # 7. Strategy Template
     "strategy": ContractTemplate(
         name="strategy",
         description="High-trust strategic learning contract. Enables long-term pattern inference "
-                   "and cross-context application. Use only for trusted, long-term relationships.",
+        "and cross-context application. Use only for trusted, long-term relationships.",
         contract_type=ContractType.STRATEGIC,
         scope=ContractScope(
             scope_type=LearningScope.ALL,
             excluded_domains={"credentials", "passwords", "secrets", "medical", "financial"},
         ),
-        metadata={"category": "strategic", "trust_level": "high", "requires_explicit_consent": True},
+        metadata={
+            "category": "strategic",
+            "trust_level": "high",
+            "requires_explicit_consent": True,
+        },
     ),
 }
 
@@ -1120,7 +1173,7 @@ def create_default_agent_os_contracts(
         ),
         duration=timedelta(days=365),
         description="Enables Agent-OS to learn your coding patterns, style preferences, and "
-                   "project conventions for better code assistance.",
+        "project conventions for better code assistance.",
         metadata={
             "category": "technical",
             "trust_level": "medium",
@@ -1146,7 +1199,7 @@ def create_default_agent_os_contracts(
         ),
         duration=None,  # No expiration
         description="Allows the Seshat memory agent to store conversation context and "
-                   "recall relevant information without cross-context generalization.",
+        "recall relevant information without cross-context generalization.",
         metadata={
             "category": "memory",
             "trust_level": "medium",
@@ -1172,7 +1225,7 @@ def create_default_agent_os_contracts(
         ),
         duration=None,
         description="Allows the Smith constitutional agent to observe interactions for "
-                   "safety compliance without storing or learning from content.",
+        "safety compliance without storing or learning from content.",
         metadata={
             "category": "safety",
             "trust_level": "high",
@@ -1184,7 +1237,9 @@ def create_default_agent_os_contracts(
     )
     if constitution_contract:
         contracts.append(constitution_contract)
-        logger.info(f"Created default constitutional compliance contract: {constitution_contract.contract_id}")
+        logger.info(
+            f"Created default constitutional compliance contract: {constitution_contract.contract_id}"
+        )
 
     # 4. Security Prohibition Contract (PROHIBITED)
     # Explicitly blocks learning from sensitive security domains
@@ -1194,14 +1249,23 @@ def create_default_agent_os_contracts(
         scope=ContractScope(
             scope_type=LearningScope.DOMAIN_SPECIFIC,
             domains={
-                "credentials", "passwords", "api_keys", "secrets", "tokens",
-                "private_keys", "ssh_keys", "certificates", "auth_tokens",
-                "encryption_keys", "wallet_seeds", "recovery_phrases",
+                "credentials",
+                "passwords",
+                "api_keys",
+                "secrets",
+                "tokens",
+                "private_keys",
+                "ssh_keys",
+                "certificates",
+                "auth_tokens",
+                "encryption_keys",
+                "wallet_seeds",
+                "recovery_phrases",
             },
         ),
         duration=None,
         description="Explicitly prohibits Agent-OS from learning or storing any "
-                   "credentials, API keys, passwords, or other security-sensitive data.",
+        "credentials, API keys, passwords, or other security-sensitive data.",
         metadata={
             "category": "security",
             "trust_level": "none",
@@ -1213,7 +1277,9 @@ def create_default_agent_os_contracts(
     )
     if security_contract:
         contracts.append(security_contract)
-        logger.info(f"Created default security prohibition contract: {security_contract.contract_id}")
+        logger.info(
+            f"Created default security prohibition contract: {security_contract.contract_id}"
+        )
 
     # 5. Intent Classification Contract (PROCEDURAL)
     # Allows Whisper agent to learn intent patterns
@@ -1229,7 +1295,7 @@ def create_default_agent_os_contracts(
         ),
         duration=timedelta(days=180),
         description="Enables the Whisper agent to learn user intent patterns for "
-                   "improved request classification and agent routing.",
+        "improved request classification and agent routing.",
         metadata={
             "category": "routing",
             "trust_level": "medium",
@@ -1240,7 +1306,9 @@ def create_default_agent_os_contracts(
     )
     if intent_contract:
         contracts.append(intent_contract)
-        logger.info(f"Created default intent classification contract: {intent_contract.contract_id}")
+        logger.info(
+            f"Created default intent classification contract: {intent_contract.contract_id}"
+        )
 
     # 6. Personal Data Protection Contract (PROHIBITED)
     # Blocks learning from sensitive personal domains
@@ -1250,15 +1318,25 @@ def create_default_agent_os_contracts(
         scope=ContractScope(
             scope_type=LearningScope.DOMAIN_SPECIFIC,
             domains={
-                "medical", "health", "diagnosis", "treatment",
-                "financial", "banking", "investment", "tax",
-                "legal", "litigation", "contracts_legal",
-                "biometric", "genetic", "dna",
+                "medical",
+                "health",
+                "diagnosis",
+                "treatment",
+                "financial",
+                "banking",
+                "investment",
+                "tax",
+                "legal",
+                "litigation",
+                "contracts_legal",
+                "biometric",
+                "genetic",
+                "dna",
             },
         ),
         duration=None,
         description="Prohibits Agent-OS from learning personal health, financial, "
-                   "legal, or biometric information to protect user privacy.",
+        "legal, or biometric information to protect user privacy.",
         metadata={
             "category": "privacy",
             "trust_level": "none",
@@ -1270,7 +1348,9 @@ def create_default_agent_os_contracts(
     )
     if personal_contract:
         contracts.append(personal_contract)
-        logger.info(f"Created default personal data protection contract: {personal_contract.contract_id}")
+        logger.info(
+            f"Created default personal data protection contract: {personal_contract.contract_id}"
+        )
 
     # 7. General Assistance Contract (EPISODIC)
     # Allows basic conversational memory without deep learning
@@ -1281,13 +1361,18 @@ def create_default_agent_os_contracts(
             scope_type=LearningScope.DOMAIN_SPECIFIC,
             domains={"general", "chat", "assistance", "help", "questions"},
             excluded_domains={
-                "credentials", "medical", "financial", "legal",
-                "passwords", "secrets", "personal_identifiable",
+                "credentials",
+                "medical",
+                "financial",
+                "legal",
+                "passwords",
+                "secrets",
+                "personal_identifiable",
             },
         ),
         duration=timedelta(days=30),
         description="Allows Agent-OS to remember conversation context for general "
-                   "assistance without cross-session learning.",
+        "assistance without cross-session learning.",
         metadata={
             "category": "general",
             "trust_level": "low",

@@ -245,9 +245,7 @@ class MobileClient:
         Returns:
             Response data
         """
-        return await self._make_request(
-            "GET", endpoint, params=params, headers=headers
-        )
+        return await self._make_request("GET", endpoint, params=params, headers=headers)
 
     async def post(
         self,
@@ -265,9 +263,7 @@ class MobileClient:
         Returns:
             Response data
         """
-        return await self._make_request(
-            "POST", endpoint, data=data, headers=headers
-        )
+        return await self._make_request("POST", endpoint, data=data, headers=headers)
 
     async def put(
         self,
@@ -285,9 +281,7 @@ class MobileClient:
         Returns:
             Response data
         """
-        return await self._make_request(
-            "PUT", endpoint, data=data, headers=headers
-        )
+        return await self._make_request("PUT", endpoint, data=data, headers=headers)
 
     async def delete(
         self,
@@ -344,9 +338,7 @@ class MobileClient:
 
         try:
             # Simulate HTTP request (in production would use aiohttp)
-            response = await self._send_request(
-                method, url, data, params, request_headers
-            )
+            response = await self._send_request(method, url, data, params, request_headers)
 
             self._request_count += 1
             self._last_request_time = datetime.now()
@@ -359,7 +351,7 @@ class MobileClient:
             # Check if we should retry
             if e.is_temporary and retry < self.config.retry_count:
                 delay = min(
-                    self.config.retry_delay * (self.config.retry_backoff ** retry),
+                    self.config.retry_delay * (self.config.retry_backoff**retry),
                     self.config.max_retry_delay,
                 )
 
@@ -502,9 +494,9 @@ class MobileClient:
             "request_count": self._request_count,
             "error_count": self._error_count,
             "queue_size": len(self._request_queue),
-            "last_request": self._last_request_time.isoformat()
-            if self._last_request_time
-            else None,
+            "last_request": (
+                self._last_request_time.isoformat() if self._last_request_time else None
+            ),
         }
 
     def verify_certificate(self, cert_hash: str) -> bool:

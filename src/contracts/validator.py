@@ -13,19 +13,19 @@ from enum import Enum, auto
 from typing import Any, Dict, List, Optional, Set
 
 from .store import (
-    LearningContract,
-    ContractType,
-    ContractStatus,
     ContractScope,
+    ContractStatus,
+    ContractType,
+    LearningContract,
     LearningScope,
 )
-
 
 logger = logging.getLogger(__name__)
 
 
 class ValidationSeverity(Enum):
     """Severity level of validation issues."""
+
     INFO = auto()
     WARNING = auto()
     ERROR = auto()
@@ -34,6 +34,7 @@ class ValidationSeverity(Enum):
 
 class ValidationCode(Enum):
     """Validation result codes."""
+
     # Success codes
     VALID = "valid"
     VALID_WITH_WARNINGS = "valid_with_warnings"
@@ -67,6 +68,7 @@ class ValidationCode(Enum):
 @dataclass
 class ValidationIssue:
     """A single validation issue."""
+
     code: ValidationCode
     severity: ValidationSeverity
     message: str
@@ -87,6 +89,7 @@ class ValidationIssue:
 @dataclass
 class ValidationResult:
     """Result of a validation operation."""
+
     is_valid: bool
     code: ValidationCode
     issues: List[ValidationIssue] = field(default_factory=list)
@@ -103,13 +106,15 @@ class ValidationResult:
         **details,
     ) -> None:
         """Add a validation issue."""
-        self.issues.append(ValidationIssue(
-            code=code,
-            severity=severity,
-            message=message,
-            source_field=source_field,
-            details=details,
-        ))
+        self.issues.append(
+            ValidationIssue(
+                code=code,
+                severity=severity,
+                message=message,
+                source_field=source_field,
+                details=details,
+            )
+        )
 
         # Update validity based on severity
         if severity in [ValidationSeverity.ERROR, ValidationSeverity.CRITICAL]:
@@ -143,6 +148,7 @@ class ValidationResult:
 @dataclass
 class LearningRequest:
     """A request to learn/store data."""
+
     request_id: str
     user_id: str
     domain: str = ""
@@ -182,9 +188,7 @@ class ContractValidator:
             require_signature: Require contract signatures
         """
         self.prohibited_domains = prohibited_domains or set()
-        self.prohibited_patterns = [
-            re.compile(p) for p in (prohibited_patterns or [])
-        ]
+        self.prohibited_patterns = [re.compile(p) for p in (prohibited_patterns or [])]
         self.require_signature = require_signature
 
     def validate_contract(self, contract: LearningContract) -> ValidationResult:
@@ -221,7 +225,9 @@ class ContractValidator:
 
         # Update code based on issues
         if not result.is_valid:
-            result.code = result.issues[0].code if result.issues else ValidationCode.CONTRACT_INVALID_SCOPE
+            result.code = (
+                result.issues[0].code if result.issues else ValidationCode.CONTRACT_INVALID_SCOPE
+            )
         elif result.has_warnings:
             result.code = ValidationCode.VALID_WITH_WARNINGS
 
@@ -335,7 +341,9 @@ class ContractValidator:
 
         # Update code
         if not result.is_valid:
-            result.code = result.issues[0].code if result.issues else ValidationCode.INSUFFICIENT_SCOPE
+            result.code = (
+                result.issues[0].code if result.issues else ValidationCode.INSUFFICIENT_SCOPE
+            )
         elif result.has_warnings:
             result.code = ValidationCode.VALID_WITH_WARNINGS
 

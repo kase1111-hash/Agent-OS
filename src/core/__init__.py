@@ -8,18 +8,18 @@ This module contains the foundational components of Agent OS:
 - Hot-reload capabilities
 """
 
+from .constitution import ConstitutionalKernel
 from .models import (
+    AuthorityLevel,
+    ConflictType,
+    Constitution,
     ConstitutionMetadata,
     Rule,
-    RuleType,
-    AuthorityLevel,
-    Constitution,
-    ValidationResult,
-    ConflictType,
     RuleConflict,
+    RuleType,
+    ValidationResult,
 )
 from .parser import ConstitutionParser
-from .constitution import ConstitutionalKernel
 from .validator import ConstitutionValidator
 
 __all__ = [

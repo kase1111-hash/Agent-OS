@@ -11,20 +11,19 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from .state import (
-    CeremonyState,
-    CeremonyStateManager,
-    CeremonyPhase,
-    CeremonyStatus,
-    PhaseResult,
-    create_state_manager,
-)
 from .phases import (
     CeremonyPhaseExecutor,
     PhaseExecutionResult,
     create_phase_executor,
 )
-
+from .state import (
+    CeremonyPhase,
+    CeremonyState,
+    CeremonyStateManager,
+    CeremonyStatus,
+    PhaseResult,
+    create_state_manager,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +31,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CeremonyConfig:
     """Configuration for the ceremony."""
+
     state_dir: Path = field(default_factory=lambda: Path.home() / ".agent-os" / "ceremony")
     vault_path: Path = field(default_factory=lambda: Path.home() / ".agent-os" / "vault")
     simulate_offline: bool = True
@@ -46,6 +46,7 @@ class CeremonyConfig:
 @dataclass
 class CeremonyEvent:
     """Event from ceremony execution."""
+
     event_type: str
     phase: Optional[CeremonyPhase] = None
     message: str = ""
@@ -126,20 +127,24 @@ class CeremonyOrchestrator:
         existing = self._state_manager.load_state()
         if existing and existing.status == CeremonyStatus.IN_PROGRESS:
             self._state = existing
-            self._emit_event(CeremonyEvent(
-                event_type="ceremony_resumed",
-                phase=existing.current_phase,
-                message=f"Resuming ceremony at {existing.current_phase.display_name}",
-            ))
+            self._emit_event(
+                CeremonyEvent(
+                    event_type="ceremony_resumed",
+                    phase=existing.current_phase,
+                    message=f"Resuming ceremony at {existing.current_phase.display_name}",
+                )
+            )
             return self._state
 
         # Create new ceremony
         self._state = self._state_manager.create_ceremony(owner_id)
-        self._emit_event(CeremonyEvent(
-            event_type="ceremony_started",
-            message="New ceremony started",
-            data={"ceremony_id": self._state.ceremony_id},
-        ))
+        self._emit_event(
+            CeremonyEvent(
+                event_type="ceremony_started",
+                message="New ceremony started",
+                data={"ceremony_id": self._state.ceremony_id},
+            )
+        )
 
         return self._state
 
@@ -179,11 +184,13 @@ class CeremonyOrchestrator:
 
         # Record phase start
         self._state.record_phase_start(phase)
-        self._emit_event(CeremonyEvent(
-            event_type="phase_started",
-            phase=phase,
-            message=f"Starting {phase.display_name}",
-        ))
+        self._emit_event(
+            CeremonyEvent(
+                event_type="phase_started",
+                phase=phase,
+                message=f"Starting {phase.display_name}",
+            )
+        )
 
         # Execute phase
         result = executor.execute()
@@ -198,12 +205,14 @@ class CeremonyOrchestrator:
         )
 
         # Emit completion event
-        self._emit_event(CeremonyEvent(
-            event_type="phase_completed" if result.success else "phase_failed",
-            phase=phase,
-            message=result.message,
-            data=result.data,
-        ))
+        self._emit_event(
+            CeremonyEvent(
+                event_type="phase_completed" if result.success else "phase_failed",
+                phase=phase,
+                message=result.message,
+                data=result.data,
+            )
+        )
 
         # Save state
         self._state_manager.save_state(self._state)
@@ -257,16 +266,20 @@ class CeremonyOrchestrator:
 
             # Must have completed current phase to advance
             if not current_record or current_record.result != PhaseResult.SUCCESS:
-                raise RuntimeError(f"Cannot advance: {current.display_name} not completed successfully")
+                raise RuntimeError(
+                    f"Cannot advance: {current.display_name} not completed successfully"
+                )
 
         new_phase = self._state.advance_to_next_phase()
         self._state_manager.save_state(self._state)
 
-        self._emit_event(CeremonyEvent(
-            event_type="phase_advanced",
-            phase=new_phase,
-            message=f"Advanced to {new_phase.display_name}",
-        ))
+        self._emit_event(
+            CeremonyEvent(
+                event_type="phase_advanced",
+                phase=new_phase,
+                message=f"Advanced to {new_phase.display_name}",
+            )
+        )
 
         return new_phase
 
@@ -289,11 +302,13 @@ class CeremonyOrchestrator:
             if not result.success:
                 # If emergency drills fail, we should restart
                 if phase == CeremonyPhase.PHASE_VIII_EMERGENCY_DRILLS:
-                    self._emit_event(CeremonyEvent(
-                        event_type="drills_failed",
-                        phase=phase,
-                        message="Emergency drills failed - ceremony must restart",
-                    ))
+                    self._emit_event(
+                        CeremonyEvent(
+                            event_type="drills_failed",
+                            phase=phase,
+                            message="Emergency drills failed - ceremony must restart",
+                        )
+                    )
                     self._state.reset_to_phase(CeremonyPhase.PHASE_I_COLD_BOOT)
                     self._state_manager.save_state(self._state)
                 break
@@ -308,15 +323,17 @@ class CeremonyOrchestrator:
             self._state.advance_to_next_phase()  # Move to COMPLETED
             self._state_manager.save_state(self._state)
 
-            self._emit_event(CeremonyEvent(
-                event_type="ceremony_completed",
-                message="Bring-Home Ceremony completed successfully",
-                data={
-                    "ceremony_id": self._state.ceremony_id,
-                    "owner_id": self._state.owner_id,
-                    "vault_id": self._state.vault_id,
-                },
-            ))
+            self._emit_event(
+                CeremonyEvent(
+                    event_type="ceremony_completed",
+                    message="Bring-Home Ceremony completed successfully",
+                    data={
+                        "ceremony_id": self._state.ceremony_id,
+                        "owner_id": self._state.owner_id,
+                        "vault_id": self._state.vault_id,
+                    },
+                )
+            )
 
         return results
 
@@ -371,10 +388,11 @@ class CeremonyOrchestrator:
             "current_phase": self._state.current_phase.display_name,
             "progress": self._state.progress_percent,
             "started_at": self._state.started_at.isoformat(),
-            "completed_at": self._state.completed_at.isoformat() if self._state.completed_at else None,
+            "completed_at": (
+                self._state.completed_at.isoformat() if self._state.completed_at else None
+            ),
             "phases_completed": sum(
-                1 for r in self._state.phase_records
-                if r.result == PhaseResult.SUCCESS
+                1 for r in self._state.phase_records if r.result == PhaseResult.SUCCESS
             ),
             "phases_total": len(self.PHASE_ORDER),
             "vault_id": self._state.vault_id,
@@ -408,10 +426,12 @@ class CeremonyOrchestrator:
         self._state_manager.clear_ceremony()
         self._state = None
 
-        self._emit_event(CeremonyEvent(
-            event_type="ceremony_reset",
-            message="Ceremony has been reset",
-        ))
+        self._emit_event(
+            CeremonyEvent(
+                event_type="ceremony_reset",
+                message="Ceremony has been reset",
+            )
+        )
 
         return True
 

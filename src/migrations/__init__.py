@@ -4,9 +4,9 @@ Data Migration Framework
 Provides versioned database migrations for Agent OS data stores.
 """
 
-from .runner import MigrationRunner, MigrationError
+from .backup import BackupError, BackupManager
 from .base import Migration, MigrationContext
-from .backup import BackupManager, BackupError
+from .runner import MigrationError, MigrationRunner
 
 __all__ = [
     "MigrationRunner",

@@ -8,24 +8,26 @@ Validates constitutional documents for:
 - Authority boundary violations
 """
 
-from typing import List, Dict, Set, Tuple, Optional
 from itertools import combinations
+from typing import Dict, List, Optional, Set, Tuple
 
 from .models import (
-    Constitution,
-    Rule,
-    RuleType,
     AuthorityLevel,
-    ValidationResult,
     ConflictType,
-    RuleConflict,
+    Constitution,
     ConstitutionRegistry,
+    Rule,
+    RuleConflict,
+    RuleType,
+    ValidationResult,
 )
-
 
 # Keywords that indicate opposing concepts
 OPPOSING_CONCEPTS = [
-    ({"allow", "permit", "enable", "can", "may"}, {"prohibit", "forbid", "prevent", "cannot", "block"}),
+    (
+        {"allow", "permit", "enable", "can", "may"},
+        {"prohibit", "forbid", "prevent", "cannot", "block"},
+    ),
     ({"store", "persist", "save", "remember"}, {"delete", "forget", "erase", "purge"}),
     ({"access", "read", "retrieve"}, {"deny", "block", "restrict"}),
     ({"approve", "accept", "confirm"}, {"reject", "refuse", "decline"}),
@@ -106,14 +108,16 @@ class ConstitutionValidator:
         for agent_rule in constitution.rules:
             for supreme_rule in supreme_immutable:
                 if self._rules_conflict(agent_rule, supreme_rule):
-                    result.add_conflict(RuleConflict(
-                        conflict_type=ConflictType.CONTRADICTION,
-                        rule_a=agent_rule,
-                        rule_b=supreme_rule,
-                        description=f"Agent rule conflicts with immutable supreme rule",
-                        severity="error",
-                        resolution_hint="Agent rules cannot contradict immutable supreme rules",
-                    ))
+                    result.add_conflict(
+                        RuleConflict(
+                            conflict_type=ConflictType.CONTRADICTION,
+                            rule_a=agent_rule,
+                            rule_b=supreme_rule,
+                            description=f"Agent rule conflicts with immutable supreme rule",
+                            severity="error",
+                            resolution_hint="Agent rules cannot contradict immutable supreme rules",
+                        )
+                    )
 
         # Check for authority expansion
         for agent_rule in constitution.rules:
@@ -265,8 +269,9 @@ class ConstitutionValidator:
         ]
 
         for type_1, type_2 in opposing_pairs:
-            if (rule_a.rule_type == type_1 and rule_b.rule_type == type_2) or \
-               (rule_a.rule_type == type_2 and rule_b.rule_type == type_1):
+            if (rule_a.rule_type == type_1 and rule_b.rule_type == type_2) or (
+                rule_a.rule_type == type_2 and rule_b.rule_type == type_1
+            ):
                 return True
 
         return False
@@ -323,8 +328,10 @@ class ConstitutionValidator:
         if rule_a.is_immutable or rule_b.is_immutable:
             severity = "error"
             resolution_hint = "Immutable rules cannot be overridden"
-        elif rule_a.authority_level == AuthorityLevel.SUPREME or \
-             rule_b.authority_level == AuthorityLevel.SUPREME:
+        elif (
+            rule_a.authority_level == AuthorityLevel.SUPREME
+            or rule_b.authority_level == AuthorityLevel.SUPREME
+        ):
             severity = "error"
             resolution_hint = "Supreme constitution rules take precedence"
         else:
@@ -354,8 +361,18 @@ class ConstitutionValidator:
         rule_lower = rule.content.lower()
 
         # Check if the rule is about REFUSING or BLOCKING expansion (which is OK)
-        safety_context = ["refuse", "reject", "block", "deny", "not", "never",
-                         "prohibited", "forbidden", "veto", "prevent"]
+        safety_context = [
+            "refuse",
+            "reject",
+            "block",
+            "deny",
+            "not",
+            "never",
+            "prohibited",
+            "forbidden",
+            "veto",
+            "prevent",
+        ]
         if any(ctx in rule_lower for ctx in safety_context):
             return False
 
@@ -366,7 +383,9 @@ class ConstitutionValidator:
 
         # Look for authority expansion keywords in non-prohibition context
         expansion_indicators = [
-            "self-modify", "self-create", "self-replicate",
+            "self-modify",
+            "self-create",
+            "self-replicate",
         ]
 
         if any(indicator in rule_lower for indicator in expansion_indicators):

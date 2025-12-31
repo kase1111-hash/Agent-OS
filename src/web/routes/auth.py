@@ -93,6 +93,7 @@ class AuthStatusResponse(BaseModel):
 def get_user_store():
     """Get the user store instance."""
     from ..auth import get_user_store
+
     return get_user_store()
 
 
@@ -168,6 +169,7 @@ async def register(
         # Log intent
         try:
             from ..intent_log import IntentType, log_user_intent
+
             log_user_intent(
                 user_id=user.user_id,
                 intent_type=IntentType.AUTH_REGISTER,
@@ -214,10 +216,7 @@ async def login(
         user = store.authenticate(body.username, body.password)
 
         if not user:
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid username or password"
-            )
+            raise HTTPException(status_code=401, detail="Invalid username or password")
 
         # Create session with longer duration if "remember me" is checked
         duration = 24 * 30 if body.remember_me else 24  # 30 days or 24 hours
@@ -244,6 +243,7 @@ async def login(
         # Log intent
         try:
             from ..intent_log import IntentType, log_user_intent
+
             log_user_intent(
                 user_id=user.user_id,
                 intent_type=IntentType.AUTH_LOGIN,
@@ -296,6 +296,7 @@ async def logout(
         if user:
             try:
                 from ..intent_log import IntentType, log_user_intent
+
                 ip, user_agent = get_client_info(request)
                 log_user_intent(
                     user_id=user.user_id,
@@ -354,6 +355,7 @@ async def get_auth_status(
     Also indicates whether authentication is required.
     """
     from ..config import get_config
+
     config = get_config()
 
     store = get_user_store()
@@ -440,11 +442,8 @@ async def change_password(
 
     # Verify current password
     from ..auth import PasswordHasher
-    if not PasswordHasher.verify_password(
-        body.current_password,
-        user.password_hash,
-        user.salt
-    ):
+
+    if not PasswordHasher.verify_password(body.current_password, user.password_hash, user.salt):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
 
     try:

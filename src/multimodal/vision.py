@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 
 class SSRFProtectionError(Exception):
     """Raised when a URL fails SSRF protection validation."""
+
     pass
 
 
@@ -68,9 +69,7 @@ def validate_api_url(url: str, allow_localhost: bool = True) -> str:
 
     # Only allow HTTP and HTTPS schemes
     if parsed.scheme not in ("http", "https"):
-        raise SSRFProtectionError(
-            f"Invalid URL scheme: {parsed.scheme}. Only http/https allowed."
-        )
+        raise SSRFProtectionError(f"Invalid URL scheme: {parsed.scheme}. Only http/https allowed.")
 
     # Get the hostname
     hostname = parsed.hostname
@@ -85,9 +84,7 @@ def validate_api_url(url: str, allow_localhost: bool = True) -> str:
         if allow_localhost:
             return url
         else:
-            raise SSRFProtectionError(
-                "Localhost URLs are not allowed in this context"
-            )
+            raise SSRFProtectionError("Localhost URLs are not allowed in this context")
 
     # Try to resolve hostname to IP and check if it's internal
     try:
@@ -115,9 +112,7 @@ def validate_api_url(url: str, allow_localhost: bool = True) -> str:
         hostname_lower = hostname.lower()
         for pattern in suspicious_patterns:
             if re.search(pattern, hostname_lower):
-                raise SSRFProtectionError(
-                    f"Hostname matches suspicious pattern: {hostname}"
-                )
+                raise SSRFProtectionError(f"Hostname matches suspicious pattern: {hostname}")
 
     return url
 
@@ -379,9 +374,7 @@ class VisionEngine(ABC):
         """
         return self.describe(image, prompt=question)
 
-    def compare_images(
-        self, image1: ImageInput, image2: ImageInput
-    ) -> float:
+    def compare_images(self, image1: ImageInput, image2: ImageInput) -> float:
         """
         Compare two images by cosine similarity of embeddings.
 
@@ -763,9 +756,7 @@ class LLaVAVision(VisionEngine):
         }
         return model_map.get(self.model, "llava")
 
-    def _call_ollama(
-        self, prompt: str, image: Optional[ImageInput] = None
-    ) -> Optional[str]:
+    def _call_ollama(self, prompt: str, image: Optional[ImageInput] = None) -> Optional[str]:
         """Call Ollama API."""
         try:
             import requests
@@ -933,9 +924,7 @@ class APIVisionEngine(VisionEngine):
         super().__init__(model)
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
 
-    def _call_openai_vision(
-        self, image: ImageInput, prompt: str
-    ) -> Optional[str]:
+    def _call_openai_vision(self, image: ImageInput, prompt: str) -> Optional[str]:
         """Call OpenAI Vision API."""
         try:
             import requests

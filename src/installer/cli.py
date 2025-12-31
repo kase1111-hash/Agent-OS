@@ -237,8 +237,8 @@ Examples:
         parsed = self.parser.parse_args(args)
 
         # Set up logging
-        log_level = logging.WARNING if parsed.quiet else (
-            logging.DEBUG if parsed.verbose else logging.INFO
+        log_level = (
+            logging.WARNING if parsed.quiet else (logging.DEBUG if parsed.verbose else logging.INFO)
         )
         logging.basicConfig(
             level=log_level,
@@ -269,12 +269,14 @@ Examples:
 
     def _print_banner(self) -> None:
         """Print welcome banner."""
-        print("""
+        print(
+            """
 ╔══════════════════════════════════════════════════════════════╗
 ║                   Agent OS Installer                         ║
 ║           Constitutional AI Framework                        ║
 ╚══════════════════════════════════════════════════════════════╝
-""")
+"""
+        )
 
     def _print_system_info(self) -> None:
         """Print detected system information."""
@@ -458,9 +460,7 @@ Examples:
         print("Uninstalling Agent OS...\n")
 
         # Load existing configuration
-        config_path = args.path or get_default_install_path(
-            InstallLocation(args.location)
-        )
+        config_path = args.path or get_default_install_path(InstallLocation(args.location))
         install_config_file = config_path / "config" / "install.json"
 
         if not install_config_file.exists():
@@ -471,9 +471,11 @@ Examples:
         installer = self._create_installer(config)
 
         if not args.yes:
-            confirm = input(
-                f"This will remove Agent OS from {config.install_path}. Continue? [y/N]: "
-            ).strip().lower()
+            confirm = (
+                input(f"This will remove Agent OS from {config.install_path}. Continue? [y/N]: ")
+                .strip()
+                .lower()
+            )
             if confirm != "y":
                 print("Uninstallation cancelled.")
                 return 1

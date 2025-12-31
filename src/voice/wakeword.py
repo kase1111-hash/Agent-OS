@@ -547,8 +547,8 @@ class KeywordSpotter(WakeWordDetector):
             self._audio_buffer.clear()
 
             try:
-                from .stt import STTResult
                 from .audio import AudioFormat
+                from .stt import STTResult
 
                 result = self.stt_engine.transcribe(combined, AudioFormat.PCM)
 

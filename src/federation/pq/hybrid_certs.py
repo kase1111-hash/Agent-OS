@@ -40,13 +40,13 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from .hybrid import (
-    HybridMode,
-    HybridSigner,
     HybridKeyPair,
-    HybridPublicKey,
+    HybridMode,
     HybridPrivateKey,
-    HybridSignature,
+    HybridPublicKey,
     HybridSigAlgorithm,
+    HybridSignature,
+    HybridSigner,
 )
 from .ml_dsa import MLDSASecurityLevel
 
@@ -61,8 +61,8 @@ logger = logging.getLogger(__name__)
 class HybridCertificateVersion(str, Enum):
     """Certificate format versions."""
 
-    V1_CLASSICAL = "v1.0"          # Classical Ed25519 only
-    V2_HYBRID = "v2.0"             # Hybrid Ed25519 + ML-DSA
+    V1_CLASSICAL = "v1.0"  # Classical Ed25519 only
+    V2_HYBRID = "v2.0"  # Hybrid Ed25519 + ML-DSA
 
 
 class CertificateType(str, Enum):
@@ -99,9 +99,9 @@ class HybridIdentityKey:
     Contains both Ed25519 and ML-DSA public keys for signature verification.
     """
 
-    classical_key: bytes           # Ed25519 public key (32 bytes)
-    pq_key: bytes                  # ML-DSA public key
-    algorithm: str                 # Algorithm identifier
+    classical_key: bytes  # Ed25519 public key (32 bytes)
+    pq_key: bytes  # ML-DSA public key
+    algorithm: str  # Algorithm identifier
     key_id: str = ""
     security_level: str = "level_3"
     created_at: datetime = field(default_factory=datetime.utcnow)
@@ -174,8 +174,8 @@ class HybridCertificateSignature:
     Both signatures must be valid for the certificate to be considered valid.
     """
 
-    classical_signature: bytes     # Ed25519 signature (64 bytes)
-    pq_signature: bytes           # ML-DSA signature
+    classical_signature: bytes  # Ed25519 signature (64 bytes)
+    pq_signature: bytes  # ML-DSA signature
     algorithm: str
     signer_key_id: str = ""
     signed_at: datetime = field(default_factory=datetime.utcnow)
@@ -203,9 +203,7 @@ class HybridCertificateSignature:
             pq_signature=base64.b64decode(data["pq_signature"]),
             algorithm=data["algorithm"],
             signer_key_id=data.get("signer_key_id", ""),
-            signed_at=datetime.fromisoformat(
-                data.get("signed_at", datetime.utcnow().isoformat())
-            ),
+            signed_at=datetime.fromisoformat(data.get("signed_at", datetime.utcnow().isoformat())),
         )
 
     def to_hybrid_signature(self) -> HybridSignature:
@@ -233,9 +231,9 @@ class HybridCertificate:
     """
 
     # Certificate info
-    subject_id: str                             # Subject node/service ID
-    issuer_id: str                              # Issuer (CA or self) ID
-    serial_number: str = ""                     # Unique serial number
+    subject_id: str  # Subject node/service ID
+    issuer_id: str  # Issuer (CA or self) ID
+    serial_number: str = ""  # Unique serial number
 
     # Public key
     public_key: Optional[HybridIdentityKey] = None
@@ -323,21 +321,27 @@ class HybridCertificate:
             issuer_id=data["issuer_id"],
             serial_number=data.get("serial_number", ""),
             cert_type=CertificateType(data.get("cert_type", "node")),
-            public_key=HybridIdentityKey.from_dict(data["public_key"]) if data.get("public_key") else None,
+            public_key=(
+                HybridIdentityKey.from_dict(data["public_key"]) if data.get("public_key") else None
+            ),
             valid_from=datetime.fromisoformat(data["valid_from"]),
             valid_until=datetime.fromisoformat(data["valid_until"]),
-            signature=HybridCertificateSignature.from_dict(data["signature"]) if data.get("signature") else None,
+            signature=(
+                HybridCertificateSignature.from_dict(data["signature"])
+                if data.get("signature")
+                else None
+            ),
             extensions=data.get("extensions", {}),
         )
 
     def to_pem(self) -> str:
         """Export to PEM-like format."""
         data = base64.b64encode(json.dumps(self.to_dict()).encode()).decode()
-        lines = [data[i:i+64] for i in range(0, len(data), 64)]
+        lines = [data[i : i + 64] for i in range(0, len(data), 64)]
         return (
-            "-----BEGIN HYBRID CERTIFICATE-----\n" +
-            "\n".join(lines) +
-            "\n-----END HYBRID CERTIFICATE-----"
+            "-----BEGIN HYBRID CERTIFICATE-----\n"
+            + "\n".join(lines)
+            + "\n-----END HYBRID CERTIFICATE-----"
         )
 
     @classmethod
@@ -412,12 +416,18 @@ class HybridIdentity:
             node_id=data["node_id"],
             display_name=data["display_name"],
             public_key=HybridIdentityKey.from_dict(data["public_key"]),
-            certificate=HybridCertificate.from_dict(data["certificate"]) if data.get("certificate") else None,
+            certificate=(
+                HybridCertificate.from_dict(data["certificate"])
+                if data.get("certificate")
+                else None
+            ),
             status=HybridIdentityStatus(data.get("status", "unverified")),
             endpoints=data.get("endpoints", []),
             capabilities=data.get("capabilities", []),
             metadata=data.get("metadata", {}),
-            created_at=datetime.fromisoformat(data.get("created_at", datetime.utcnow().isoformat())),
+            created_at=datetime.fromisoformat(
+                data.get("created_at", datetime.utcnow().isoformat())
+            ),
             last_seen=datetime.fromisoformat(data["last_seen"]) if data.get("last_seen") else None,
         )
 
@@ -608,8 +618,12 @@ class HybridIdentityManager:
 
             # Save private key (encrypted in production!)
             key_data = {
-                "classical_public": base64.b64encode(self._keypair.public_key.classical_key).decode(),
-                "classical_private": base64.b64encode(self._keypair.private_key.classical_key).decode(),
+                "classical_public": base64.b64encode(
+                    self._keypair.public_key.classical_key
+                ).decode(),
+                "classical_private": base64.b64encode(
+                    self._keypair.private_key.classical_key
+                ).decode(),
                 "pq_public": base64.b64encode(self._keypair.public_key.pq_key).decode(),
                 "pq_private": base64.b64encode(self._keypair.private_key.pq_key).decode(),
                 "algorithm": self._keypair.algorithm,

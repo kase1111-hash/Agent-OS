@@ -45,28 +45,13 @@ Quick Start:
 
 # Core types from agents interface
 from src.agents.interface import (
-    AgentInterface,
-    BaseAgent,
-    AgentState,
     AgentCapabilities,
+    AgentInterface,
+    AgentMetrics,
+    AgentState,
+    BaseAgent,
     CapabilityType,
     RequestValidationResult,
-    AgentMetrics,
-)
-
-# Templates
-from .templates import (
-    AgentTemplate,
-    SimpleAgent,
-    create_simple_agent,
-    ReasoningAgentTemplate,
-    create_reasoning_agent,
-    GenerationAgentTemplate,
-    create_generation_agent,
-    ValidationAgentTemplate,
-    create_validation_agent,
-    ToolUseAgentTemplate,
-    create_tool_use_agent,
 )
 
 # Builder
@@ -75,56 +60,70 @@ from .builder import (
     agent,
 )
 
-# Testing
-from .testing import (
-    AgentTestCase,
-    create_test_request,
-    create_test_response,
-    create_test_context,
-    TestRequestBuilder,
-    MockAgent,
-    MockMemoryStore,
-    MockToolsClient,
-    MockConstitution,
-    assert_response_success,
-    assert_response_refused,
-    assert_response_error,
-    assert_response_contains,
-    assert_response_matches,
-    assert_agent_capability,
-    assert_validation_passed,
-    assert_validation_failed,
-    AgentTestRunner,
-    TestResult,
-    TestSuite,
-    run_agent_tests,
-)
-
 # Decorators
 from .decorators import (
+    cache_response,
+    catch_errors,
     log_requests,
     log_responses,
     measure_time,
-    retry,
-    catch_errors,
     rate_limit,
-    cache_response,
-    validate_request,
     require_capability,
+    retry,
+    validate_request,
 )
 
 # Lifecycle
 from .lifecycle import (
     AgentLifecycleManager,
     AgentPool,
+    AgentStats,
     HealthCheck,
     HealthStatus,
-    AgentStats,
-    register_agent,
     get_manager,
+    register_agent,
     shutdown_all,
 )
 
+# Templates
+from .templates import (
+    AgentTemplate,
+    GenerationAgentTemplate,
+    ReasoningAgentTemplate,
+    SimpleAgent,
+    ToolUseAgentTemplate,
+    ValidationAgentTemplate,
+    create_generation_agent,
+    create_reasoning_agent,
+    create_simple_agent,
+    create_tool_use_agent,
+    create_validation_agent,
+)
+
+# Testing
+from .testing import (
+    AgentTestCase,
+    AgentTestRunner,
+    MockAgent,
+    MockConstitution,
+    MockMemoryStore,
+    MockToolsClient,
+    TestRequestBuilder,
+    TestResult,
+    TestSuite,
+    assert_agent_capability,
+    assert_response_contains,
+    assert_response_error,
+    assert_response_matches,
+    assert_response_refused,
+    assert_response_success,
+    assert_validation_failed,
+    assert_validation_passed,
+    create_test_context,
+    create_test_request,
+    create_test_response,
+    run_agent_tests,
+)
 
 __all__ = [
     # Core types

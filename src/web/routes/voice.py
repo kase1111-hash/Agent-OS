@@ -19,7 +19,16 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -35,6 +44,7 @@ router = APIRouter()
 
 class STTModelSize(str, Enum):
     """Available STT model sizes."""
+
     TINY = "tiny"
     BASE = "base"
     SMALL = "small"
@@ -44,6 +54,7 @@ class STTModelSize(str, Enum):
 
 class STTLanguageCode(str, Enum):
     """Supported languages for STT."""
+
     ENGLISH = "en"
     SPANISH = "es"
     FRENCH = "fr"
@@ -59,6 +70,7 @@ class STTLanguageCode(str, Enum):
 
 class TTSVoiceId(str, Enum):
     """Available TTS voices."""
+
     EN_US_AMY = "en_US-amy-medium"
     EN_US_DANNY = "en_US-danny-low"
     EN_US_LESSAC = "en_US-lessac-medium"
@@ -71,6 +83,7 @@ class TTSVoiceId(str, Enum):
 
 class TranscriptionRequest(BaseModel):
     """Request for transcription with base64-encoded audio."""
+
     audio_data: str = Field(..., description="Base64-encoded audio data")
     audio_format: str = Field(default="wav", description="Audio format (wav, mp3, ogg, pcm)")
     language: STTLanguageCode = Field(default=STTLanguageCode.AUTO, description="Language code")
@@ -79,6 +92,7 @@ class TranscriptionRequest(BaseModel):
 
 class TranscriptionResponse(BaseModel):
     """Response from transcription."""
+
     text: str
     language: str
     duration: float
@@ -89,6 +103,7 @@ class TranscriptionResponse(BaseModel):
 
 class SynthesisRequest(BaseModel):
     """Request for speech synthesis."""
+
     text: str = Field(..., min_length=1, max_length=5000, description="Text to synthesize")
     voice: TTSVoiceId = Field(default=TTSVoiceId.DEFAULT, description="Voice to use")
     speed: float = Field(default=1.0, ge=0.5, le=2.0, description="Speech rate")
@@ -97,6 +112,7 @@ class SynthesisRequest(BaseModel):
 
 class SynthesisResponse(BaseModel):
     """Response from synthesis (metadata only)."""
+
     audio_data: str = Field(..., description="Base64-encoded audio data")
     format: str
     duration: float
@@ -106,6 +122,7 @@ class SynthesisResponse(BaseModel):
 
 class VoiceStatus(BaseModel):
     """Status of voice capabilities."""
+
     stt_available: bool
     stt_engine: str
     tts_available: bool
@@ -115,6 +132,7 @@ class VoiceStatus(BaseModel):
 
 class STTConfigUpdate(BaseModel):
     """Update STT configuration."""
+
     model: Optional[STTModelSize] = None
     language: Optional[STTLanguageCode] = None
     translate: Optional[bool] = None
@@ -122,6 +140,7 @@ class STTConfigUpdate(BaseModel):
 
 class TTSConfigUpdate(BaseModel):
     """Update TTS configuration."""
+
     voice: Optional[TTSVoiceId] = None
     speed: Optional[float] = Field(default=None, ge=0.5, le=2.0)
 
@@ -145,7 +164,8 @@ class VoiceManager:
         if self._stt_engine is None:
             try:
                 from src.voice import create_stt_engine
-                from src.voice.stt import STTConfig, STTModel, STTLanguage
+                from src.voice.stt import STTConfig, STTLanguage, STTModel
+
                 self._stt_config = STTConfig()
                 self._stt_engine = create_stt_engine("auto", self._stt_config)
             except ImportError as e:
@@ -159,6 +179,7 @@ class VoiceManager:
             try:
                 from src.voice import create_tts_engine
                 from src.voice.tts import TTSConfig
+
                 self._tts_config = TTSConfig()
                 self._tts_engine = create_tts_engine("auto", self._tts_config)
             except ImportError as e:
@@ -183,7 +204,7 @@ class VoiceManager:
         """Update STT configuration and recreate engine."""
         try:
             from src.voice import create_stt_engine
-            from src.voice.stt import STTConfig, STTModel, STTLanguage
+            from src.voice.stt import STTConfig, STTLanguage, STTModel
 
             current = self._stt_config or STTConfig()
 
@@ -274,6 +295,7 @@ async def transcribe_audio(
 
     # Determine audio format
     from src.voice.audio import AudioFormat
+
     format_map = {
         "wav": AudioFormat.WAV,
         "pcm": AudioFormat.PCM,
@@ -338,6 +360,7 @@ async def transcribe_file(
     # Determine format from filename
     ext = Path(file.filename or "audio.wav").suffix.lower()
     from src.voice.audio import AudioFormat
+
     format_map = {
         ".wav": AudioFormat.WAV,
         ".mp3": AudioFormat.MP3,
@@ -560,18 +583,22 @@ async def voice_websocket(
             msg_type = data.get("type", "")
 
             if msg_type == "ping":
-                await websocket.send_json({
-                    "type": "pong",
-                    "timestamp": datetime.utcnow().isoformat(),
-                })
+                await websocket.send_json(
+                    {
+                        "type": "pong",
+                        "timestamp": datetime.utcnow().isoformat(),
+                    }
+                )
 
             elif msg_type == "transcribe":
                 stt = manager.get_stt_engine()
                 if stt is None or not stt.is_available():
-                    await websocket.send_json({
-                        "type": "error",
-                        "message": "STT engine not available",
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "message": "STT engine not available",
+                        }
+                    )
                     continue
 
                 try:
@@ -580,6 +607,7 @@ async def voice_websocket(
                     audio_format_str = data.get("format", "wav")
 
                     from src.voice.audio import AudioFormat
+
                     format_map = {
                         "wav": AudioFormat.WAV,
                         "pcm": AudioFormat.PCM,
@@ -595,37 +623,45 @@ async def voice_websocket(
                             lambda: stt.transcribe(audio_bytes, format=audio_format),
                         )
 
-                    await websocket.send_json({
-                        "type": "transcription",
-                        "text": result.text,
-                        "language": result.language,
-                        "confidence": result.confidence,
-                        "duration": result.duration,
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "transcription",
+                            "text": result.text,
+                            "language": result.language,
+                            "confidence": result.confidence,
+                            "duration": result.duration,
+                        }
+                    )
 
                 except Exception as e:
                     logger.error(f"Transcription error: {e}")
-                    await websocket.send_json({
-                        "type": "error",
-                        "message": f"Transcription failed: {e}",
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "message": f"Transcription failed: {e}",
+                        }
+                    )
 
             elif msg_type == "synthesize":
                 tts = manager.get_tts_engine()
                 if tts is None or not tts.is_available():
-                    await websocket.send_json({
-                        "type": "error",
-                        "message": "TTS engine not available",
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "message": "TTS engine not available",
+                        }
+                    )
                     continue
 
                 try:
                     text = data.get("text", "")
                     if not text:
-                        await websocket.send_json({
-                            "type": "error",
-                            "message": "No text provided",
-                        })
+                        await websocket.send_json(
+                            {
+                                "type": "error",
+                                "message": "No text provided",
+                            }
+                        )
                         continue
 
                     # Run in thread pool
@@ -637,31 +673,39 @@ async def voice_websocket(
                         )
 
                     if result.is_empty:
-                        await websocket.send_json({
-                            "type": "error",
-                            "message": f"Synthesis failed: {result.metadata.get('error', 'unknown')}",
-                        })
+                        await websocket.send_json(
+                            {
+                                "type": "error",
+                                "message": f"Synthesis failed: {result.metadata.get('error', 'unknown')}",
+                            }
+                        )
                     else:
-                        await websocket.send_json({
-                            "type": "audio",
-                            "data": base64.b64encode(result.audio_data).decode("ascii"),
-                            "format": result.format.value,
-                            "duration": result.duration,
-                            "sample_rate": result.sample_rate,
-                        })
+                        await websocket.send_json(
+                            {
+                                "type": "audio",
+                                "data": base64.b64encode(result.audio_data).decode("ascii"),
+                                "format": result.format.value,
+                                "duration": result.duration,
+                                "sample_rate": result.sample_rate,
+                            }
+                        )
 
                 except Exception as e:
                     logger.error(f"Synthesis error: {e}")
-                    await websocket.send_json({
-                        "type": "error",
-                        "message": f"Synthesis failed: {e}",
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "message": f"Synthesis failed: {e}",
+                        }
+                    )
 
             else:
-                await websocket.send_json({
-                    "type": "error",
-                    "message": f"Unknown message type: {msg_type}",
-                })
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "message": f"Unknown message type: {msg_type}",
+                    }
+                )
 
     except WebSocketDisconnect:
         logger.info(f"Voice WebSocket disconnected: {connection_id}")

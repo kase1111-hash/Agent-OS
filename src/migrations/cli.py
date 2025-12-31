@@ -231,7 +231,8 @@ def main(argv: Optional[list] = None) -> int:
         help="Agent OS data directory",
     )
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable verbose output",
     )

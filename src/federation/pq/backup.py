@@ -183,9 +183,7 @@ class ShamirSecretSharing:
         for byte_idx, secret_byte in enumerate(secret):
             # Generate random polynomial coefficients
             # f(x) = secret + a1*x + a2*x^2 + ... + a(k-1)*x^(k-1)
-            coefficients = [secret_byte] + [
-                secrets.randbelow(256) for _ in range(threshold - 1)
-            ]
+            coefficients = [secret_byte] + [secrets.randbelow(256) for _ in range(threshold - 1)]
 
             # Evaluate polynomial at x = 1, 2, ..., n
             for share_idx in range(1, total_shares + 1):
@@ -321,7 +319,9 @@ class KeyShare:
             threshold=data["threshold"],
             total_shares=data["total_shares"],
             created_at=datetime.fromisoformat(data["created_at"]),
-            expires_at=datetime.fromisoformat(data["expires_at"]) if data.get("expires_at") else None,
+            expires_at=(
+                datetime.fromisoformat(data["expires_at"]) if data.get("expires_at") else None
+            ),
             custodian_id=data.get("custodian_id"),
             checksum=data.get("checksum", ""),
         )
@@ -386,7 +386,9 @@ class KeyBackup:
             salt=base64.b64decode(data["salt"]),
             nonce=base64.b64decode(data["nonce"]),
             created_at=datetime.fromisoformat(data["created_at"]),
-            expires_at=datetime.fromisoformat(data["expires_at"]) if data.get("expires_at") else None,
+            expires_at=(
+                datetime.fromisoformat(data["expires_at"]) if data.get("expires_at") else None
+            ),
             status=BackupStatus(data.get("status", "created")),
             recovery_method=RecoveryMethod(data.get("recovery_method", "password")),
             metadata=data.get("metadata", {}),
@@ -402,7 +404,7 @@ class BackupConfig:
 
     # Encryption
     kdf_iterations: int = 100000  # Argon2id iterations
-    kdf_memory_kb: int = 65536    # 64 MB
+    kdf_memory_kb: int = 65536  # 64 MB
     kdf_parallelism: int = 4
 
     # Shamir settings
@@ -540,9 +542,7 @@ class KeyBackupManager:
 
         except Exception as e:
             self._recovery_attempts[backup.backup_id] = attempts + 1
-            logger.warning(
-                f"Recovery attempt {attempts + 1} failed for {backup.backup_id}: {e}"
-            )
+            logger.warning(f"Recovery attempt {attempts + 1} failed for {backup.backup_id}: {e}")
             raise ValueError("Decryption failed - incorrect password")
 
     def split_key(
@@ -702,7 +702,7 @@ class KeyBackupManager:
     def _derive_key(self, password: str, salt: bytes) -> bytes:
         """Derive encryption key from password using Argon2id."""
         try:
-            from argon2.low_level import hash_secret_raw, Type
+            from argon2.low_level import Type, hash_secret_raw
 
             return hash_secret_raw(
                 secret=password.encode(),
@@ -717,6 +717,7 @@ class KeyBackupManager:
             # Fallback to PBKDF2
             logger.warning("Argon2 not available, using PBKDF2")
             import hashlib
+
             return hashlib.pbkdf2_hmac(
                 "sha256",
                 password.encode(),
@@ -735,6 +736,7 @@ class KeyBackupManager:
         """
         try:
             from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
             aesgcm = AESGCM(key)
             return aesgcm.encrypt(nonce, plaintext, None)
         except ImportError:
@@ -754,6 +756,7 @@ class KeyBackupManager:
         """
         try:
             from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
             aesgcm = AESGCM(key)
             return aesgcm.decrypt(nonce, ciphertext, None)
         except ImportError:

@@ -4,6 +4,7 @@ Speech-to-Text (STT) Engine
 Provides speech recognition functionality using Whisper or compatible engines.
 """
 
+import json
 import logging
 import re
 import subprocess
@@ -16,9 +17,8 @@ from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
-import json
 
-from .audio import AudioBuffer, pcm_to_wav, AudioFormat
+from .audio import AudioBuffer, AudioFormat, pcm_to_wav
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 class PathValidationError(Exception):
     """Raised when a path fails security validation."""
+
     pass
 
 
@@ -65,24 +66,22 @@ def validate_audio_path(path: Path) -> Path:
     path_str = str(resolved)
 
     # Disallow null bytes (can truncate strings in C programs)
-    if '\x00' in path_str:
+    if "\x00" in path_str:
         raise PathValidationError("Path contains null byte")
 
     # Disallow newlines (can inject additional commands in some contexts)
-    if '\n' in path_str or '\r' in path_str:
+    if "\n" in path_str or "\r" in path_str:
         raise PathValidationError("Path contains newline characters")
 
     # Disallow common shell metacharacters as a defense-in-depth measure
     dangerous_patterns = [
-        r'[;|&`$]',  # Command separators and execution
-        r'^\s*-',    # Leading dash (could be interpreted as option)
+        r"[;|&`$]",  # Command separators and execution
+        r"^\s*-",  # Leading dash (could be interpreted as option)
     ]
 
     for pattern in dangerous_patterns:
         if re.search(pattern, path_str):
-            raise PathValidationError(
-                f"Path contains potentially dangerous characters: {path_str}"
-            )
+            raise PathValidationError(f"Path contains potentially dangerous characters: {path_str}")
 
     return resolved
 
@@ -430,9 +429,12 @@ class WhisperSTT(STTEngine):
             # Build command
             cmd = [
                 self.whisper_path,
-                "-m", self.model_path,
-                "-f", str(validated_path),
-                "-l", self.config.language.value,
+                "-m",
+                self.model_path,
+                "-f",
+                str(validated_path),
+                "-l",
+                self.config.language.value,
                 "--output-json",
                 "-nt",  # No timestamps in output
             ]
@@ -516,6 +518,7 @@ class WhisperAPISTT(STTEngine):
     def is_available(self) -> bool:
         """Check if OpenAI API is available."""
         import os
+
         return bool(self.api_key or os.getenv("OPENAI_API_KEY"))
 
     def transcribe(self, audio_data: bytes, format: AudioFormat = AudioFormat.PCM) -> STTResult:
@@ -547,7 +550,11 @@ class WhisperAPISTT(STTEngine):
                 response = client.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio_file,
-                    language=self.config.language.value if self.config.language != STTLanguage.AUTO else None,
+                    language=(
+                        self.config.language.value
+                        if self.config.language != STTLanguage.AUTO
+                        else None
+                    ),
                 )
 
             result = STTResult(

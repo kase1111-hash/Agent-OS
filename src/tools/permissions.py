@@ -17,34 +17,36 @@ from typing import Any, Dict, List, Optional, Set
 
 from .interface import ToolCategory, ToolRiskLevel
 
-
 logger = logging.getLogger(__name__)
 
 
 class PermissionLevel(Enum):
     """Permission levels for tool access."""
-    NONE = auto()       # No access
-    INVOKE = auto()     # Can invoke (with approval)
-    USE = auto()        # Can use freely (approved tools)
-    MANAGE = auto()     # Can enable/disable
-    ADMIN = auto()      # Full control including registration
+
+    NONE = auto()  # No access
+    INVOKE = auto()  # Can invoke (with approval)
+    USE = auto()  # Can use freely (approved tools)
+    MANAGE = auto()  # Can enable/disable
+    ADMIN = auto()  # Full control including registration
 
 
 class GrantType(Enum):
     """Type of permission grant."""
-    PERMANENT = auto()    # No expiration
-    TEMPORARY = auto()    # Time-limited
-    SESSION = auto()      # Valid for current session only
-    ONE_TIME = auto()     # Valid for single use
+
+    PERMANENT = auto()  # No expiration
+    TEMPORARY = auto()  # Time-limited
+    SESSION = auto()  # Valid for current session only
+    ONE_TIME = auto()  # Valid for single use
 
 
 @dataclass
 class PermissionGrant:
     """A permission grant for a user/agent."""
+
     grant_id: str
-    principal_id: str       # User or agent ID
-    principal_type: str     # "user" or "agent"
-    tool_id: Optional[str] = None    # Specific tool (None = all tools)
+    principal_id: str  # User or agent ID
+    principal_type: str  # "user" or "agent"
+    tool_id: Optional[str] = None  # Specific tool (None = all tools)
     tool_name: Optional[str] = None  # Specific tool by name
     category: Optional[ToolCategory] = None  # All tools in category
     permission: PermissionLevel = PermissionLevel.USE
@@ -108,6 +110,7 @@ class PermissionGrant:
 @dataclass
 class PermissionDenial:
     """Explicit denial of permission."""
+
     denial_id: str
     principal_id: str
     principal_type: str
@@ -133,6 +136,7 @@ class PermissionDenial:
 @dataclass
 class RiskLimitPolicy:
     """Policy limiting tool use by risk level."""
+
     max_risk_level: ToolRiskLevel = ToolRiskLevel.MEDIUM
     require_confirmation_above: ToolRiskLevel = ToolRiskLevel.MEDIUM
     require_human_approval_above: ToolRiskLevel = ToolRiskLevel.HIGH
@@ -141,6 +145,7 @@ class RiskLimitPolicy:
 @dataclass
 class PermissionCheckResult:
     """Result of a permission check."""
+
     allowed: bool
     permission_level: PermissionLevel = PermissionLevel.NONE
     requires_confirmation: bool = False
@@ -395,9 +400,7 @@ class PermissionManager:
         """
         with self._lock:
             # Check for explicit denials first (denials take precedence)
-            denial = self._find_matching_denial(
-                principal_id, tool_id, tool_name, tool_category
-            )
+            denial = self._find_matching_denial(principal_id, tool_id, tool_name, tool_category)
             if denial:
                 return PermissionCheckResult(
                     allowed=False,
@@ -414,9 +417,7 @@ class PermissionManager:
                 )
 
             # Find matching grant
-            grant = self._find_matching_grant(
-                principal_id, tool_id, tool_name, tool_category
-            )
+            grant = self._find_matching_grant(principal_id, tool_id, tool_name, tool_category)
 
             if not grant:
                 return PermissionCheckResult(
@@ -458,21 +459,13 @@ class PermissionManager:
         """Get all grants for a principal."""
         with self._lock:
             grant_ids = self._principal_grants.get(principal_id, set())
-            return [
-                self._grants[gid]
-                for gid in grant_ids
-                if gid in self._grants
-            ]
+            return [self._grants[gid] for gid in grant_ids if gid in self._grants]
 
     def get_denials_for_principal(self, principal_id: str) -> List[PermissionDenial]:
         """Get all denials for a principal."""
         with self._lock:
             denial_ids = self._principal_denials.get(principal_id, set())
-            return [
-                self._denials[did]
-                for did in denial_ids
-                if did in self._denials
-            ]
+            return [self._denials[did] for did in denial_ids if did in self._denials]
 
     def _find_matching_grant(
         self,

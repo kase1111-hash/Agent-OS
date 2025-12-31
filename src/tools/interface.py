@@ -6,50 +6,53 @@ All tools must implement the ToolInterface abstract class.
 """
 
 import hashlib
+import logging
 import secrets
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
 from typing import Any, Callable, Dict, List, Optional, Set, Union
-import logging
-
 
 logger = logging.getLogger(__name__)
 
 
 class ToolCategory(Enum):
     """Categories of tools."""
-    FILE_SYSTEM = "file_system"       # File read/write operations
-    NETWORK = "network"               # HTTP, API calls
-    SHELL = "shell"                   # Shell command execution
-    CODE = "code"                     # Code execution/evaluation
-    DATABASE = "database"             # Database operations
-    MESSAGING = "messaging"           # Email, SMS, notifications
-    SYSTEM = "system"                 # System configuration
-    UTILITY = "utility"               # General utilities
-    CUSTOM = "custom"                 # User-defined tools
+
+    FILE_SYSTEM = "file_system"  # File read/write operations
+    NETWORK = "network"  # HTTP, API calls
+    SHELL = "shell"  # Shell command execution
+    CODE = "code"  # Code execution/evaluation
+    DATABASE = "database"  # Database operations
+    MESSAGING = "messaging"  # Email, SMS, notifications
+    SYSTEM = "system"  # System configuration
+    UTILITY = "utility"  # General utilities
+    CUSTOM = "custom"  # User-defined tools
 
 
 class ToolRiskLevel(Enum):
     """Risk level for tools."""
-    LOW = auto()      # Read-only, no side effects
-    MEDIUM = auto()   # Writes data, reversible
-    HIGH = auto()     # External communication, system changes
-    CRITICAL = auto() # Irreversible actions, security-sensitive
+
+    LOW = auto()  # Read-only, no side effects
+    MEDIUM = auto()  # Writes data, reversible
+    HIGH = auto()  # External communication, system changes
+    CRITICAL = auto()  # Irreversible actions, security-sensitive
 
 
 class ToolStatus(Enum):
     """Tool registration status."""
-    PENDING = auto()       # Awaiting approval
-    APPROVED = auto()      # Approved and usable
-    DISABLED = auto()      # Temporarily disabled
-    REVOKED = auto()       # Permanently revoked
-    DEPRECATED = auto()    # No longer recommended
+
+    PENDING = auto()  # Awaiting approval
+    APPROVED = auto()  # Approved and usable
+    DISABLED = auto()  # Temporarily disabled
+    REVOKED = auto()  # Permanently revoked
+    DEPRECATED = auto()  # No longer recommended
 
 
 class InvocationResult(Enum):
     """Result of a tool invocation."""
+
     SUCCESS = auto()
     FAILURE = auto()
     TIMEOUT = auto()
@@ -62,6 +65,7 @@ class InvocationResult(Enum):
 @dataclass
 class ToolParameter:
     """Definition of a tool parameter."""
+
     name: str
     param_type: str  # "string", "integer", "boolean", "array", "object"
     description: str
@@ -100,6 +104,7 @@ class ToolParameter:
 
         if "pattern" in self.constraints and self.param_type == "string":
             import re
+
             if not re.match(self.constraints["pattern"], value):
                 return False, f"Parameter '{self.name}' does not match required pattern"
 
@@ -107,7 +112,10 @@ class ToolParameter:
             return False, f"Parameter '{self.name}' must be one of: {self.constraints['enum']}"
 
         if "max_length" in self.constraints and len(value) > self.constraints["max_length"]:
-            return False, f"Parameter '{self.name}' exceeds max length {self.constraints['max_length']}"
+            return (
+                False,
+                f"Parameter '{self.name}' exceeds max length {self.constraints['max_length']}",
+            )
 
         return True, None
 
@@ -127,6 +135,7 @@ class ToolParameter:
 @dataclass
 class ToolSchema:
     """Schema definition for a tool."""
+
     name: str
     description: str
     category: ToolCategory
@@ -183,6 +192,7 @@ class ToolSchema:
     def compute_hash(self) -> str:
         """Compute hash of schema for versioning."""
         import json
+
         content = json.dumps(self.to_dict(), sort_keys=True)
         return hashlib.sha256(content.encode()).hexdigest()[:16]
 
@@ -190,6 +200,7 @@ class ToolSchema:
 @dataclass
 class ToolResult:
     """Result of a tool invocation."""
+
     result: InvocationResult
     output: Any = None
     error: Optional[str] = None
@@ -226,6 +237,7 @@ class ToolResult:
 @dataclass
 class ToolInvocation:
     """Record of a tool invocation."""
+
     invocation_id: str
     tool_name: str
     parameters: Dict[str, Any]
@@ -426,14 +438,16 @@ class BaseTool(ToolInterface):
         **constraints,
     ) -> "BaseTool":
         """Add a parameter definition. Returns self for chaining."""
-        self._parameters.append(ToolParameter(
-            name=name,
-            param_type=param_type,
-            description=description,
-            required=required,
-            default=default,
-            constraints=constraints,
-        ))
+        self._parameters.append(
+            ToolParameter(
+                name=name,
+                param_type=param_type,
+                description=description,
+                required=required,
+                default=default,
+                constraints=constraints,
+            )
+        )
         return self
 
     def get_schema(self) -> ToolSchema:

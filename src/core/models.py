@@ -4,12 +4,12 @@ Agent OS Core Models
 Data models for constitutional documents, rules, and validation results.
 """
 
+import hashlib
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
-from typing import Optional, List, Dict, Any, Set
 from pathlib import Path
-import hashlib
+from typing import Any, Dict, List, Optional, Set
 
 
 class AuthorityLevel(Enum):
@@ -17,11 +17,12 @@ class AuthorityLevel(Enum):
     Authority levels in the constitutional hierarchy.
     Higher numeric value = higher authority.
     """
-    SUPREME = 100        # Core constitution (CONSTITUTION.md)
-    SYSTEM = 80          # System-wide instructions
+
+    SUPREME = 100  # Core constitution (CONSTITUTION.md)
+    SYSTEM = 80  # System-wide instructions
     AGENT_SPECIFIC = 60  # Agent-specific constitutions
-    ROLE = 40            # Role instructions
-    TASK = 20            # Task-level prompts
+    ROLE = 40  # Role instructions
+    TASK = 20  # Task-level prompts
 
     def __lt__(self, other: "AuthorityLevel") -> bool:
         return self.value < other.value
@@ -38,23 +39,25 @@ class AuthorityLevel(Enum):
 
 class RuleType(Enum):
     """Types of constitutional rules."""
-    PRINCIPLE = auto()      # Core principles (e.g., "Human Sovereignty")
-    MANDATE = auto()        # Required actions ("SHALL", "MUST")
-    PROHIBITION = auto()    # Forbidden actions ("MUST NOT", "SHALL NOT")
-    PERMISSION = auto()     # Allowed actions ("MAY", "CAN")
-    BOUNDARY = auto()       # Authority boundaries
-    PROCEDURE = auto()      # Process requirements
-    ESCALATION = auto()     # Escalation requirements
-    IMMUTABLE = auto()      # Cannot be amended
+
+    PRINCIPLE = auto()  # Core principles (e.g., "Human Sovereignty")
+    MANDATE = auto()  # Required actions ("SHALL", "MUST")
+    PROHIBITION = auto()  # Forbidden actions ("MUST NOT", "SHALL NOT")
+    PERMISSION = auto()  # Allowed actions ("MAY", "CAN")
+    BOUNDARY = auto()  # Authority boundaries
+    PROCEDURE = auto()  # Process requirements
+    ESCALATION = auto()  # Escalation requirements
+    IMMUTABLE = auto()  # Cannot be amended
 
 
 class ConflictType(Enum):
     """Types of rule conflicts that can be detected."""
-    CONTRADICTION = auto()      # Rules directly contradict each other
+
+    CONTRADICTION = auto()  # Rules directly contradict each other
     AUTHORITY_OVERLAP = auto()  # Multiple agents claim same authority
     PRECEDENCE_AMBIGUITY = auto()  # Unclear which rule takes precedence
-    SCOPE_CONFLICT = auto()     # Overlapping scopes with different rules
-    CIRCULAR_DEPENDENCY = auto() # Rules reference each other circularly
+    SCOPE_CONFLICT = auto()  # Overlapping scopes with different rules
+    CIRCULAR_DEPENDENCY = auto()  # Rules reference each other circularly
 
 
 @dataclass
@@ -62,6 +65,7 @@ class ConstitutionMetadata:
     """
     Metadata extracted from constitutional document YAML frontmatter.
     """
+
     document_type: str
     version: str
     effective_date: str
@@ -75,7 +79,9 @@ class ConstitutionMetadata:
     raw_frontmatter: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_frontmatter(cls, frontmatter: Dict[str, Any], file_path: Optional[Path] = None) -> "ConstitutionMetadata":
+    def from_frontmatter(
+        cls, frontmatter: Dict[str, Any], file_path: Optional[Path] = None
+    ) -> "ConstitutionMetadata":
         """Create metadata from parsed YAML frontmatter."""
         # Map authority level string to enum
         authority_str = frontmatter.get("authority_level", "agent_specific").lower()
@@ -108,16 +114,17 @@ class Rule:
     """
     A single constitutional rule extracted from a document.
     """
-    id: str                          # Unique identifier (hash of content)
-    content: str                     # The rule text
-    rule_type: RuleType              # Type of rule
-    section: str                     # Section header where rule was found
-    section_path: List[str]          # Full path of headers (e.g., ["Core Principles", "Human Sovereignty"])
+
+    id: str  # Unique identifier (hash of content)
+    content: str  # The rule text
+    rule_type: RuleType  # Type of rule
+    section: str  # Section header where rule was found
+    section_path: List[str]  # Full path of headers (e.g., ["Core Principles", "Human Sovereignty"])
     authority_level: AuthorityLevel  # Inherited from document
-    scope: str                       # Inherited from document or overridden
+    scope: str  # Inherited from document or overridden
     source_file: Optional[Path] = None
     line_number: Optional[int] = None
-    is_immutable: bool = False       # Whether rule is marked as immutable
+    is_immutable: bool = False  # Whether rule is marked as immutable
     keywords: Set[str] = field(default_factory=set)  # Extracted keywords
     references: List[str] = field(default_factory=list)  # References to other rules/sections
 
@@ -136,8 +143,11 @@ class Rule:
         if self.scope == other.scope:
             if self.keywords & other.keywords:  # Overlapping keywords
                 # Mandate vs Prohibition on same topic = conflict
-                if (self.rule_type == RuleType.MANDATE and other.rule_type == RuleType.PROHIBITION) or \
-                   (self.rule_type == RuleType.PROHIBITION and other.rule_type == RuleType.MANDATE):
+                if (
+                    self.rule_type == RuleType.MANDATE and other.rule_type == RuleType.PROHIBITION
+                ) or (
+                    self.rule_type == RuleType.PROHIBITION and other.rule_type == RuleType.MANDATE
+                ):
                     return True
         return False
 
@@ -145,6 +155,7 @@ class Rule:
 @dataclass
 class RuleConflict:
     """Represents a detected conflict between rules."""
+
     conflict_type: ConflictType
     rule_a: Rule
     rule_b: Rule
@@ -159,6 +170,7 @@ class RuleConflict:
 @dataclass
 class ValidationResult:
     """Result of validating a constitution or request against rules."""
+
     is_valid: bool
     errors: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
@@ -184,6 +196,7 @@ class Constitution:
     """
     A complete parsed constitutional document with all extracted rules.
     """
+
     metadata: ConstitutionMetadata
     rules: List[Rule]
     sections: Dict[str, str]  # Section name -> content
@@ -221,6 +234,7 @@ class ConstitutionRegistry:
     """
     Registry of all loaded constitutions with hierarchy management.
     """
+
     constitutions: Dict[str, Constitution] = field(default_factory=dict)
 
     def register(self, constitution: Constitution) -> None:

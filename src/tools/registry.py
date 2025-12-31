@@ -16,16 +16,15 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Type
 
 from .interface import (
-    ToolInterface,
-    ToolSchema,
+    InvocationResult,
     ToolCategory,
-    ToolRiskLevel,
-    ToolStatus,
+    ToolInterface,
     ToolParameter,
     ToolResult,
-    InvocationResult,
+    ToolRiskLevel,
+    ToolSchema,
+    ToolStatus,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +32,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ToolRegistration:
     """A registered tool with metadata."""
+
     tool_id: str
     tool: ToolInterface
     schema: ToolSchema
@@ -74,6 +74,7 @@ class ToolRegistration:
 @dataclass
 class ToolQuery:
     """Query parameters for searching tools."""
+
     name_pattern: Optional[str] = None
     categories: Optional[Set[ToolCategory]] = None
     risk_levels: Optional[Set[ToolRiskLevel]] = None
@@ -188,8 +189,7 @@ class ToolRegistry:
             approved_by = None
 
             if auto_approve or (
-                self._auto_approve_low_risk and
-                schema.risk_level == ToolRiskLevel.LOW
+                self._auto_approve_low_risk and schema.risk_level == ToolRiskLevel.LOW
             ):
                 status = ToolStatus.APPROVED
                 approved_at = datetime.now()

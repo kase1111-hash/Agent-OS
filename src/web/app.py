@@ -83,6 +83,7 @@ def _check_dependencies() -> bool:
     try:
         import fastapi
         import uvicorn
+
         return True
     except ImportError:
         return False
@@ -118,6 +119,7 @@ async def _session_cleanup_task(interval_seconds: int = 3600):
 
             # Clean up expired sessions
             from .auth import get_user_store
+
             store = get_user_store()
             cleaned = store.cleanup_expired_sessions()
             if cleaned > 0:
@@ -304,7 +306,18 @@ Real-time streaming is available via WebSocket:
         logger.debug("Observability module not available, skipping middleware")
 
     # Include routers
-    from .routes import agents, auth, chat, constitution, contracts, images, intent_log, memory, system, voice
+    from .routes import (
+        agents,
+        auth,
+        chat,
+        constitution,
+        contracts,
+        images,
+        intent_log,
+        memory,
+        system,
+        voice,
+    )
 
     app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
     app.include_router(chat.router, prefix="/api/chat", tags=["Chat"])

@@ -19,14 +19,22 @@ Usage:
     status = health.check_all()
 """
 
+from .health import (
+    HealthAggregator,
+    HealthCheck,
+    HealthStatus,
+    check_all,
+    get_health_aggregator,
+    register_check,
+)
 from .metrics import (
-    MetricsRegistry,
     Counter,
     Gauge,
     Histogram,
-    get_metrics,
+    MetricsRegistry,
     counter,
     gauge,
+    get_metrics,
     histogram,
 )
 from .tracing import (
@@ -35,14 +43,6 @@ from .tracing import (
     get_tracer,
     span,
     trace,
-)
-from .health import (
-    HealthCheck,
-    HealthStatus,
-    HealthAggregator,
-    get_health_aggregator,
-    register_check,
-    check_all,
 )
 
 __all__ = [

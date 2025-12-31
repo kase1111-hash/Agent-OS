@@ -6,16 +6,17 @@ Supports model loading, prompt formatting, and streaming responses.
 """
 
 import json
+import logging
+import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, List, Dict, Any, Iterator, Callable
-import logging
-import threading
+from typing import Any, Callable, Dict, Iterator, List, Optional
 from urllib.parse import urljoin
 
 try:
     import httpx
+
     HTTPX_AVAILABLE = True
 except ImportError:
     HTTPX_AVAILABLE = False
@@ -32,6 +33,7 @@ from urllib.parse import urlparse
 
 class SSRFProtectionError(Exception):
     """Raised when a URL fails SSRF protection validation."""
+
     pass
 
 
@@ -57,7 +59,7 @@ def validate_ollama_endpoint(url: str) -> str:
         raise SSRFProtectionError(f"Invalid URL format: {e}")
 
     # Validate scheme
-    if parsed.scheme not in ('http', 'https'):
+    if parsed.scheme not in ("http", "https"):
         raise SSRFProtectionError(f"Invalid URL scheme: {parsed.scheme}")
 
     # Validate host exists
@@ -68,9 +70,9 @@ def validate_ollama_endpoint(url: str) -> str:
 
     # Check for suspicious internal hostnames
     suspicious_patterns = [
-        'metadata.',           # Cloud metadata services
-        '169.254.',            # AWS metadata IP range
-        'internal.',           # Internal services
+        "metadata.",  # Cloud metadata services
+        "169.254.",  # AWS metadata IP range
+        "internal.",  # Internal services
     ]
 
     for pattern in suspicious_patterns:
@@ -78,8 +80,8 @@ def validate_ollama_endpoint(url: str) -> str:
             raise SSRFProtectionError(f"Suspicious hostname pattern: {hostname}")
 
     # Reject .internal, .local, .corp, .lan TLDs (except localhost)
-    if hostname not in ('localhost', '127.0.0.1', '::1'):
-        suspicious_tlds = ['.internal', '.local', '.corp', '.lan']
+    if hostname not in ("localhost", "127.0.0.1", "::1"):
+        suspicious_tlds = [".internal", ".local", ".corp", ".lan"]
         for tld in suspicious_tlds:
             if hostname.endswith(tld):
                 raise SSRFProtectionError(f"Suspicious hostname pattern: {hostname}")
@@ -104,6 +106,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class OllamaMessage:
     """A message in an Ollama chat conversation."""
+
     role: str  # "system", "user", "assistant"
     content: str
 
@@ -114,6 +117,7 @@ class OllamaMessage:
 @dataclass
 class OllamaResponse:
     """Response from Ollama API."""
+
     model: str
     content: str
     done: bool = True
@@ -143,6 +147,7 @@ class OllamaResponse:
 @dataclass
 class OllamaModelInfo:
     """Information about an Ollama model."""
+
     name: str
     modified_at: str
     size: int
@@ -151,7 +156,7 @@ class OllamaModelInfo:
 
     @property
     def size_gb(self) -> float:
-        return self.size / (1024 ** 3)
+        return self.size / (1024**3)
 
     @property
     def family(self) -> Optional[str]:
@@ -168,16 +173,19 @@ class OllamaModelInfo:
 
 class OllamaError(Exception):
     """Base exception for Ollama errors."""
+
     pass
 
 
 class OllamaConnectionError(OllamaError):
     """Connection to Ollama failed."""
+
     pass
 
 
 class OllamaModelError(OllamaError):
     """Model-related error."""
+
     pass
 
 
@@ -247,13 +255,15 @@ class OllamaClient:
         response = self._request("GET", "/api/tags")
         models = []
         for model_data in response.get("models", []):
-            models.append(OllamaModelInfo(
-                name=model_data["name"],
-                modified_at=model_data.get("modified_at", ""),
-                size=model_data.get("size", 0),
-                digest=model_data.get("digest", ""),
-                details=model_data.get("details", {}),
-            ))
+            models.append(
+                OllamaModelInfo(
+                    name=model_data["name"],
+                    modified_at=model_data.get("modified_at", ""),
+                    size=model_data.get("size", 0),
+                    digest=model_data.get("digest", ""),
+                    details=model_data.get("details", {}),
+                )
+            )
         return models
 
     def model_exists(self, model: str) -> bool:
@@ -708,8 +718,6 @@ def create_ollama_client(
         OllamaClient instance
     """
     import os
-    endpoint = endpoint or os.environ.get(
-        "OLLAMA_ENDPOINT",
-        "http://localhost:11434"
-    )
+
+    endpoint = endpoint or os.environ.get("OLLAMA_ENDPOINT", "http://localhost:11434")
     return OllamaClient(endpoint=endpoint, timeout=timeout)

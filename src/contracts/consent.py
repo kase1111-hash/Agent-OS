@@ -12,27 +12,28 @@ from enum import Enum, auto
 from typing import Any, Callable, Dict, List, Optional, Set
 
 from .store import (
-    ContractType,
     ContractScope,
-    LearningScope,
+    ContractType,
     LearningContract,
+    LearningScope,
 )
-
 
 logger = logging.getLogger(__name__)
 
 
 class ConsentMode(Enum):
     """Mode for obtaining consent."""
-    CALLBACK = auto()       # Use callback function
-    CLI = auto()            # Command-line interface
-    AUTO_DENY = auto()      # Automatically deny
-    AUTO_ALLOW = auto()     # Automatically allow (dangerous!)
-    CACHED = auto()         # Use cached decision
+
+    CALLBACK = auto()  # Use callback function
+    CLI = auto()  # Command-line interface
+    AUTO_DENY = auto()  # Automatically deny
+    AUTO_ALLOW = auto()  # Automatically allow (dangerous!)
+    CACHED = auto()  # Use cached decision
 
 
 class ConsentResponse(Enum):
     """User's response to consent prompt."""
+
     ALLOW = auto()
     ALLOW_ABSTRACTED = auto()
     ALLOW_SESSION = auto()
@@ -45,6 +46,7 @@ class ConsentResponse(Enum):
 @dataclass
 class ConsentRequest:
     """A request for user consent."""
+
     request_id: str
     user_id: str
     domain: str
@@ -61,6 +63,7 @@ class ConsentRequest:
 @dataclass
 class ConsentDecision:
     """User's decision on a consent request."""
+
     request_id: str
     response: ConsentResponse
     user_id: str
@@ -372,17 +375,19 @@ class ConsentUI:
         if request.sharing_info:
             lines.append(f"Sharing: {request.sharing_info}")
 
-        lines.extend([
-            "",
-            "Options:",
-            "  [A] Allow - Permit learning in this domain",
-            "  [B] Allow (Abstracted) - Learn patterns only, not raw data",
-            "  [S] Allow (Session) - Allow for this session only",
-            "  [D] Deny - Do not permit learning",
-            "  [N] Deny (Always) - Never ask again for this domain",
-            "",
-            "=" * 50,
-        ])
+        lines.extend(
+            [
+                "",
+                "Options:",
+                "  [A] Allow - Permit learning in this domain",
+                "  [B] Allow (Abstracted) - Learn patterns only, not raw data",
+                "  [S] Allow (Session) - Allow for this session only",
+                "  [D] Deny - Do not permit learning",
+                "  [N] Deny (Always) - Never ask again for this domain",
+                "",
+                "=" * 50,
+            ]
+        )
 
         return "\n".join(lines)
 

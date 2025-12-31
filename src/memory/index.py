@@ -8,26 +8,26 @@ SQLite-based index for efficient vault queries:
 - Deletion propagation
 """
 
-import sqlite3
 import json
 import logging
+import sqlite3
 import threading
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
-from typing import Optional, Dict, Any, List, Tuple
-from contextlib import contextmanager
 from enum import Enum, auto
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 from .profiles import EncryptionTier
 from .storage import BlobMetadata, BlobStatus, BlobType
-
 
 logger = logging.getLogger(__name__)
 
 
 class AccessType(Enum):
     """Type of access event."""
+
     READ = auto()
     WRITE = auto()
     DELETE = auto()
@@ -40,6 +40,7 @@ class AccessType(Enum):
 @dataclass
 class AccessLogEntry:
     """Entry in the access log."""
+
     log_id: int
     blob_id: str
     access_type: AccessType
@@ -63,6 +64,7 @@ class AccessLogEntry:
 @dataclass
 class ConsentRecord:
     """Record of consent for memory operations."""
+
     consent_id: str
     granted_by: str
     granted_at: datetime
@@ -115,7 +117,7 @@ class VaultIndex:
 
     def _get_connection(self) -> sqlite3.Connection:
         """Get thread-local database connection."""
-        if not hasattr(self._local, 'connection') or self._local.connection is None:
+        if not hasattr(self._local, "connection") or self._local.connection is None:
             self._local.connection = sqlite3.connect(
                 str(self._db_path),
                 check_same_thread=False,
@@ -142,17 +144,17 @@ class VaultIndex:
 
         with self._transaction() as conn:
             # Schema version table
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS schema_version (
                     version INTEGER PRIMARY KEY,
                     applied_at TEXT NOT NULL
                 )
-            """)
+            """
+            )
 
             # Check current version
-            cursor = conn.execute(
-                "SELECT MAX(version) FROM schema_version"
-            )
+            cursor = conn.execute("SELECT MAX(version) FROM schema_version")
             current_version = cursor.fetchone()[0] or 0
 
             if current_version < self.SCHEMA_VERSION:
@@ -162,7 +164,8 @@ class VaultIndex:
         """Apply database migrations."""
         if from_version < 1:
             # Initial schema
-            conn.executescript("""
+            conn.executescript(
+                """
                 -- Blob metadata index
                 CREATE TABLE IF NOT EXISTS blobs (
                     blob_id TEXT PRIMARY KEY,
@@ -258,7 +261,8 @@ class VaultIndex:
                 -- Record schema version
                 INSERT INTO schema_version (version, applied_at)
                 VALUES (1, datetime('now'));
-            """)
+            """
+            )
 
         logger.info(f"Database migrated to version {self.SCHEMA_VERSION}")
 
@@ -271,41 +275,41 @@ class VaultIndex:
         """
         with self._lock:
             with self._transaction() as conn:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT OR REPLACE INTO blobs (
                         blob_id, key_id, tier, blob_type, size_bytes,
                         encrypted_size, content_hash, created_at, modified_at,
                         accessed_at, access_count, status, consent_id,
                         ttl_seconds, tags, custom_metadata
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    metadata.blob_id,
-                    metadata.key_id,
-                    metadata.tier.name,
-                    metadata.blob_type.name,
-                    metadata.size_bytes,
-                    metadata.encrypted_size,
-                    metadata.content_hash,
-                    metadata.created_at.isoformat(),
-                    metadata.modified_at.isoformat(),
-                    metadata.accessed_at.isoformat() if metadata.accessed_at else None,
-                    metadata.access_count,
-                    metadata.status.name,
-                    metadata.consent_id,
-                    metadata.ttl_seconds,
-                    json.dumps(metadata.tags),
-                    json.dumps(metadata.custom_metadata),
-                ))
+                """,
+                    (
+                        metadata.blob_id,
+                        metadata.key_id,
+                        metadata.tier.name,
+                        metadata.blob_type.name,
+                        metadata.size_bytes,
+                        metadata.encrypted_size,
+                        metadata.content_hash,
+                        metadata.created_at.isoformat(),
+                        metadata.modified_at.isoformat(),
+                        metadata.accessed_at.isoformat() if metadata.accessed_at else None,
+                        metadata.access_count,
+                        metadata.status.name,
+                        metadata.consent_id,
+                        metadata.ttl_seconds,
+                        json.dumps(metadata.tags),
+                        json.dumps(metadata.custom_metadata),
+                    ),
+                )
 
                 # Update tags table
-                conn.execute(
-                    "DELETE FROM blob_tags WHERE blob_id = ?",
-                    (metadata.blob_id,)
-                )
+                conn.execute("DELETE FROM blob_tags WHERE blob_id = ?", (metadata.blob_id,))
                 if metadata.tags:
                     conn.executemany(
                         "INSERT INTO blob_tags (blob_id, tag) VALUES (?, ?)",
-                        [(metadata.blob_id, tag) for tag in metadata.tags]
+                        [(metadata.blob_id, tag) for tag in metadata.tags],
                     )
 
     def remove_blob_index(self, blob_id: str) -> None:
@@ -317,10 +321,7 @@ class VaultIndex:
     def get_blob(self, blob_id: str) -> Optional[BlobMetadata]:
         """Get blob metadata from index."""
         conn = self._get_connection()
-        cursor = conn.execute(
-            "SELECT * FROM blobs WHERE blob_id = ?",
-            (blob_id,)
-        )
+        cursor = conn.execute("SELECT * FROM blobs WHERE blob_id = ?", (blob_id,))
         row = cursor.fetchone()
         return self._row_to_metadata(row) if row else None
 
@@ -383,7 +384,7 @@ class VaultIndex:
             params.append(created_before.isoformat())
 
         if tags:
-            placeholders = ','.join('?' * len(tags))
+            placeholders = ",".join("?" * len(tags))
             query += f"""
                 AND blob_id IN (
                     SELECT blob_id FROM blob_tags
@@ -402,30 +403,30 @@ class VaultIndex:
         """Record a consent grant."""
         with self._lock:
             with self._transaction() as conn:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT INTO consents (
                         consent_id, granted_by, granted_at, expires_at,
                         scope, operations, active, revoked_at, metadata
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    consent.consent_id,
-                    consent.granted_by,
-                    consent.granted_at.isoformat(),
-                    consent.expires_at.isoformat() if consent.expires_at else None,
-                    consent.scope,
-                    json.dumps(consent.operations),
-                    1 if consent.active else 0,
-                    consent.revoked_at.isoformat() if consent.revoked_at else None,
-                    json.dumps(consent.metadata),
-                ))
+                """,
+                    (
+                        consent.consent_id,
+                        consent.granted_by,
+                        consent.granted_at.isoformat(),
+                        consent.expires_at.isoformat() if consent.expires_at else None,
+                        consent.scope,
+                        json.dumps(consent.operations),
+                        1 if consent.active else 0,
+                        consent.revoked_at.isoformat() if consent.revoked_at else None,
+                        json.dumps(consent.metadata),
+                    ),
+                )
 
     def get_consent(self, consent_id: str) -> Optional[ConsentRecord]:
         """Get consent record."""
         conn = self._get_connection()
-        cursor = conn.execute(
-            "SELECT * FROM consents WHERE consent_id = ?",
-            (consent_id,)
-        )
+        cursor = conn.execute("SELECT * FROM consents WHERE consent_id = ?", (consent_id,))
         row = cursor.fetchone()
         return self._row_to_consent(row) if row else None
 
@@ -433,11 +434,14 @@ class VaultIndex:
         """Revoke a consent."""
         with self._lock:
             with self._transaction() as conn:
-                cursor = conn.execute("""
+                cursor = conn.execute(
+                    """
                     UPDATE consents
                     SET active = 0, revoked_at = ?
                     WHERE consent_id = ? AND active = 1
-                """, (datetime.now().isoformat(), consent_id))
+                """,
+                    (datetime.now().isoformat(), consent_id),
+                )
                 return cursor.rowcount > 0
 
     def get_active_consents(
@@ -472,18 +476,21 @@ class VaultIndex:
         """Log an access event."""
         with self._lock:
             with self._transaction() as conn:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT INTO access_log (
                         blob_id, access_type, accessor, timestamp, success, details
                     ) VALUES (?, ?, ?, ?, ?, ?)
-                """, (
-                    blob_id,
-                    access_type.name,
-                    accessor,
-                    datetime.now().isoformat(),
-                    1 if success else 0,
-                    json.dumps(details or {}),
-                ))
+                """,
+                    (
+                        blob_id,
+                        access_type.name,
+                        accessor,
+                        datetime.now().isoformat(),
+                        1 if success else 0,
+                        json.dumps(details or {}),
+                    ),
+                )
 
     def get_access_log(
         self,
@@ -522,15 +529,17 @@ class VaultIndex:
 
         entries = []
         for row in cursor.fetchall():
-            entries.append(AccessLogEntry(
-                log_id=row["log_id"],
-                blob_id=row["blob_id"],
-                access_type=AccessType[row["access_type"]],
-                accessor=row["accessor"],
-                timestamp=datetime.fromisoformat(row["timestamp"]),
-                success=bool(row["success"]),
-                details=json.loads(row["details"]) if row["details"] else {},
-            ))
+            entries.append(
+                AccessLogEntry(
+                    log_id=row["log_id"],
+                    blob_id=row["blob_id"],
+                    access_type=AccessType[row["access_type"]],
+                    accessor=row["accessor"],
+                    timestamp=datetime.fromisoformat(row["timestamp"]),
+                    success=bool(row["success"]),
+                    details=json.loads(row["details"]) if row["details"] else {},
+                )
+            )
         return entries
 
     def queue_deletion(self, consent_id: str) -> int:
@@ -547,28 +556,32 @@ class VaultIndex:
             with self._transaction() as conn:
                 # Count affected blobs
                 cursor = conn.execute(
-                    "SELECT COUNT(*) FROM blobs WHERE consent_id = ?",
-                    (consent_id,)
+                    "SELECT COUNT(*) FROM blobs WHERE consent_id = ?", (consent_id,)
                 )
                 blob_count = cursor.fetchone()[0]
 
                 # Create queue entry
-                cursor = conn.execute("""
+                cursor = conn.execute(
+                    """
                     INSERT INTO deletion_queue (
                         consent_id, requested_at, blob_count, status
                     ) VALUES (?, ?, ?, 'PENDING')
-                """, (consent_id, datetime.now().isoformat(), blob_count))
+                """,
+                    (consent_id, datetime.now().isoformat(), blob_count),
+                )
 
                 return cursor.lastrowid
 
     def get_pending_deletions(self) -> List[Dict[str, Any]]:
         """Get pending deletion requests."""
         conn = self._get_connection()
-        cursor = conn.execute("""
+        cursor = conn.execute(
+            """
             SELECT * FROM deletion_queue
             WHERE status = 'PENDING'
             ORDER BY requested_at ASC
-        """)
+        """
+        )
 
         return [dict(row) for row in cursor.fetchall()]
 
@@ -581,16 +594,19 @@ class VaultIndex:
         """Mark a deletion request as complete."""
         with self._lock:
             with self._transaction() as conn:
-                conn.execute("""
+                conn.execute(
+                    """
                     UPDATE deletion_queue
                     SET completed_at = ?, status = ?, error_message = ?
                     WHERE queue_id = ?
-                """, (
-                    datetime.now().isoformat(),
-                    'COMPLETED' if success else 'FAILED',
-                    error_message,
-                    queue_id,
-                ))
+                """,
+                    (
+                        datetime.now().isoformat(),
+                        "COMPLETED" if success else "FAILED",
+                        error_message,
+                        queue_id,
+                    ),
+                )
 
     def record_genesis_proof(
         self,
@@ -601,24 +617,24 @@ class VaultIndex:
         """Record a genesis proof."""
         with self._lock:
             with self._transaction() as conn:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT INTO genesis_proofs (
                         proof_id, created_at, proof_type, proof_data
                     ) VALUES (?, ?, ?, ?)
-                """, (
-                    proof_id,
-                    datetime.now().isoformat(),
-                    proof_type,
-                    json.dumps(proof_data),
-                ))
+                """,
+                    (
+                        proof_id,
+                        datetime.now().isoformat(),
+                        proof_type,
+                        json.dumps(proof_data),
+                    ),
+                )
 
     def get_genesis_proof(self, proof_id: str) -> Optional[Dict[str, Any]]:
         """Get a genesis proof."""
         conn = self._get_connection()
-        cursor = conn.execute(
-            "SELECT * FROM genesis_proofs WHERE proof_id = ?",
-            (proof_id,)
-        )
+        cursor = conn.execute("SELECT * FROM genesis_proofs WHERE proof_id = ?", (proof_id,))
         row = cursor.fetchone()
         if row:
             return {
@@ -634,11 +650,14 @@ class VaultIndex:
         """Mark a genesis proof as verified."""
         with self._lock:
             with self._transaction() as conn:
-                cursor = conn.execute("""
+                cursor = conn.execute(
+                    """
                     UPDATE genesis_proofs
                     SET verified = 1
                     WHERE proof_id = ?
-                """, (proof_id,))
+                """,
+                    (proof_id,),
+                )
                 return cursor.rowcount > 0
 
     def get_statistics(self) -> Dict[str, Any]:
@@ -651,14 +670,18 @@ class VaultIndex:
         cursor = conn.execute("SELECT COUNT(*) FROM blobs")
         stats["total_blobs"] = cursor.fetchone()[0]
 
-        cursor = conn.execute("""
+        cursor = conn.execute(
+            """
             SELECT tier, COUNT(*) FROM blobs GROUP BY tier
-        """)
+        """
+        )
         stats["blobs_by_tier"] = {row[0]: row[1] for row in cursor.fetchall()}
 
-        cursor = conn.execute("""
+        cursor = conn.execute(
+            """
             SELECT status, COUNT(*) FROM blobs GROUP BY status
-        """)
+        """
+        )
         stats["blobs_by_status"] = {row[0]: row[1] for row in cursor.fetchall()}
 
         cursor = conn.execute("SELECT SUM(size_bytes), SUM(encrypted_size) FROM blobs")
@@ -689,8 +712,7 @@ class VaultIndex:
             created_at=datetime.fromisoformat(row["created_at"]),
             modified_at=datetime.fromisoformat(row["modified_at"]),
             accessed_at=(
-                datetime.fromisoformat(row["accessed_at"])
-                if row["accessed_at"] else None
+                datetime.fromisoformat(row["accessed_at"]) if row["accessed_at"] else None
             ),
             access_count=row["access_count"],
             status=BlobStatus[row["status"]],
@@ -706,22 +728,16 @@ class VaultIndex:
             consent_id=row["consent_id"],
             granted_by=row["granted_by"],
             granted_at=datetime.fromisoformat(row["granted_at"]),
-            expires_at=(
-                datetime.fromisoformat(row["expires_at"])
-                if row["expires_at"] else None
-            ),
+            expires_at=(datetime.fromisoformat(row["expires_at"]) if row["expires_at"] else None),
             scope=row["scope"],
             operations=json.loads(row["operations"]),
             active=bool(row["active"]),
-            revoked_at=(
-                datetime.fromisoformat(row["revoked_at"])
-                if row["revoked_at"] else None
-            ),
+            revoked_at=(datetime.fromisoformat(row["revoked_at"]) if row["revoked_at"] else None),
             metadata=json.loads(row["metadata"]) if row["metadata"] else {},
         )
 
     def close(self) -> None:
         """Close database connection."""
-        if hasattr(self._local, 'connection') and self._local.connection:
+        if hasattr(self._local, "connection") and self._local.connection:
             self._local.connection.close()
             self._local.connection = None

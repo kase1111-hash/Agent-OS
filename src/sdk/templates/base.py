@@ -12,16 +12,15 @@ from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Set, Union
 
 from src.agents.interface import (
-    AgentInterface,
-    BaseAgent,
-    AgentState,
     AgentCapabilities,
+    AgentInterface,
+    AgentMetrics,
+    AgentState,
+    BaseAgent,
     CapabilityType,
     RequestValidationResult,
-    AgentMetrics,
 )
 from src.messaging.models import FlowRequest, FlowResponse, MessageStatus
-
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +28,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AgentConfig:
     """Configuration for an agent template."""
+
     name: str
     version: str = "1.0.0"
     description: str = ""

@@ -5,42 +5,44 @@ Aggregates responses from multiple agents into a unified response.
 Handles merging, conflict resolution, and response formatting.
 """
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, List, Dict, Any, Union
 from enum import Enum, auto
-import logging
+from typing import Any, Dict, List, Optional, Union
 
 from src.messaging.models import (
     FlowRequest,
     FlowResponse,
+    MessageStatus,
     ResponseContent,
     ResponseMetadata,
-    MessageStatus,
 )
-from .flow import FlowResult, AgentResult
-from .router import RoutingStrategy
 
+from .flow import AgentResult, FlowResult
+from .router import RoutingStrategy
 
 logger = logging.getLogger(__name__)
 
 
 class AggregationStrategy(Enum):
     """Strategies for aggregating multiple responses."""
-    FIRST_SUCCESS = auto()   # Use first successful response
-    LAST_SUCCESS = auto()    # Use last successful response (for sequential)
-    MERGE = auto()           # Merge all responses
-    BEST_CONFIDENCE = auto() # Use highest confidence response
-    CONSENSUS = auto()       # Require agreement between agents
+
+    FIRST_SUCCESS = auto()  # Use first successful response
+    LAST_SUCCESS = auto()  # Use last successful response (for sequential)
+    MERGE = auto()  # Merge all responses
+    BEST_CONFIDENCE = auto()  # Use highest confidence response
+    CONSENSUS = auto()  # Require agreement between agents
 
 
 @dataclass
 class AggregatedResponse:
     """Result of response aggregation."""
+
     primary_output: Any
     all_outputs: List[Any]
     strategy_used: AggregationStrategy
-    sources: List[str]           # Agent names that contributed
+    sources: List[str]  # Agent names that contributed
     total_tokens: int = 0
     total_inference_time_ms: int = 0
     confidence: float = 1.0
@@ -258,12 +260,14 @@ class ResponseAggregator:
         )
 
         # Add routing metadata
-        response.next_actions.append({
-            "action": "routing_complete",
-            "agents_used": aggregated.sources,
-            "strategy": aggregated.strategy_used.name,
-            "flow_duration_ms": flow_result.total_duration_ms,
-        })
+        response.next_actions.append(
+            {
+                "action": "routing_complete",
+                "agents_used": aggregated.sources,
+                "strategy": aggregated.strategy_used.name,
+                "flow_duration_ms": flow_result.total_duration_ms,
+            }
+        )
 
         return response
 
@@ -273,11 +277,7 @@ class ResponseAggregator:
         flow_result: FlowResult,
     ) -> FlowResponse:
         """Create error response when all agents failed."""
-        errors = [
-            f"{r.agent_name}: {r.error}"
-            for r in flow_result.failed_results
-            if r.error
-        ]
+        errors = [f"{r.agent_name}: {r.error}" for r in flow_result.failed_results if r.error]
 
         return FlowResponse(
             request_id=request.request_id,
@@ -305,6 +305,7 @@ class ResponseFormatter:
             return output
         elif isinstance(output, dict):
             import json
+
             return json.dumps(output, indent=2)
         else:
             return str(output)

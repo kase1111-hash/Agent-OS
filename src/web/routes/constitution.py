@@ -19,7 +19,9 @@ router = APIRouter()
 # Try to import real constitutional kernel
 try:
     from src.core.constitution import ConstitutionalKernel, create_kernel
-    from src.core.models import Rule as CoreRule, RuleType as CoreRuleType
+    from src.core.models import Rule as CoreRule
+    from src.core.models import RuleType as CoreRuleType
+
     REAL_CONSTITUTION_AVAILABLE = True
 except ImportError:
     REAL_CONSTITUTION_AVAILABLE = False
@@ -141,10 +143,7 @@ class ConstitutionStore:
         # Try to initialize real constitutional kernel
         if REAL_CONSTITUTION_AVAILABLE:
             try:
-                self._kernel = create_kernel(
-                    project_root=Path.cwd(),
-                    enable_hot_reload=True
-                )
+                self._kernel = create_kernel(project_root=Path.cwd(), enable_hot_reload=True)
                 result = self._kernel.initialize()
                 if result.is_valid:
                     self._use_real_constitution = True
@@ -173,7 +172,9 @@ class ConstitutionStore:
                 self._rules[rule.id] = rule
 
                 # Determine section from section path
-                section_id = core_rule.section.lower().replace(" ", "_") if core_rule.section else "general"
+                section_id = (
+                    core_rule.section.lower().replace(" ", "_") if core_rule.section else "general"
+                )
                 if section_id not in section_rules:
                     section_rules[section_id] = []
                 section_rules[section_id].append(rule)
@@ -216,10 +217,16 @@ class ConstitutionStore:
             40: RuleAuthority.AGENT,
         }
 
-        rule_type_name = core_rule.rule_type.name if hasattr(core_rule.rule_type, 'name') else str(core_rule.rule_type)
+        rule_type_name = (
+            core_rule.rule_type.name
+            if hasattr(core_rule.rule_type, "name")
+            else str(core_rule.rule_type)
+        )
         rule_type = type_map.get(rule_type_name, RuleType.MANDATE)
 
-        authority_level = core_rule.authority_level.value if hasattr(core_rule.authority_level, 'value') else 60
+        authority_level = (
+            core_rule.authority_level.value if hasattr(core_rule.authority_level, "value") else 60
+        )
         authority = authority_map.get(authority_level, RuleAuthority.STATUTORY)
 
         return Rule(
@@ -237,7 +244,7 @@ class ConstitutionStore:
                 "section_path": core_rule.section_path,
                 "source_file": str(core_rule.source_file) if core_rule.source_file else None,
                 "line_number": core_rule.line_number,
-            }
+            },
         )
 
     def _initialize_default_rules(self):
@@ -444,7 +451,9 @@ class ConstitutionStore:
 
         is_allowed = len(violations) == 0
 
-        reasoning = "Content is allowed." if is_allowed else "Content violates constitutional rules."
+        reasoning = (
+            "Content is allowed." if is_allowed else "Content violates constitutional rules."
+        )
         if warnings:
             reasoning += f" {len(warnings)} warning(s) noted."
 

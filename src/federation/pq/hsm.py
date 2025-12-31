@@ -70,13 +70,13 @@ def _is_production_mode() -> bool:
 class HSMType(str, Enum):
     """Hardware Security Module types."""
 
-    SOFTWARE = "software"           # Software-only (development)
-    TPM = "tpm"                     # Trusted Platform Module
-    PKCS11 = "pkcs11"              # PKCS#11 compatible HSM
+    SOFTWARE = "software"  # Software-only (development)
+    TPM = "tpm"  # Trusted Platform Module
+    PKCS11 = "pkcs11"  # PKCS#11 compatible HSM
     AWS_CLOUDHSM = "aws_cloudhsm"  # AWS CloudHSM
-    AZURE_HSM = "azure_hsm"        # Azure Dedicated HSM
-    GCP_HSM = "gcp_hsm"            # Google Cloud HSM
-    YUBIHSM = "yubihsm"            # YubiHSM
+    AZURE_HSM = "azure_hsm"  # Azure Dedicated HSM
+    GCP_HSM = "gcp_hsm"  # Google Cloud HSM
+    YUBIHSM = "yubihsm"  # YubiHSM
 
 
 class HSMSecurityLevel(int, Enum):
@@ -141,17 +141,17 @@ class HSMOperation(str, Enum):
 class HSMKeyHandle:
     """Handle to a key stored in HSM."""
 
-    handle_id: str                          # Unique handle identifier
-    algorithm: PQAlgorithm                  # Key algorithm
-    label: str                              # Human-readable label
+    handle_id: str  # Unique handle identifier
+    algorithm: PQAlgorithm  # Key algorithm
+    label: str  # Human-readable label
     created_at: datetime = field(default_factory=datetime.utcnow)
     state: KeyState = KeyState.GENERATED
     hsm_type: HSMType = HSMType.SOFTWARE
     security_level: HSMSecurityLevel = HSMSecurityLevel.LEVEL_1
-    exportable: bool = False                # Can private key be exported?
-    extractable: bool = False               # Can key material be read?
+    exportable: bool = False  # Can private key be exported?
+    extractable: bool = False  # Can key material be read?
     usage_count: int = 0
-    max_usage: Optional[int] = None         # None = unlimited
+    max_usage: Optional[int] = None  # None = unlimited
     expires_at: Optional[datetime] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
@@ -203,7 +203,9 @@ class HSMKeyHandle:
             extractable=data.get("extractable", False),
             usage_count=data.get("usage_count", 0),
             max_usage=data.get("max_usage"),
-            expires_at=datetime.fromisoformat(data["expires_at"]) if data.get("expires_at") else None,
+            expires_at=(
+                datetime.fromisoformat(data["expires_at"]) if data.get("expires_at") else None
+            ),
             metadata=data.get("metadata", {}),
         )
 
@@ -216,13 +218,13 @@ class HSMConfig:
     security_level: HSMSecurityLevel = HSMSecurityLevel.LEVEL_1
 
     # PKCS#11 settings
-    pkcs11_library: Optional[str] = None    # Path to PKCS#11 library
+    pkcs11_library: Optional[str] = None  # Path to PKCS#11 library
     pkcs11_slot: int = 0
     pkcs11_pin: Optional[str] = None
 
     # TPM settings
     tpm_device: str = "/dev/tpm0"
-    tpm_hierarchy: str = "owner"            # owner, endorsement, platform
+    tpm_hierarchy: str = "owner"  # owner, endorsement, platform
 
     # Cloud HSM settings
     cloud_region: Optional[str] = None
@@ -465,7 +467,9 @@ class SoftwareHSMProvider(HSMProvider):
             "Use a real HSM for production deployments."
         )
         super().__init__(config)
-        self._keys: Dict[str, Tuple[HSMKeyHandle, bytes, bytes]] = {}  # handle -> (metadata, public, private)
+        self._keys: Dict[str, Tuple[HSMKeyHandle, bytes, bytes]] = (
+            {}
+        )  # handle -> (metadata, public, private)
         self._master_key: Optional[bytes] = None
 
     def initialize(self) -> bool:
@@ -571,9 +575,9 @@ class SoftwareHSMProvider(HSMProvider):
     def _generate_keys(self, algorithm: PQAlgorithm) -> Tuple[bytes, bytes]:
         """Generate key pair for algorithm."""
         try:
-            from ..pq.ml_kem import DefaultMLKEMProvider, MLKEMSecurityLevel
-            from ..pq.ml_dsa import DefaultMLDSAProvider, MLDSASecurityLevel
             from ..pq.hybrid import HybridKeyExchange, HybridSigner
+            from ..pq.ml_dsa import DefaultMLDSAProvider, MLDSASecurityLevel
+            from ..pq.ml_kem import DefaultMLKEMProvider, MLKEMSecurityLevel
 
             if algorithm == PQAlgorithm.ML_KEM_512:
                 provider = DefaultMLKEMProvider()
@@ -688,7 +692,7 @@ class SoftwareHSMProvider(HSMProvider):
         """Perform key encapsulation."""
         with self._lock:
             try:
-                from ..pq.ml_kem import DefaultMLKEMProvider, MLKEMSecurityLevel, MLKEMPublicKey
+                from ..pq.ml_kem import DefaultMLKEMProvider, MLKEMPublicKey, MLKEMSecurityLevel
 
                 level_map = {
                     PQAlgorithm.ML_KEM_512: MLKEMSecurityLevel.ML_KEM_512,
@@ -745,9 +749,9 @@ class SoftwareHSMProvider(HSMProvider):
 
                 from ..pq.ml_kem import (
                     DefaultMLKEMProvider,
-                    MLKEMSecurityLevel,
-                    MLKEMPrivateKey,
                     MLKEMCiphertext,
+                    MLKEMPrivateKey,
+                    MLKEMSecurityLevel,
                 )
 
                 level_map = {
@@ -809,7 +813,7 @@ class SoftwareHSMProvider(HSMProvider):
             try:
                 private_key = self._decrypt_key(encrypted_private)
 
-                from ..pq.ml_dsa import DefaultMLDSAProvider, MLDSASecurityLevel, MLDSAPrivateKey
+                from ..pq.ml_dsa import DefaultMLDSAProvider, MLDSAPrivateKey, MLDSASecurityLevel
 
                 level_map = {
                     PQAlgorithm.ML_DSA_44: MLDSASecurityLevel.ML_DSA_44,
@@ -859,8 +863,8 @@ class SoftwareHSMProvider(HSMProvider):
         try:
             from ..pq.ml_dsa import (
                 DefaultMLDSAProvider,
-                MLDSASecurityLevel,
                 MLDSAPublicKey,
+                MLDSASecurityLevel,
                 MLDSASignature,
             )
 
@@ -967,8 +971,8 @@ class SoftwareHSMProvider(HSMProvider):
                         key_material = f.read()
                     # Parse: public_len (4 bytes) + public + encrypted_private
                     public_len = struct.unpack(">I", key_material[:4])[0]
-                    public = key_material[4:4 + public_len]
-                    encrypted_private = key_material[4 + public_len:]
+                    public = key_material[4 : 4 + public_len]
+                    encrypted_private = key_material[4 + public_len :]
 
                     self._keys[handle.handle_id] = (handle, public, encrypted_private)
 

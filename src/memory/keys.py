@@ -5,22 +5,21 @@ Handles key generation, derivation, storage, and hardware binding.
 Supports software keys and TPM/hardware security module integration.
 """
 
-import ctypes
-import os
-import secrets
-import hashlib
 import base64
+import ctypes
+import hashlib
 import json
 import logging
+import os
+import secrets
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Optional, Dict, Any, List, Tuple, Union
 from enum import Enum, auto
-import threading
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-from .profiles import EncryptionTier, KeyDerivation, KeyBinding, ProfileManager
-
+from .profiles import EncryptionTier, KeyBinding, KeyDerivation, ProfileManager
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +39,7 @@ def secure_zero(data: Union[bytearray, memoryview]) -> None:
     """
     if not isinstance(data, (bytearray, memoryview)):
         logger.warning(
-            "secure_zero called with immutable type. "
-            "Use bytearray for sensitive data."
+            "secure_zero called with immutable type. " "Use bytearray for sensitive data."
         )
         return
 
@@ -50,7 +48,9 @@ def secure_zero(data: Union[bytearray, memoryview]) -> None:
         if isinstance(data, memoryview):
             ctypes.memset(ctypes.addressof(ctypes.c_char.from_buffer(data)), 0, len(data))
         else:
-            ctypes.memset(ctypes.addressof((ctypes.c_char * len(data)).from_buffer(data)), 0, len(data))
+            ctypes.memset(
+                ctypes.addressof((ctypes.c_char * len(data)).from_buffer(data)), 0, len(data)
+            )
     except (TypeError, ValueError) as e:
         # Fallback: manual zeroing (less secure but works)
         logger.warning(f"ctypes memset failed, using fallback: {e}")
@@ -95,6 +95,7 @@ class SensitiveBytes:
 
 class KeyStatus(Enum):
     """Status of a key."""
+
     ACTIVE = auto()
     LOCKED = auto()
     EXPIRED = auto()
@@ -105,6 +106,7 @@ class KeyStatus(Enum):
 @dataclass
 class KeyMetadata:
     """Metadata for a managed key."""
+
     key_id: str
     tier: EncryptionTier
     binding: KeyBinding
@@ -128,8 +130,7 @@ class KeyMetadata:
             "use_count": self.use_count,
             "status": self.status.name,
             "rotation_scheduled": (
-                self.rotation_scheduled.isoformat()
-                if self.rotation_scheduled else None
+                self.rotation_scheduled.isoformat() if self.rotation_scheduled else None
             ),
             "has_hardware_binding": self.hardware_handle is not None,
             "metadata": self.metadata,
@@ -139,6 +140,7 @@ class KeyMetadata:
 @dataclass
 class DerivedKey:
     """A derived encryption key."""
+
     key: bytes
     salt: bytes
     key_id: str
@@ -342,7 +344,7 @@ class KeyManager:
         with self._lock:
             # Securely clear all cached keys
             for key_data in self._key_cache.values():
-                if hasattr(key_data, 'key_data') and key_data.key_data:
+                if hasattr(key_data, "key_data") and key_data.key_data:
                     # Convert to bytearray and zero if possible
                     if isinstance(key_data.key_data, bytes):
                         temp = bytearray(key_data.key_data)
@@ -420,7 +422,9 @@ class KeyManager:
             self._key_cache[key_id] = raw_key
             self._persist_key_metadata()
 
-            logger.info(f"Generated key: {key_id} (tier={tier.name}, binding={metadata.binding.name})")
+            logger.info(
+                f"Generated key: {key_id} (tier={tier.name}, binding={metadata.binding.name})"
+            )
 
             return DerivedKey(
                 key=raw_key,
@@ -677,7 +681,8 @@ class KeyManager:
     ) -> bytes:
         """Derive key using Argon2id."""
         try:
-            from argon2.low_level import hash_secret_raw, Type
+            from argon2.low_level import Type, hash_secret_raw
+
             return hash_secret_raw(
                 password,
                 salt,
@@ -732,7 +737,7 @@ class KeyManager:
             return
 
         try:
-            with open(metadata_path, 'r') as f:
+            with open(metadata_path, "r") as f:
                 data = json.load(f)
 
             for key_data in data.get("keys", []):
@@ -743,7 +748,8 @@ class KeyManager:
                     created_at=datetime.fromisoformat(key_data["created_at"]),
                     expires_at=(
                         datetime.fromisoformat(key_data["expires_at"])
-                        if key_data.get("expires_at") else None
+                        if key_data.get("expires_at")
+                        else None
                     ),
                     use_count=key_data.get("use_count", 0),
                     status=KeyStatus[key_data.get("status", "ACTIVE")],
@@ -771,7 +777,7 @@ class KeyManager:
                 "updated_at": datetime.now().isoformat(),
             }
 
-            with open(metadata_path, 'w') as f:
+            with open(metadata_path, "w") as f:
                 json.dump(data, f, indent=2)
 
         except Exception as e:

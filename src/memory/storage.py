@@ -8,26 +8,25 @@ Implements AES-256-GCM encrypted blob storage with:
 - Secure deletion
 """
 
-import os
-import secrets
 import hashlib
 import json
 import logging
-import struct
+import os
+import secrets
 import shutil
+import struct
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
-from typing import Optional, Dict, Any, List, Tuple, BinaryIO, Iterator
 from enum import Enum, auto
-import threading
+from pathlib import Path
+from typing import Any, BinaryIO, Dict, Iterator, List, Optional, Tuple
 
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.exceptions import InvalidTag
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
+from .keys import DerivedKey, KeyManager
 from .profiles import EncryptionTier, ProfileManager
-from .keys import KeyManager, DerivedKey
-
 
 logger = logging.getLogger(__name__)
 
@@ -36,12 +35,13 @@ logger = logging.getLogger(__name__)
 CHUNK_SIZE = 64 * 1024  # 64KB chunks for large files
 NONCE_SIZE = 12  # 96 bits for GCM
 TAG_SIZE = 16  # 128 bits for GCM authentication tag
-BLOB_MAGIC = b'AGENTBLOB'
+BLOB_MAGIC = b"AGENTBLOB"
 BLOB_VERSION = 1
 
 
 class BlobType(Enum):
     """Type of stored blob."""
+
     BINARY = auto()
     TEXT = auto()
     JSON = auto()
@@ -50,6 +50,7 @@ class BlobType(Enum):
 
 class BlobStatus(Enum):
     """Status of a blob."""
+
     ACTIVE = auto()
     SEALED = auto()
     PENDING_DELETE = auto()
@@ -60,6 +61,7 @@ class BlobStatus(Enum):
 @dataclass
 class BlobMetadata:
     """Metadata for a stored blob."""
+
     blob_id: str
     key_id: str
     tier: EncryptionTier
@@ -101,8 +103,17 @@ class BlobMetadata:
     def from_dict(cls, data: Dict[str, Any]) -> "BlobMetadata":
         try:
             # Validate required fields
-            required_fields = ["blob_id", "key_id", "tier", "blob_type", "size_bytes",
-                             "encrypted_size", "content_hash", "created_at", "modified_at"]
+            required_fields = [
+                "blob_id",
+                "key_id",
+                "tier",
+                "blob_type",
+                "size_bytes",
+                "encrypted_size",
+                "content_hash",
+                "created_at",
+                "modified_at",
+            ]
             missing_fields = [f for f in required_fields if f not in data]
             if missing_fields:
                 raise ValueError(f"Missing required fields in blob metadata: {missing_fields}")
@@ -118,8 +129,7 @@ class BlobMetadata:
                 created_at=datetime.fromisoformat(data["created_at"]),
                 modified_at=datetime.fromisoformat(data["modified_at"]),
                 accessed_at=(
-                    datetime.fromisoformat(data["accessed_at"])
-                    if data.get("accessed_at") else None
+                    datetime.fromisoformat(data["accessed_at"]) if data.get("accessed_at") else None
                 ),
                 access_count=data.get("access_count", 0),
                 status=BlobStatus[data.get("status", "ACTIVE")],
@@ -137,6 +147,7 @@ class BlobMetadata:
 @dataclass
 class EncryptedBlob:
     """Container for encrypted blob data."""
+
     nonce: bytes
     ciphertext: bytes
     metadata: BlobMetadata
@@ -148,12 +159,12 @@ class EncryptedBlob:
 
         # Format: MAGIC | VERSION | META_LEN | META | NONCE | CIPHERTEXT
         return (
-            BLOB_MAGIC +
-            struct.pack('<B', BLOB_VERSION) +
-            struct.pack('<I', meta_len) +
-            meta_json +
-            self.nonce +
-            self.ciphertext
+            BLOB_MAGIC
+            + struct.pack("<B", BLOB_VERSION)
+            + struct.pack("<I", meta_len)
+            + meta_json
+            + self.nonce
+            + self.ciphertext
         )
 
     @classmethod
@@ -163,19 +174,19 @@ class EncryptedBlob:
             raise ValueError("Invalid blob format: missing magic bytes")
 
         offset = len(BLOB_MAGIC)
-        version = struct.unpack('<B', data[offset:offset + 1])[0]
+        version = struct.unpack("<B", data[offset : offset + 1])[0]
         offset += 1
 
         if version != BLOB_VERSION:
             raise ValueError(f"Unsupported blob version: {version}")
 
-        meta_len = struct.unpack('<I', data[offset:offset + 4])[0]
+        meta_len = struct.unpack("<I", data[offset : offset + 4])[0]
         offset += 4
 
-        meta_json = data[offset:offset + meta_len]
+        meta_json = data[offset : offset + meta_len]
         offset += meta_len
 
-        nonce = data[offset:offset + NONCE_SIZE]
+        nonce = data[offset : offset + NONCE_SIZE]
         offset += NONCE_SIZE
 
         ciphertext = data[offset:]
@@ -328,7 +339,7 @@ class BlobStorage:
     ) -> BlobMetadata:
         """Store text as encrypted blob."""
         return self.store(
-            text.encode('utf-8'),
+            text.encode("utf-8"),
             tier,
             blob_type=BlobType.TEXT,
             **kwargs,
@@ -342,7 +353,7 @@ class BlobStorage:
     ) -> BlobMetadata:
         """Store JSON-serializable data as encrypted blob."""
         return self.store(
-            json.dumps(data).encode('utf-8'),
+            json.dumps(data).encode("utf-8"),
             tier,
             blob_type=BlobType.JSON,
             **kwargs,
@@ -388,7 +399,9 @@ class BlobStorage:
                     try:
                         chunk = stream.read(chunk_size)
                     except IOError as e:
-                        raise IOError(f"Failed to read from stream at offset {total_size}: {e}") from e
+                        raise IOError(
+                            f"Failed to read from stream at offset {total_size}: {e}"
+                        ) from e
 
                     if not chunk:
                         break
@@ -406,9 +419,13 @@ class BlobStorage:
                     try:
                         chunk_path.write_bytes(nonce + ciphertext)
                     except PermissionError as e:
-                        raise IOError(f"Permission denied writing chunk {chunk_index} to {chunk_path}: {e}") from e
+                        raise IOError(
+                            f"Permission denied writing chunk {chunk_index} to {chunk_path}: {e}"
+                        ) from e
                     except OSError as e:
-                        raise IOError(f"Failed to write chunk {chunk_index} to {chunk_path}: {e}") from e
+                        raise IOError(
+                            f"Failed to write chunk {chunk_index} to {chunk_path}: {e}"
+                        ) from e
                     chunk_index += 1
             except IOError:
                 # Clean up partial chunks on failure
@@ -604,7 +621,7 @@ class BlobStorage:
     def retrieve_text(self, blob_id: str) -> Optional[str]:
         """Retrieve and decode text blob."""
         data = self.retrieve(blob_id)
-        return data.decode('utf-8') if data else None
+        return data.decode("utf-8") if data else None
 
     def retrieve_json(self, blob_id: str) -> Optional[Any]:
         """Retrieve and parse JSON blob."""
@@ -813,7 +830,7 @@ class BlobStorage:
         """Load all blob metadata into cache."""
         for meta_path in self._metadata_dir.rglob("*.json"):
             try:
-                with open(meta_path, 'r') as f:
+                with open(meta_path, "r") as f:
                     data = json.load(f)
                 metadata = BlobMetadata.from_dict(data)
                 self._cache[metadata.blob_id] = metadata
@@ -836,7 +853,7 @@ class BlobStorage:
 
         meta_path = shard_dir / f"{metadata.blob_id}.json"
         try:
-            with open(meta_path, 'w') as f:
+            with open(meta_path, "w") as f:
                 json.dump(metadata.to_dict(), f, indent=2)
         except PermissionError as e:
             raise IOError(f"Permission denied writing metadata to {meta_path}: {e}") from e
@@ -861,14 +878,14 @@ class BlobStorage:
 
         try:
             # Overwrite with random data
-            with open(path, 'r+b') as f:
+            with open(path, "r+b") as f:
                 f.write(secrets.token_bytes(file_size))
                 f.flush()
                 os.fsync(f.fileno())
 
             # Overwrite with zeros
-            with open(path, 'r+b') as f:
-                f.write(b'\x00' * file_size)
+            with open(path, "r+b") as f:
+                f.write(b"\x00" * file_size)
                 f.flush()
                 os.fsync(f.fileno())
         except PermissionError as e:

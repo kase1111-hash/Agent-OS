@@ -88,7 +88,9 @@ class PublicKey:
             key_type=KeyType(data["key_type"]),
             key_data=base64.b64decode(data["key_data"]),
             key_id=data.get("key_id", ""),
-            created_at=datetime.fromisoformat(data.get("created_at", datetime.utcnow().isoformat())),
+            created_at=datetime.fromisoformat(
+                data.get("created_at", datetime.utcnow().isoformat())
+            ),
         )
 
 
@@ -125,8 +127,8 @@ class KeyPair:
         """Generate a new key pair."""
         try:
             if key_type == KeyType.ED25519:
-                from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
                 from cryptography.hazmat.primitives import serialization
+                from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
                 private_key_obj = Ed25519PrivateKey.generate()
                 public_key_obj = private_key_obj.public_key()
@@ -148,8 +150,8 @@ class KeyPair:
                 )
 
             elif key_type in (KeyType.RSA_2048, KeyType.RSA_4096):
-                from cryptography.hazmat.primitives.asymmetric import rsa
                 from cryptography.hazmat.primitives import serialization
+                from cryptography.hazmat.primitives.asymmetric import rsa
 
                 key_size = 2048 if key_type == KeyType.RSA_2048 else 4096
                 private_key_obj = rsa.generate_private_key(
@@ -302,12 +304,16 @@ class Identity:
             node_id=data["node_id"],
             display_name=data["display_name"],
             public_key=PublicKey.from_dict(data["public_key"]),
-            certificate=Certificate.from_dict(data["certificate"]) if data.get("certificate") else None,
+            certificate=(
+                Certificate.from_dict(data["certificate"]) if data.get("certificate") else None
+            ),
             status=IdentityStatus(data.get("status", "unverified")),
             endpoints=data.get("endpoints", []),
             capabilities=data.get("capabilities", []),
             metadata=data.get("metadata", {}),
-            created_at=datetime.fromisoformat(data.get("created_at", datetime.utcnow().isoformat())),
+            created_at=datetime.fromisoformat(
+                data.get("created_at", datetime.utcnow().isoformat())
+            ),
             last_seen=datetime.fromisoformat(data["last_seen"]) if data.get("last_seen") else None,
         )
 
@@ -391,14 +397,17 @@ class IdentityManager:
     def _sign_certificate(self, cert: Certificate) -> bytes:
         """Sign a certificate."""
         # Create signing data
-        sign_data = json.dumps({
-            "subject_id": cert.subject_id,
-            "issuer_id": cert.issuer_id,
-            "public_key": cert.public_key.to_dict(),
-            "valid_from": cert.valid_from.isoformat(),
-            "valid_until": cert.valid_until.isoformat(),
-            "serial_number": cert.serial_number,
-        }, sort_keys=True).encode()
+        sign_data = json.dumps(
+            {
+                "subject_id": cert.subject_id,
+                "issuer_id": cert.issuer_id,
+                "public_key": cert.public_key.to_dict(),
+                "valid_from": cert.valid_from.isoformat(),
+                "valid_until": cert.valid_until.isoformat(),
+                "serial_number": cert.serial_number,
+            },
+            sort_keys=True,
+        ).encode()
 
         return self.sign(sign_data)
 
@@ -561,14 +570,17 @@ class IdentityManager:
             return False
 
         # Verify signature
-        sign_data = json.dumps({
-            "subject_id": cert.subject_id,
-            "issuer_id": cert.issuer_id,
-            "public_key": cert.public_key.to_dict(),
-            "valid_from": cert.valid_from.isoformat(),
-            "valid_until": cert.valid_until.isoformat(),
-            "serial_number": cert.serial_number,
-        }, sort_keys=True).encode()
+        sign_data = json.dumps(
+            {
+                "subject_id": cert.subject_id,
+                "issuer_id": cert.issuer_id,
+                "public_key": cert.public_key.to_dict(),
+                "valid_from": cert.valid_from.isoformat(),
+                "valid_until": cert.valid_until.isoformat(),
+                "serial_number": cert.serial_number,
+            },
+            sort_keys=True,
+        ).encode()
 
         # Get issuer's public key
         if cert.is_self_signed:

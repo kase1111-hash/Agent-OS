@@ -41,8 +41,18 @@ class EventType(Flag):
     CLOSE = CLOSE_WRITE | CLOSE_NOWRITE
     MOVE = MOVED_FROM | MOVED_TO
     ALL_EVENTS = (
-        ACCESS | MODIFY | ATTRIB | CLOSE_WRITE | CLOSE_NOWRITE |
-        OPEN | MOVED_FROM | MOVED_TO | CREATE | DELETE | DELETE_SELF | MOVE_SELF
+        ACCESS
+        | MODIFY
+        | ATTRIB
+        | CLOSE_WRITE
+        | CLOSE_NOWRITE
+        | OPEN
+        | MOVED_FROM
+        | MOVED_TO
+        | CREATE
+        | DELETE
+        | DELETE_SELF
+        | MOVE_SELF
     )
 
     @classmethod
@@ -119,7 +129,11 @@ class MonitorEvent:
         """Convert to dictionary."""
         return {
             "event_id": self.event_id,
-            "event_type": self.event_type.name if isinstance(self.event_type, EventType) else str(self.event_type),
+            "event_type": (
+                self.event_type.name
+                if isinstance(self.event_type, EventType)
+                else str(self.event_type)
+            ),
             "path": self.path,
             "filename": self.filename,
             "full_path": self.full_path,
@@ -354,9 +368,7 @@ class AuditLog:
         }
 
         # Total count
-        cursor = self._conn.execute(
-            f"SELECT COUNT(*) as cnt FROM audit_log {where}", params
-        )
+        cursor = self._conn.execute(f"SELECT COUNT(*) as cnt FROM audit_log {where}", params)
         stats["total_entries"] = cursor.fetchone()["cnt"]
 
         # By action
@@ -385,8 +397,7 @@ class AuditLog:
             params,
         )
         stats["denied_paths"] = [
-            {"path": row["path"], "count": row["cnt"]}
-            for row in cursor.fetchall()
+            {"path": row["path"], "count": row["cnt"]} for row in cursor.fetchall()
         ]
 
         return stats
@@ -561,7 +572,11 @@ class FileMonitor:
             entry = AuditEntry(
                 entry_id=f"audit_{event.event_id}",
                 timestamp=event.timestamp,
-                event_type=event.event_type.name if isinstance(event.event_type, EventType) else str(event.event_type),
+                event_type=(
+                    event.event_type.name
+                    if isinstance(event.event_type, EventType)
+                    else str(event.event_type)
+                ),
                 path=event.full_path,
                 action="audited",
                 process_id=event.process_id,
@@ -631,10 +646,7 @@ class FileMonitor:
 
     def list_watches(self) -> List[Dict[str, Any]]:
         """List all active watches."""
-        return [
-            {"wd": wd, "path": path}
-            for wd, path in self._watches.items()
-        ]
+        return [{"wd": wd, "path": path} for wd, path in self._watches.items()]
 
     def get_pending_events(self) -> List[MonitorEvent]:
         """Get pending events from queue."""

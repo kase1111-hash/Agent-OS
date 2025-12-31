@@ -262,9 +262,7 @@ class RateLimiter:
         burst_multiplier: float = 1.5,
     ):
         self.rules: List[RateLimitRule] = []
-        self.strategy = (
-            RateLimitStrategy(strategy) if isinstance(strategy, str) else strategy
-        )
+        self.strategy = RateLimitStrategy(strategy) if isinstance(strategy, str) else strategy
         self.storage = storage or InMemoryStorage()
         self.key_prefix = key_prefix
         self.burst_multiplier = burst_multiplier
@@ -421,7 +419,7 @@ class RateLimiter:
 
         await self.storage.set(
             window_key,
-            {"requests": requests[-rule.requests:], "count": len(requests)},
+            {"requests": requests[-rule.requests :], "count": len(requests)},
             rule.window_seconds * 2,  # Keep data a bit longer
         )
 
@@ -486,9 +484,7 @@ class RateLimiter:
             reset_at=reset_at,
         )
 
-    def limit(
-        self, rule: Union[str, RateLimitRule]
-    ) -> Callable[[Callable], Callable]:
+    def limit(self, rule: Union[str, RateLimitRule]) -> Callable[[Callable], Callable]:
         """
         Decorator for rate limiting specific endpoints.
 
@@ -539,9 +535,7 @@ class RateLimiter:
 
         return decorator
 
-    async def _check_single_rule(
-        self, key: str, rule: RateLimitRule, cost: int
-    ) -> RateLimitResult:
+    async def _check_single_rule(self, key: str, rule: RateLimitRule, cost: int) -> RateLimitResult:
         """Check a single rule."""
         if self.strategy == RateLimitStrategy.FIXED_WINDOW:
             return await self._check_fixed_window(key, rule, cost)

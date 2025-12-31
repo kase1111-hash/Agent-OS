@@ -17,14 +17,14 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
 from .audio import (
-    AudioAnalyzer,
     AudioAnalysisResult,
+    AudioAnalyzer,
     AudioInput,
     create_audio_analyzer,
 )
 from .video import (
-    VideoAnalyzer,
     VideoAnalysisResult,
+    VideoAnalyzer,
     VideoInput,
     create_video_analyzer,
 )
@@ -500,11 +500,13 @@ class MultiModalAgent:
 
     def is_available(self) -> bool:
         """Check if at least one modality processor is available."""
-        return any([
-            self._ensure_vision().is_available(),
-            self._ensure_audio().is_available(),
-            self._ensure_video().is_available(),
-        ])
+        return any(
+            [
+                self._ensure_vision().is_available(),
+                self._ensure_audio().is_available(),
+                self._ensure_video().is_available(),
+            ]
+        )
 
     def get_capabilities(self) -> Dict[str, bool]:
         """Get available capabilities."""

@@ -10,17 +10,16 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Set, Type, Union
 
 from src.agents.interface import (
-    BaseAgent,
     AgentCapabilities,
+    AgentState,
+    BaseAgent,
     CapabilityType,
     RequestValidationResult,
-    AgentState,
 )
-from src.messaging.models import FlowRequest, FlowResponse, MessageStatus
 from src.core.models import Rule
+from src.messaging.models import FlowRequest, FlowResponse, MessageStatus
 
-from .templates.base import AgentTemplate, AgentConfig
-
+from .templates.base import AgentConfig, AgentTemplate
 
 logger = logging.getLogger(__name__)
 

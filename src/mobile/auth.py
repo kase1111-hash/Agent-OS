@@ -108,9 +108,9 @@ class AuthToken:
             "token_type": self.token_type,
             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
             "refresh_token": self.refresh_token,
-            "refresh_expires_at": self.refresh_expires_at.isoformat()
-            if self.refresh_expires_at
-            else None,
+            "refresh_expires_at": (
+                self.refresh_expires_at.isoformat() if self.refresh_expires_at else None
+            ),
             "scope": self.scope,
             "issued_at": self.issued_at.isoformat(),
         }
@@ -121,9 +121,7 @@ class AuthToken:
         if isinstance(data.get("expires_at"), str):
             data["expires_at"] = datetime.fromisoformat(data["expires_at"])
         if isinstance(data.get("refresh_expires_at"), str):
-            data["refresh_expires_at"] = datetime.fromisoformat(
-                data["refresh_expires_at"]
-            )
+            data["refresh_expires_at"] = datetime.fromisoformat(data["refresh_expires_at"])
         if isinstance(data.get("issued_at"), str):
             data["issued_at"] = datetime.fromisoformat(data["issued_at"])
         return cls(**data)
@@ -140,9 +138,11 @@ class AuthToken:
             token_type=response.get("token_type", "Bearer"),
             expires_at=now + timedelta(seconds=expires_in),
             refresh_token=response.get("refresh_token"),
-            refresh_expires_at=now + timedelta(seconds=refresh_expires_in)
-            if response.get("refresh_token")
-            else None,
+            refresh_expires_at=(
+                now + timedelta(seconds=refresh_expires_in)
+                if response.get("refresh_token")
+                else None
+            ),
             scope=response.get("scope", "").split() if response.get("scope") else [],
             issued_at=now,
         )
@@ -217,8 +217,7 @@ class BiometricAuth:
 
         if self._production_mode and biometric_type != BiometricType.NONE:
             logger.warning(
-                "BiometricAuth running in production mode - "
-                "simulated authentication is disabled"
+                "BiometricAuth running in production mode - " "simulated authentication is disabled"
             )
 
     @property
@@ -472,9 +471,7 @@ class MobileAuth:
             self._set_state(AuthState.UNAUTHENTICATED)
             raise AuthError(f"Authentication failed: {e}")
 
-    async def _auth_with_credentials(
-        self, username: str, password: str
-    ) -> AuthToken:
+    async def _auth_with_credentials(self, username: str, password: str) -> AuthToken:
         """Authenticate with username/password.
 
         Returns:
@@ -594,13 +591,9 @@ class MobileAuth:
         self._failed_attempts += 1
 
         if self._failed_attempts >= self.config.max_failed_attempts:
-            self._lockout_until = datetime.now() + timedelta(
-                seconds=self.config.lockout_duration
-            )
+            self._lockout_until = datetime.now() + timedelta(seconds=self.config.lockout_duration)
             self._set_state(AuthState.LOCKED)
-            logger.warning(
-                f"Account locked after {self._failed_attempts} failed attempts"
-            )
+            logger.warning(f"Account locked after {self._failed_attempts} failed attempts")
 
     async def logout(self) -> None:
         """Log out and clear tokens."""
@@ -644,14 +637,10 @@ class MobileAuth:
             "state": self._state.value,
             "is_authenticated": self.is_authenticated,
             "is_locked": self.is_locked,
-            "session_start": self._session_start.isoformat()
-            if self._session_start
-            else None,
+            "session_start": self._session_start.isoformat() if self._session_start else None,
             "token_expires_in": self._token.expires_in if self._token else None,
             "failed_attempts": self._failed_attempts,
-            "biometric_available": self._biometric.is_available
-            if self._biometric
-            else False,
+            "biometric_available": self._biometric.is_available if self._biometric else False,
             "device_registered": self._device_token is not None,
         }
 

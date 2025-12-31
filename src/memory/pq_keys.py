@@ -23,35 +23,36 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from .keys import (
+    DerivedKey,
+    HardwareBindingInterface,
     KeyManager,
     KeyMetadata,
     KeyStatus,
-    DerivedKey,
-    HardwareBindingInterface,
-    secure_zero,
     SensitiveBytes,
+    secure_zero,
 )
 from .profiles import EncryptionTier, KeyBinding, ProfileManager
 
 # Import PQ crypto primitives
 try:
     from ..federation.pq import (
-        MLKEMSecurityLevel,
-        MLKEMKeyPair,
-        MLKEMPublicKey,
-        MLKEMPrivateKey,
-        DefaultMLKEMProvider,
-        MLDSASecurityLevel,
-        MLDSAKeyPair,
-        MLDSAPublicKey,
-        MLDSAPrivateKey,
         DefaultMLDSAProvider,
+        DefaultMLKEMProvider,
         HybridKeyExchange,
-        HybridSigner,
         HybridKeyPair,
-        HybridPublicKey,
         HybridPrivateKey,
+        HybridPublicKey,
+        HybridSigner,
+        MLDSAKeyPair,
+        MLDSAPrivateKey,
+        MLDSAPublicKey,
+        MLDSASecurityLevel,
+        MLKEMKeyPair,
+        MLKEMPrivateKey,
+        MLKEMPublicKey,
+        MLKEMSecurityLevel,
     )
+
     PQ_AVAILABLE = True
 except ImportError:
     PQ_AVAILABLE = False
@@ -92,10 +93,10 @@ class QuantumKeyType(str, Enum):
 class PQKeyPurpose(str, Enum):
     """Purpose of a post-quantum key."""
 
-    KEY_EXCHANGE = "key_exchange"     # ML-KEM / Hybrid KEM
-    SIGNING = "signing"               # ML-DSA / Hybrid Sig
-    ENCRYPTION = "encryption"         # Symmetric derived from KEM
-    ATTESTATION = "attestation"       # Identity verification
+    KEY_EXCHANGE = "key_exchange"  # ML-KEM / Hybrid KEM
+    SIGNING = "signing"  # ML-DSA / Hybrid Sig
+    ENCRYPTION = "encryption"  # Symmetric derived from KEM
+    ATTESTATION = "attestation"  # Identity verification
 
 
 class PQSecurityLevel(str, Enum):
@@ -199,12 +200,10 @@ class PQKeyMetadata:
             status=KeyStatus[data.get("status", "ACTIVE")],
             created_at=datetime.fromisoformat(data["created_at"]),
             expires_at=(
-                datetime.fromisoformat(data["expires_at"])
-                if data.get("expires_at") else None
+                datetime.fromisoformat(data["expires_at"]) if data.get("expires_at") else None
             ),
             last_used=(
-                datetime.fromisoformat(data["last_used"])
-                if data.get("last_used") else None
+                datetime.fromisoformat(data["last_used"]) if data.get("last_used") else None
             ),
             use_count=data.get("use_count", 0),
             hardware_handle=data.get("hardware_handle"),
@@ -244,7 +243,7 @@ class PostQuantumKeyManager:
     """
 
     # Maximum key sizes (bytes) for validation
-    MAX_PUBLIC_KEY_SIZE = 4096   # Covers ML-DSA-87
+    MAX_PUBLIC_KEY_SIZE = 4096  # Covers ML-DSA-87
     MAX_PRIVATE_KEY_SIZE = 8192  # Covers ML-DSA-87
 
     def __init__(
@@ -293,9 +292,9 @@ class PostQuantumKeyManager:
         if self._storage_key:
             return self._storage_key
 
-        import platform
         import getpass
         import os
+        import platform
 
         # Combine machine-specific identifiers
         machine_id_parts = [
@@ -394,7 +393,7 @@ class PostQuantumKeyManager:
             self._pq_keys.clear()
 
             # Clear storage key if present
-            if hasattr(self, '_storage_key') and self._storage_key:
+            if hasattr(self, "_storage_key") and self._storage_key:
                 temp = bytearray(self._storage_key)
                 secure_zero(temp)
                 self._storage_key = None
@@ -455,14 +454,8 @@ class PostQuantumKeyManager:
         key_id = f"hybrid_kem_{security_level.value}_{secrets.token_hex(8)}"
 
         # Serialize keys
-        public_key = (
-            keypair.public_key.classical_key +
-            keypair.public_key.pq_key
-        )
-        private_key = (
-            keypair.private_key.classical_key +
-            keypair.private_key.pq_key
-        )
+        public_key = keypair.public_key.classical_key + keypair.public_key.pq_key
+        private_key = keypair.private_key.classical_key + keypair.private_key.pq_key
 
         metadata = PQKeyMetadata(
             key_id=key_id,
@@ -575,14 +568,8 @@ class PostQuantumKeyManager:
         key_id = f"hybrid_sig_{security_level.value}_{secrets.token_hex(8)}"
 
         # Serialize keys
-        public_key = (
-            keypair.public_key.classical_key +
-            keypair.public_key.pq_key
-        )
-        private_key = (
-            keypair.private_key.classical_key +
-            keypair.private_key.pq_key
-        )
+        public_key = keypair.public_key.classical_key + keypair.public_key.pq_key
+        private_key = keypair.private_key.classical_key + keypair.private_key.pq_key
 
         metadata = PQKeyMetadata(
             key_id=key_id,
@@ -978,18 +965,22 @@ class PostQuantumKeyManager:
         keys = list(self._pq_keys.values())
 
         total_public_size = sum(len(k.public_key) for k in keys)
-        total_private_size = sum(
-            len(k.private_key) for k in keys if k.private_key
-        )
+        total_private_size = sum(len(k.private_key) for k in keys if k.private_key)
 
         return {
             "total_keys": len(keys),
             "by_type": {
-                "hybrid": len([k for k in keys if k.metadata.quantum_type == QuantumKeyType.HYBRID]),
-                "post_quantum": len([k for k in keys if k.metadata.quantum_type == QuantumKeyType.POST_QUANTUM]),
+                "hybrid": len(
+                    [k for k in keys if k.metadata.quantum_type == QuantumKeyType.HYBRID]
+                ),
+                "post_quantum": len(
+                    [k for k in keys if k.metadata.quantum_type == QuantumKeyType.POST_QUANTUM]
+                ),
             },
             "by_purpose": {
-                "key_exchange": len([k for k in keys if k.metadata.purpose == PQKeyPurpose.KEY_EXCHANGE]),
+                "key_exchange": len(
+                    [k for k in keys if k.metadata.purpose == PQKeyPurpose.KEY_EXCHANGE]
+                ),
                 "signing": len([k for k in keys if k.metadata.purpose == PQKeyPurpose.SIGNING]),
             },
             "by_status": {
@@ -1018,7 +1009,7 @@ class PostQuantumKeyManager:
             return
 
         try:
-            with open(pq_keys_path, 'r') as f:
+            with open(pq_keys_path, "r") as f:
                 data = json.load(f)
 
             for key_data in data.get("keys", []):
@@ -1081,7 +1072,7 @@ class PostQuantumKeyManager:
                 "version": "1.0",
             }
 
-            with open(pq_keys_path, 'w') as f:
+            with open(pq_keys_path, "w") as f:
                 json.dump(data, f, indent=2)
 
             # Save key material to separate files
@@ -1090,9 +1081,7 @@ class PostQuantumKeyManager:
 
                 # Public key
                 public_key_file = pq_data_path / f"{key_id}.pub"
-                public_key_file.write_text(
-                    base64.b64encode(stored_key.public_key).decode()
-                )
+                public_key_file.write_text(base64.b64encode(stored_key.public_key).decode())
 
                 # Private key (encrypted and with restricted permissions)
                 if stored_key.private_key:

@@ -27,12 +27,11 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .state import (
-    CeremonyState,
     CeremonyPhase,
-    PhaseResult,
+    CeremonyState,
     PhaseRecord,
+    PhaseResult,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -41,9 +40,11 @@ logger = logging.getLogger(__name__)
 # Phase Result Types
 # =============================================================================
 
+
 @dataclass
 class PhaseExecutionResult:
     """Result of executing a ceremony phase."""
+
     success: bool
     phase: CeremonyPhase
     message: str = ""
@@ -61,6 +62,7 @@ class PhaseExecutionResult:
 # =============================================================================
 # Base Phase Class
 # =============================================================================
+
 
 class CeremonyPhaseExecutor(ABC):
     """Base class for ceremony phase executors."""
@@ -121,6 +123,7 @@ class CeremonyPhaseExecutor(ABC):
 # =============================================================================
 # Phase I: Cold Boot
 # =============================================================================
+
 
 class ColdBootPhase(CeremonyPhaseExecutor):
     """
@@ -209,6 +212,7 @@ class ColdBootPhase(CeremonyPhaseExecutor):
         # Try to import and check actual boundary
         try:
             from src.boundary import BoundaryClient
+
             client = BoundaryClient()
             if client.is_lockdown():
                 return True, "Lockdown mode"
@@ -252,6 +256,7 @@ class ColdBootPhase(CeremonyPhaseExecutor):
 # =============================================================================
 # Phase II: Owner Root
 # =============================================================================
+
 
 class OwnerRootPhase(CeremonyPhaseExecutor):
     """
@@ -331,19 +336,75 @@ class OwnerRootPhase(CeremonyPhaseExecutor):
         # Generate BIP39-style backup phrase (simplified)
         # In production, use proper BIP39 word list
         word_list = [
-            "abandon", "ability", "able", "about", "above", "absent", "absorb", "abstract",
-            "absurd", "abuse", "access", "accident", "account", "accuse", "achieve", "acid",
-            "acoustic", "acquire", "across", "act", "action", "actor", "actress", "actual",
-            "adapt", "add", "addict", "address", "adjust", "admit", "adult", "advance",
-            "advice", "aerobic", "affair", "afford", "afraid", "again", "age", "agent",
-            "agree", "ahead", "aim", "air", "airport", "aisle", "alarm", "album",
-            "alcohol", "alert", "alien", "all", "alley", "allow", "almost", "alone",
-            "alpha", "already", "also", "alter", "always", "amateur", "amazing", "among",
+            "abandon",
+            "ability",
+            "able",
+            "about",
+            "above",
+            "absent",
+            "absorb",
+            "abstract",
+            "absurd",
+            "abuse",
+            "access",
+            "accident",
+            "account",
+            "accuse",
+            "achieve",
+            "acid",
+            "acoustic",
+            "acquire",
+            "across",
+            "act",
+            "action",
+            "actor",
+            "actress",
+            "actual",
+            "adapt",
+            "add",
+            "addict",
+            "address",
+            "adjust",
+            "admit",
+            "adult",
+            "advance",
+            "advice",
+            "aerobic",
+            "affair",
+            "afford",
+            "afraid",
+            "again",
+            "age",
+            "agent",
+            "agree",
+            "ahead",
+            "aim",
+            "air",
+            "airport",
+            "aisle",
+            "alarm",
+            "album",
+            "alcohol",
+            "alert",
+            "alien",
+            "all",
+            "alley",
+            "allow",
+            "almost",
+            "alone",
+            "alpha",
+            "already",
+            "also",
+            "alter",
+            "always",
+            "amateur",
+            "amazing",
+            "among",
         ]
 
         # Generate 24 words from key entropy
         phrase_words = []
-        key_int = int.from_bytes(owner_key, 'big')
+        key_int = int.from_bytes(owner_key, "big")
         for _ in range(24):
             idx = key_int % len(word_list)
             phrase_words.append(word_list[idx])
@@ -371,6 +432,7 @@ class OwnerRootPhase(CeremonyPhaseExecutor):
 # =============================================================================
 # Phase III: Boundary Initialization
 # =============================================================================
+
 
 class BoundaryInitPhase(CeremonyPhaseExecutor):
     """
@@ -483,6 +545,7 @@ class BoundaryInitPhase(CeremonyPhaseExecutor):
 # Phase IV: Vault Genesis
 # =============================================================================
 
+
 class VaultGenesisPhase(CeremonyPhaseExecutor):
     """
     Phase IV: Memory Vault Genesis.
@@ -580,9 +643,7 @@ class VaultGenesisPhase(CeremonyPhaseExecutor):
             "owner_id": self.state.owner_id,
             "profiles": ["Working", "Private", "Sealed", "Vaulted"],
         }
-        genesis_hash = hashlib.sha256(
-            str(genesis_data).encode()
-        ).hexdigest()
+        genesis_hash = hashlib.sha256(str(genesis_data).encode()).hexdigest()
         logger.info(f"Genesis record: {genesis_hash}")
         return genesis_hash
 
@@ -590,6 +651,7 @@ class VaultGenesisPhase(CeremonyPhaseExecutor):
 # =============================================================================
 # Phase V: Learning Contract Defaults
 # =============================================================================
+
 
 class LearningContractsPhase(CeremonyPhaseExecutor):
     """
@@ -665,9 +727,13 @@ class LearningContractsPhase(CeremonyPhaseExecutor):
     def _initialize_prohibited_domains(self) -> int:
         """Initialize prohibited domains list."""
         domains = [
-            "credentials", "passwords", "api_keys",
-            "financial_data", "medical_records",
-            "biometric_data", "government_classified",
+            "credentials",
+            "passwords",
+            "api_keys",
+            "financial_data",
+            "medical_records",
+            "biometric_data",
+            "government_classified",
         ]
         logger.info(f"Initialized {len(domains)} prohibited domains")
         return len(domains)
@@ -681,6 +747,7 @@ class LearningContractsPhase(CeremonyPhaseExecutor):
 # =============================================================================
 # Phase VI: Value Ledger Initialization
 # =============================================================================
+
 
 class ValueLedgerPhase(CeremonyPhaseExecutor):
     """
@@ -768,9 +835,7 @@ class ValueLedgerPhase(CeremonyPhaseExecutor):
             "created_at": datetime.now().isoformat(),
             "ceremony_id": self.state.ceremony_id,
         }
-        genesis_hash = hashlib.sha256(
-            str(genesis_data).encode()
-        ).hexdigest()
+        genesis_hash = hashlib.sha256(str(genesis_data).encode()).hexdigest()
         logger.info(f"Ledger genesis: {genesis_hash}")
         return genesis_hash
 
@@ -778,6 +843,7 @@ class ValueLedgerPhase(CeremonyPhaseExecutor):
 # =============================================================================
 # Phase VII: First Trust Activation
 # =============================================================================
+
 
 class FirstTrustPhase(CeremonyPhaseExecutor):
     """
@@ -887,6 +953,7 @@ class FirstTrustPhase(CeremonyPhaseExecutor):
 # Phase VIII: Emergency Drills
 # =============================================================================
 
+
 class EmergencyDrillsPhase(CeremonyPhaseExecutor):
     """
     Phase VIII: Emergency Drills (Mandatory).
@@ -962,7 +1029,9 @@ class EmergencyDrillsPhase(CeremonyPhaseExecutor):
                 result.message = f"All {drills_total} emergency drills passed"
             else:
                 result.success = False
-                result.message = f"Only {drills_passed}/{drills_total} drills passed - return to Phase I"
+                result.message = (
+                    f"Only {drills_passed}/{drills_total} drills passed - return to Phase I"
+                )
 
         except Exception as e:
             result.success = False
@@ -1020,6 +1089,7 @@ class EmergencyDrillsPhase(CeremonyPhaseExecutor):
 # =============================================================================
 # Phase Factory
 # =============================================================================
+
 
 def create_phase_executor(
     phase: CeremonyPhase,

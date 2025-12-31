@@ -13,15 +13,14 @@ from typing import Any, Callable, Dict, List, Optional, Set
 from src.agents.interface import CapabilityType
 from src.messaging.models import FlowRequest, FlowResponse, MessageStatus
 from src.tools import (
-    ToolsClient,
-    ToolResult,
-    ToolCategory,
-    ToolRiskLevel,
     InvocationResult,
+    ToolCategory,
+    ToolResult,
+    ToolRiskLevel,
+    ToolsClient,
 )
 
-from .base import AgentTemplate, AgentConfig
-
+from .base import AgentConfig, AgentTemplate
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +28,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ToolCall:
     """A tool call to be executed."""
+
     tool_name: str
     parameters: Dict[str, Any]
     reason: str = ""
@@ -37,6 +37,7 @@ class ToolCall:
 @dataclass
 class ToolCallResult:
     """Result of a tool call."""
+
     tool_name: str
     success: bool
     output: Any = None
@@ -47,6 +48,7 @@ class ToolCallResult:
 @dataclass
 class ToolUseConfig(AgentConfig):
     """Configuration for tool-using agents."""
+
     allowed_tools: Optional[Set[str]] = None
     allowed_categories: Optional[Set[ToolCategory]] = None
     max_tool_calls: int = 10
@@ -93,6 +95,7 @@ class ToolUseAgentTemplate(AgentTemplate):
         """Get tools client, creating default if needed."""
         if self._tools_client is None:
             from src.tools import get_default_client
+
             self._tools_client = get_default_client()
         return self._tools_client
 
@@ -293,7 +296,7 @@ class ToolUseAgentTemplate(AgentTemplate):
         results = []
 
         # Limit to max_tool_calls
-        calls_to_execute = tool_calls[:self.tool_config.max_tool_calls]
+        calls_to_execute = tool_calls[: self.tool_config.max_tool_calls]
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             futures = {
@@ -312,11 +315,13 @@ class ToolUseAgentTemplate(AgentTemplate):
                     results.append(result)
                 except Exception as e:
                     call = futures[future]
-                    results.append(ToolCallResult(
-                        tool_name=call.tool_name,
-                        success=False,
-                        error=str(e),
-                    ))
+                    results.append(
+                        ToolCallResult(
+                            tool_name=call.tool_name,
+                            success=False,
+                            error=str(e),
+                        )
+                    )
 
         return results
 

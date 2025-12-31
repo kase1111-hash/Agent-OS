@@ -8,21 +8,23 @@ import hashlib
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, List, Optional
 
 
 class ValueDimension(Enum):
     """Dimensions of value being tracked."""
-    EFFORT = "effort"              # Computational effort
-    KNOWLEDGE = "knowledge"        # Knowledge contribution
-    INTERACTION = "interaction"    # User interaction
-    CREATIVE = "creative"          # Creative contribution
-    REASONING = "reasoning"        # Reasoning contribution
-    MEMORY = "memory"              # Memory operations
+
+    EFFORT = "effort"  # Computational effort
+    KNOWLEDGE = "knowledge"  # Knowledge contribution
+    INTERACTION = "interaction"  # User interaction
+    CREATIVE = "creative"  # Creative contribution
+    REASONING = "reasoning"  # Reasoning contribution
+    MEMORY = "memory"  # Memory operations
 
 
 class IntentCategory(Enum):
     """Categories of intents for value mapping."""
+
     QUERY = "query"
     GENERATION = "generation"
     MEMORY = "memory"
@@ -39,15 +41,16 @@ class ValueEvent:
 
     IMPORTANT: Contains metadata only, never content.
     """
+
     event_id: str
-    source: str                             # Source agent
+    source: str  # Source agent
     dimension: ValueDimension
     intent_category: IntentCategory
-    intent_type: str                        # Specific intent (e.g., "memory.store")
+    intent_type: str  # Specific intent (e.g., "memory.store")
     timestamp: datetime = field(default_factory=datetime.now)
     session_id: Optional[str] = None
     correlation_id: Optional[str] = None
-    context_tokens: int = 0                 # Token count (not content)
+    context_tokens: int = 0  # Token count (not content)
     output_tokens: int = 0
     processing_time_ms: float = 0.0
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -81,11 +84,12 @@ class IntentValueMapping:
 
     Defines how different intents contribute to value.
     """
-    intent_pattern: str                     # Pattern to match (e.g., "memory.*")
+
+    intent_pattern: str  # Pattern to match (e.g., "memory.*")
     dimension: ValueDimension
-    base_value: float                       # Base value amount (0-1)
-    token_multiplier: float = 0.0001        # Value per token
-    time_multiplier: float = 0.00001        # Value per ms
+    base_value: float  # Base value amount (0-1)
+    token_multiplier: float = 0.0001  # Value per token
+    time_multiplier: float = 0.00001  # Value per ms
     enabled: bool = True
 
     def matches(self, intent_type: str) -> bool:

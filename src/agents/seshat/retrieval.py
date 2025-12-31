@@ -12,16 +12,17 @@ import logging
 import secrets
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, List, Dict, Any, Callable, Tuple
 from enum import Enum, auto
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
 import numpy as np
 
 from .embeddings import EmbeddingEngine, EmbeddingResult
 from .vectorstore import (
-    VectorStoreBase,
-    VectorDocument,
     SearchQuery,
     SearchResult,
+    VectorDocument,
+    VectorStoreBase,
 )
 
 logger = logging.getLogger(__name__)
@@ -29,22 +30,25 @@ logger = logging.getLogger(__name__)
 
 class RetrievalMode(Enum):
     """Modes for retrieval."""
+
     SEMANTIC = auto()  # Pure semantic search
-    KEYWORD = auto()   # Keyword-based search
-    HYBRID = auto()    # Combined semantic + keyword
+    KEYWORD = auto()  # Keyword-based search
+    HYBRID = auto()  # Combined semantic + keyword
 
 
 class ContextType(Enum):
     """Types of context for RAG."""
+
     CONVERSATION = auto()  # Past conversation turns
-    KNOWLEDGE = auto()     # Knowledge base entries
-    EPISODIC = auto()      # Specific events/memories
-    PROCEDURAL = auto()    # How-to knowledge
+    KNOWLEDGE = auto()  # Knowledge base entries
+    EPISODIC = auto()  # Specific events/memories
+    PROCEDURAL = auto()  # How-to knowledge
 
 
 @dataclass
 class MemoryEntry:
     """A memory entry for storage and retrieval."""
+
     memory_id: str
     content: str
     context_type: ContextType
@@ -74,6 +78,7 @@ class MemoryEntry:
 @dataclass
 class RetrievalResult:
     """Result from retrieval operation."""
+
     memories: List[MemoryEntry]
     scores: List[float]
     query: str
@@ -99,7 +104,9 @@ class RetrievalResult:
         char_limit = max_tokens * 4  # Rough estimate
 
         for i, (memory, score) in enumerate(zip(self.memories, self.scores)):
-            entry = f"[{i+1}] ({memory.context_type.name}, relevance: {score:.2f}): {memory.content}"
+            entry = (
+                f"[{i+1}] ({memory.context_type.name}, relevance: {score:.2f}): {memory.content}"
+            )
             if total_chars + len(entry) > char_limit:
                 lines.append("... (truncated)")
                 break
@@ -112,6 +119,7 @@ class RetrievalResult:
 @dataclass
 class RAGContext:
     """Context assembled for RAG prompt."""
+
     query: str
     retrieved_context: str
     system_context: Optional[str] = None
@@ -378,6 +386,7 @@ class RetrievalPipeline:
             RetrievalResult with matched memories
         """
         import time
+
         start_time = time.time()
 
         accessor = accessor or self._default_accessor
@@ -530,8 +539,7 @@ class RetrievalPipeline:
 
         # Delete from metadata
         to_delete = [
-            mid for mid, mem in self._memory_metadata.items()
-            if mem.consent_id == consent_id
+            mid for mid, mem in self._memory_metadata.items() if mem.consent_id == consent_id
         ]
         for mid in to_delete:
             del self._memory_metadata[mid]
@@ -561,13 +569,14 @@ class RetrievalPipeline:
             return 0
 
         from datetime import timedelta
+
         cutoff = datetime.now() - timedelta(hours=min_age_hours)
 
         # Find old memories
         old_memories = [
-            m for m in self._memory_metadata.values()
-            if m.created_at < cutoff
-            and (context_type is None or m.context_type == context_type)
+            m
+            for m in self._memory_metadata.values()
+            if m.created_at < cutoff and (context_type is None or m.context_type == context_type)
         ]
 
         if len(old_memories) < 3:

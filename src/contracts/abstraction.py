@@ -14,32 +14,34 @@ from datetime import datetime
 from enum import Enum, auto
 from typing import Any, Callable, Dict, List, Optional, Set
 
-
 logger = logging.getLogger(__name__)
 
 
 class AbstractionLevel(Enum):
     """Level of abstraction applied to data."""
-    RAW = auto()              # No abstraction, raw data
-    MINIMAL = auto()          # Minimal redaction of identifiers
-    MODERATE = auto()         # Moderate abstraction, key details preserved
-    STRONG = auto()           # Strong abstraction, patterns only
-    FULL = auto()             # Full abstraction, no identifiable content
+
+    RAW = auto()  # No abstraction, raw data
+    MINIMAL = auto()  # Minimal redaction of identifiers
+    MODERATE = auto()  # Moderate abstraction, key details preserved
+    STRONG = auto()  # Strong abstraction, patterns only
+    FULL = auto()  # Full abstraction, no identifiable content
 
 
 class AbstractionType(Enum):
     """Types of abstraction operations."""
-    REDACTION = auto()        # Replace with [REDACTED]
-    HASHING = auto()          # Replace with hash
-    GENERALIZATION = auto()   # Replace specific with general
-    SUPPRESSION = auto()      # Remove entirely
-    PSEUDONYMIZATION = auto() # Replace with consistent pseudonym
-    AGGREGATION = auto()      # Aggregate into statistics
+
+    REDACTION = auto()  # Replace with [REDACTED]
+    HASHING = auto()  # Replace with hash
+    GENERALIZATION = auto()  # Replace specific with general
+    SUPPRESSION = auto()  # Remove entirely
+    PSEUDONYMIZATION = auto()  # Replace with consistent pseudonym
+    AGGREGATION = auto()  # Aggregate into statistics
 
 
 @dataclass
 class AbstractionRule:
     """A rule for abstracting content."""
+
     rule_id: str
     name: str
     pattern: str
@@ -54,8 +56,10 @@ class AbstractionRule:
         if self.abstraction_type == AbstractionType.REDACTION:
             return re.sub(self.pattern, self.replacement, content, flags=re.IGNORECASE)
         elif self.abstraction_type == AbstractionType.HASHING:
+
             def hash_match(match):
                 return hashlib.sha256(match.group(0).encode()).hexdigest()[:16]
+
             return re.sub(self.pattern, hash_match, content, flags=re.IGNORECASE)
         elif self.abstraction_type == AbstractionType.SUPPRESSION:
             return re.sub(self.pattern, "", content, flags=re.IGNORECASE)
@@ -72,6 +76,7 @@ class AbstractionRule:
 @dataclass
 class AbstractionResult:
     """Result of an abstraction operation."""
+
     success: bool
     original_length: int
     abstracted_length: int
@@ -105,6 +110,7 @@ class AbstractionResult:
 @dataclass
 class AbstractionPolicy:
     """Policy for abstraction requirements."""
+
     min_level: AbstractionLevel = AbstractionLevel.MODERATE
     required_rules: Set[str] = field(default_factory=set)
     forbidden_patterns: List[str] = field(default_factory=list)
@@ -288,6 +294,7 @@ class AbstractionGuard:
 
         pseudonymized = content
         for pattern in patterns:
+
             def replace_with_pseudonym(match):
                 original = match.group(0)
                 if original not in self._pseudonym_map:
@@ -369,12 +376,14 @@ class AbstractionGuard:
         result["potential_ids"] = len(re.findall(r"\b(?:ID|id)[:\s]?\w+\b", content))
 
         # Calculate score
-        total_identifiable = sum([
-            result["potential_names"],
-            result["potential_emails"],
-            result["potential_phones"],
-            result["potential_ids"],
-        ])
+        total_identifiable = sum(
+            [
+                result["potential_names"],
+                result["potential_emails"],
+                result["potential_phones"],
+                result["potential_ids"],
+            ]
+        )
 
         word_count = len(content.split())
         if word_count > 0:

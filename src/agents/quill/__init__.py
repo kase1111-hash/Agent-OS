@@ -26,16 +26,15 @@ from .agent import (
     QuillConfig,
     create_quill_agent,
 )
-
 from .formatting import (
-    FormattingEngine,
-    RefinementEngine,
-    OutputFormat,
-    ChangeType,
-    TextChange,
-    RefinementResult,
-    DocumentTemplate,
     DEFAULT_TEMPLATES,
+    ChangeType,
+    DocumentTemplate,
+    FormattingEngine,
+    OutputFormat,
+    RefinementEngine,
+    RefinementResult,
+    TextChange,
     create_formatting_engine,
     create_refinement_engine,
 )

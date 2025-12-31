@@ -12,34 +12,11 @@ Components:
 - Context Memory: Preferences and rule history
 """
 
-from .rules import (
-    Rule,
-    RuleScope,
-    RuleEffect,
-    RuleAction,
-    RuleRegistry,
-    RuleConflict,
-    RuleValidationError,
-)
-from .policy import (
-    Policy,
-    PolicyType,
-    PolicyCompiler,
-    SyscallPolicy,
-    FilePolicy,
-    AccessPolicy,
-)
-from .interpreter import (
-    PolicyInterpreter,
-    IntentParser,
-    ParsedIntent,
-    IntentAction,
-)
-from .fuse import (
-    FuseWrapper,
-    FuseConfig,
-    FuseMount,
-    FuseOperation,
+from .context import (
+    AgentContext,
+    ContextMemory,
+    FolderContext,
+    UserContext,
 )
 from .ebpf import (
     EbpfFilter,
@@ -49,23 +26,46 @@ from .ebpf import (
     SeccompFilter,
     SyscallFilter,
 )
-from .monitor import (
-    FileMonitor,
-    MonitorEvent,
-    EventType,
-    AuditLog,
-    AuditEntry,
-)
-from .context import (
-    ContextMemory,
-    UserContext,
-    FolderContext,
-    AgentContext,
-)
 from .engine import (
     ConversationalKernel,
     KernelConfig,
     KernelState,
+)
+from .fuse import (
+    FuseConfig,
+    FuseMount,
+    FuseOperation,
+    FuseWrapper,
+)
+from .interpreter import (
+    IntentAction,
+    IntentParser,
+    ParsedIntent,
+    PolicyInterpreter,
+)
+from .monitor import (
+    AuditEntry,
+    AuditLog,
+    EventType,
+    FileMonitor,
+    MonitorEvent,
+)
+from .policy import (
+    AccessPolicy,
+    FilePolicy,
+    Policy,
+    PolicyCompiler,
+    PolicyType,
+    SyscallPolicy,
+)
+from .rules import (
+    Rule,
+    RuleAction,
+    RuleConflict,
+    RuleEffect,
+    RuleRegistry,
+    RuleScope,
+    RuleValidationError,
 )
 
 __all__ = [

@@ -83,7 +83,7 @@ from src.contracts.domains import (
 from src.messaging.models import (
     FlowRequest,
     FlowResponse,
-    MessageContent,
+    RequestContent,
     MessageStatus,
 )
 
@@ -752,9 +752,10 @@ def create_mock_request(prompt: str = "Test prompt") -> FlowRequest:
     return FlowRequest(
         source="user",
         destination="test_agent",
-        content=MessageContent(
+        intent="test",
+        content=RequestContent(
             prompt=prompt,
-            context={},
+            context=[],
         ),
     )
 

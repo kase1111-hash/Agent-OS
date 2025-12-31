@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 
 class PathValidationError(Exception):
     """Raised when a path fails security validation."""
+
     pass
 
 
@@ -72,26 +73,24 @@ def validate_media_path(path: Path) -> Path:
     path_str = str(resolved)
 
     # Disallow null bytes (can truncate strings in C programs)
-    if '\x00' in path_str:
+    if "\x00" in path_str:
         raise PathValidationError("Path contains null byte")
 
     # Disallow newlines (can inject additional commands in some contexts)
-    if '\n' in path_str or '\r' in path_str:
+    if "\n" in path_str or "\r" in path_str:
         raise PathValidationError("Path contains newline characters")
 
     # Disallow common shell metacharacters as a defense-in-depth measure
     # Note: With subprocess list mode, these are typically safe, but we block
     # them anyway for maximum security
     dangerous_patterns = [
-        r'[;|&`$]',  # Command separators and execution
-        r'^\s*-',    # Leading dash (could be interpreted as option)
+        r"[;|&`$]",  # Command separators and execution
+        r"^\s*-",  # Leading dash (could be interpreted as option)
     ]
 
     for pattern in dangerous_patterns:
         if re.search(pattern, path_str):
-            raise PathValidationError(
-                f"Path contains potentially dangerous characters: {path_str}"
-            )
+            raise PathValidationError(f"Path contains potentially dangerous characters: {path_str}")
 
     return resolved
 
@@ -217,8 +216,10 @@ class VideoInput:
             result = subprocess.run(
                 [
                     "ffprobe",
-                    "-v", "quiet",
-                    "-print_format", "json",
+                    "-v",
+                    "quiet",
+                    "-print_format",
+                    "json",
                     "-show_format",
                     "-show_streams",
                     str(validated_path),
@@ -533,7 +534,7 @@ class MockVideoAnalyzer(VideoAnalyzer):
     ) -> VideoAnalysisResult:
         """Return mock summary."""
         summary = f"This is a {video.metadata.duration:.1f} second video. "
-        summary += self._mock_description[:max_length - len(summary)]
+        summary += self._mock_description[: max_length - len(summary)]
 
         result = VideoAnalysisResult(
             summary=summary,
@@ -638,10 +639,14 @@ class FFmpegVideoAnalyzer(VideoAnalyzer):
 
                 cmd = [
                     self.ffmpeg_path,
-                    "-i", str(validated_path),
-                    "-vf", f"fps={sample_rate}",
-                    "-frames:v", str(max_frames),
-                    "-q:v", "2",
+                    "-i",
+                    str(validated_path),
+                    "-vf",
+                    f"fps={sample_rate}",
+                    "-frames:v",
+                    str(max_frames),
+                    "-q:v",
+                    "2",
                     output_pattern,
                 ]
 
@@ -693,9 +698,12 @@ class FFmpegVideoAnalyzer(VideoAnalyzer):
             # Use FFmpeg's scene detection
             cmd = [
                 self.ffmpeg_path,
-                "-i", str(validated_path),
-                "-vf", "select='gt(scene,0.3)',showinfo",
-                "-f", "null",
+                "-i",
+                str(validated_path),
+                "-vf",
+                "select='gt(scene,0.3)',showinfo",
+                "-f",
+                "null",
                 "-",
             ]
 
@@ -768,7 +776,7 @@ class FFmpegVideoAnalyzer(VideoAnalyzer):
 
         summary = self._synthesize_description(descriptions)
         if len(summary) > max_length:
-            summary = summary[:max_length - 3] + "..."
+            summary = summary[: max_length - 3] + "..."
 
         result = VideoAnalysisResult(
             summary=summary,

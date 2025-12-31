@@ -346,12 +346,12 @@ class RuleRegistry:
             conditions=json.loads(row["conditions"]) if row["conditions"] else {},
             priority=row["priority"],
             enabled=bool(row["enabled"]),
-            created_at=datetime.fromisoformat(row["created_at"])
-            if row["created_at"]
-            else datetime.now(),
-            updated_at=datetime.fromisoformat(row["updated_at"])
-            if row["updated_at"]
-            else datetime.now(),
+            created_at=(
+                datetime.fromisoformat(row["created_at"]) if row["created_at"] else datetime.now()
+            ),
+            updated_at=(
+                datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else datetime.now()
+            ),
             created_by=row["created_by"] or "system",
             version=row["version"],
             parent_rule_id=row["parent_rule_id"],
@@ -573,9 +573,7 @@ class RuleRegistry:
             raise RuleValidationError("Rule must have a target", rule_id=rule.rule_id)
 
         if not rule.actions:
-            raise RuleValidationError(
-                "Rule must have at least one action", rule_id=rule.rule_id
-            )
+            raise RuleValidationError("Rule must have at least one action", rule_id=rule.rule_id)
 
         # Validate path for file/folder scope
         if rule.scope in (RuleScope.FILE, RuleScope.FOLDER):
@@ -586,9 +584,7 @@ class RuleRegistry:
                     rule_id=rule.rule_id,
                 )
 
-    def _detect_conflicts(
-        self, rule: Rule, exclude: Optional[List[str]] = None
-    ) -> List[str]:
+    def _detect_conflicts(self, rule: Rule, exclude: Optional[List[str]] = None) -> List[str]:
         """Detect conflicting rules."""
         exclude = exclude or []
         conflicts = []
@@ -628,9 +624,7 @@ class RuleRegistry:
                 )
 
             if rule.scope == conflict.scope == RuleScope.FOLDER:
-                suggestions.append(
-                    "Consider using more specific paths to avoid overlap"
-                )
+                suggestions.append("Consider using more specific paths to avoid overlap")
 
         return suggestions
 
@@ -734,9 +728,7 @@ class RuleRegistry:
         """Export all rules as dictionaries."""
         return [r.to_dict() for r in self._rules.values()]
 
-    def import_rules(
-        self, rules_data: List[Dict[str, Any]], overwrite: bool = False
-    ) -> int:
+    def import_rules(self, rules_data: List[Dict[str, Any]], overwrite: bool = False) -> int:
         """Import rules from dictionaries.
 
         Args:
@@ -756,9 +748,7 @@ class RuleRegistry:
 
             try:
                 if rule.rule_id in self._rules:
-                    self.update_rule(
-                        rule.rule_id, data, check_conflicts=False
-                    )
+                    self.update_rule(rule.rule_id, data, check_conflicts=False)
                 else:
                     self.add_rule(rule, check_conflicts=False)
                 count += 1
@@ -773,9 +763,7 @@ class RuleRegistry:
             self._conn.close()
             self._conn = None
 
-    def on_conflict(
-        self, handler: Callable[[RuleConflict], Optional[str]]
-    ) -> None:
+    def on_conflict(self, handler: Callable[[RuleConflict], Optional[str]]) -> None:
         """Register a conflict resolution handler.
 
         Handler receives conflict and returns rule_id to keep, or None.

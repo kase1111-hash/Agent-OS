@@ -11,7 +11,6 @@ from typing import Any, Dict, Generic, List, Optional, TypeVar
 
 from pydantic import BaseModel, Field
 
-
 # =============================================================================
 # Common Error Response Definitions for OpenAPI
 # =============================================================================
@@ -41,11 +40,7 @@ VALIDATION_ERROR_RESPONSE = {
 UNAUTHORIZED_RESPONSE = {
     401: {
         "description": "Unauthorized - Authentication required",
-        "content": {
-            "application/json": {
-                "example": {"detail": "Not authenticated"}
-            }
-        },
+        "content": {"application/json": {"example": {"detail": "Not authenticated"}}},
     }
 }
 
@@ -53,9 +48,7 @@ FORBIDDEN_RESPONSE = {
     403: {
         "description": "Forbidden - Insufficient permissions",
         "content": {
-            "application/json": {
-                "example": {"detail": "Not authorized to access this resource"}
-            }
+            "application/json": {"example": {"detail": "Not authorized to access this resource"}}
         },
     }
 }
@@ -63,33 +56,21 @@ FORBIDDEN_RESPONSE = {
 NOT_FOUND_RESPONSE = {
     404: {
         "description": "Not Found - Resource does not exist",
-        "content": {
-            "application/json": {
-                "example": {"detail": "Resource not found"}
-            }
-        },
+        "content": {"application/json": {"example": {"detail": "Resource not found"}}},
     }
 }
 
 CONFLICT_RESPONSE = {
     409: {
         "description": "Conflict - Resource already exists or state conflict",
-        "content": {
-            "application/json": {
-                "example": {"detail": "Resource already exists"}
-            }
-        },
+        "content": {"application/json": {"example": {"detail": "Resource already exists"}}},
     }
 }
 
 INTERNAL_ERROR_RESPONSE = {
     500: {
         "description": "Internal Server Error",
-        "content": {
-            "application/json": {
-                "example": {"detail": "An unexpected error occurred"}
-            }
-        },
+        "content": {"application/json": {"example": {"detail": "An unexpected error occurred"}}},
     }
 }
 
@@ -205,14 +186,14 @@ class DeleteResponse(BaseModel):
 class AgentControlResponse(BaseModel):
     """Response for agent control operations (start, stop, restart)."""
 
-    status: str = Field(description="Result status: started, stopped, restarted, already_active, already_stopped")
+    status: str = Field(
+        description="Result status: started, stopped, restarted, already_active, already_stopped"
+    )
     agent: str = Field(description="Name of the agent")
     message: Optional[str] = Field(None, description="Additional information")
 
     class Config:
-        json_schema_extra = {
-            "example": {"status": "started", "agent": "whisper", "message": None}
-        }
+        json_schema_extra = {"example": {"status": "started", "agent": "whisper", "message": None}}
 
 
 class AgentsOverviewResponse(BaseModel):
@@ -322,9 +303,7 @@ class StorageStatsResponse(BaseModel):
     total_items: int = Field(description="Total number of stored items")
     total_size_bytes: int = Field(description="Total storage size in bytes")
     total_size_human: str = Field(description="Human-readable storage size")
-    by_type: Dict[str, int] = Field(
-        default_factory=dict, description="Item count by type/category"
-    )
+    by_type: Dict[str, int] = Field(default_factory=dict, description="Item count by type/category")
     oldest_item: Optional[datetime] = Field(None, description="Timestamp of oldest item")
     newest_item: Optional[datetime] = Field(None, description="Timestamp of newest item")
 

@@ -9,45 +9,48 @@ This is part of Agent Smith's internal enforcement mechanism within Agent-OS,
 distinct from the external boundary-daemon project.
 """
 
+import logging
 import os
 import socket
-import time
 import threading
-import logging
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
-from typing import Callable, Dict, List, Optional, Set, Any
 from pathlib import Path
-
+from typing import Any, Callable, Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
 
 class NetworkState(Enum):
     """Network connectivity states."""
-    OFFLINE = auto()      # No network connectivity
-    LOCAL_ONLY = auto()   # Only local/loopback connections
-    ONLINE = auto()       # External network access detected
+
+    OFFLINE = auto()  # No network connectivity
+    LOCAL_ONLY = auto()  # Only local/loopback connections
+    ONLINE = auto()  # External network access detected
 
 
 class ProcessState(Enum):
     """Process monitoring states."""
-    NORMAL = auto()       # Expected processes running
-    ANOMALY = auto()      # Unexpected process detected
-    CRITICAL = auto()     # Critical process violation
+
+    NORMAL = auto()  # Expected processes running
+    ANOMALY = auto()  # Unexpected process detected
+    CRITICAL = auto()  # Critical process violation
 
 
 class HardwareState(Enum):
     """Hardware state indicators."""
-    NORMAL = auto()       # Hardware in expected state
-    MODIFIED = auto()     # Hardware configuration changed
-    TAMPERED = auto()     # Possible hardware tampering
+
+    NORMAL = auto()  # Hardware in expected state
+    MODIFIED = auto()  # Hardware configuration changed
+    TAMPERED = auto()  # Possible hardware tampering
 
 
 @dataclass
 class SystemState:
     """Complete system state snapshot."""
+
     timestamp: datetime
     network_state: NetworkState
     process_state: ProcessState
@@ -60,9 +63,9 @@ class SystemState:
     def is_secure(self) -> bool:
         """Check if system is in secure state."""
         return (
-            self.network_state == NetworkState.OFFLINE and
-            self.process_state == ProcessState.NORMAL and
-            self.hardware_state == HardwareState.NORMAL
+            self.network_state == NetworkState.OFFLINE
+            and self.process_state == ProcessState.NORMAL
+            and self.hardware_state == HardwareState.NORMAL
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -83,6 +86,7 @@ class SystemState:
 @dataclass
 class NetworkConnection:
     """Represents a network connection."""
+
     local_addr: str
     local_port: int
     remote_addr: str
@@ -107,14 +111,27 @@ class StateMonitor:
 
     # Well-known safe/expected processes
     SAFE_PROCESSES: Set[str] = {
-        "python", "python3", "bash", "sh", "init", "systemd",
-        "agent-os", "boundary-daemon",
+        "python",
+        "python3",
+        "bash",
+        "sh",
+        "init",
+        "systemd",
+        "agent-os",
+        "boundary-daemon",
     }
 
     # Suspicious process patterns
     SUSPICIOUS_PATTERNS: List[str] = [
-        "curl", "wget", "nc", "netcat", "ncat",
-        "ssh", "scp", "rsync", "telnet",
+        "curl",
+        "wget",
+        "nc",
+        "netcat",
+        "ncat",
+        "ssh",
+        "scp",
+        "rsync",
+        "telnet",
     ]
 
     # Check intervals (seconds)
@@ -197,8 +214,7 @@ class StateMonitor:
             # Check for active network connections
             connections = self._get_network_connections()
             external_connections = [
-                c for c in connections
-                if not self._is_local_address(c.remote_addr)
+                c for c in connections if not self._is_local_address(c.remote_addr)
             ]
 
             if external_connections:
@@ -323,7 +339,7 @@ class StateMonitor:
                 # Store in history
                 self._state_history.append(state)
                 if len(self._state_history) > self._max_history:
-                    self._state_history = self._state_history[-self._max_history:]
+                    self._state_history = self._state_history[-self._max_history :]
 
                 self._last_state = state
 
@@ -338,10 +354,10 @@ class StateMonitor:
             return True
 
         return (
-            new_state.network_state != self._last_state.network_state or
-            new_state.process_state != self._last_state.process_state or
-            new_state.hardware_state != self._last_state.hardware_state or
-            new_state.suspicious_processes != self._last_state.suspicious_processes
+            new_state.network_state != self._last_state.network_state
+            or new_state.process_state != self._last_state.process_state
+            or new_state.hardware_state != self._last_state.hardware_state
+            or new_state.suspicious_processes != self._last_state.suspicious_processes
         )
 
     def _notify_callbacks(self, state: SystemState) -> None:
@@ -375,13 +391,15 @@ class StateMonitor:
                         remote_addr, remote_port = self._parse_hex_address(remote)
 
                         if remote_addr != "0.0.0.0":  # Has remote connection
-                            connections.append(NetworkConnection(
-                                local_addr=local_addr,
-                                local_port=local_port,
-                                remote_addr=remote_addr,
-                                remote_port=remote_port,
-                                state=state,
-                            ))
+                            connections.append(
+                                NetworkConnection(
+                                    local_addr=local_addr,
+                                    local_port=local_port,
+                                    remote_addr=remote_addr,
+                                    remote_port=remote_port,
+                                    state=state,
+                                )
+                            )
 
         except (FileNotFoundError, PermissionError):
             # Fallback: try socket test
@@ -391,13 +409,15 @@ class StateMonitor:
                 result = s.connect_ex(("8.8.8.8", 53))
                 s.close()
                 if result == 0:
-                    connections.append(NetworkConnection(
-                        local_addr="0.0.0.0",
-                        local_port=0,
-                        remote_addr="8.8.8.8",
-                        remote_port=53,
-                        state="ESTABLISHED",
-                    ))
+                    connections.append(
+                        NetworkConnection(
+                            local_addr="0.0.0.0",
+                            local_port=0,
+                            remote_addr="8.8.8.8",
+                            remote_port=53,
+                            state="ESTABLISHED",
+                        )
+                    )
             except Exception:
                 pass
 

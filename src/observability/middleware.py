@@ -20,8 +20,8 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.types import ASGIApp
 
-from .metrics import counter, gauge, histogram, get_metrics
-from .tracing import get_tracer, SpanStatus
+from .metrics import counter, gauge, get_metrics, histogram
+from .tracing import SpanStatus, get_tracer
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +107,9 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         # Track request size
         content_length = request.headers.get("content-length")
         if content_length:
-            REQUEST_SIZE.observe(int(content_length), labels={"method": method, "path": normalized_path})
+            REQUEST_SIZE.observe(
+                int(content_length), labels={"method": method, "path": normalized_path}
+            )
 
         start_time = time.perf_counter()
 
@@ -186,8 +188,9 @@ class TracingMiddleware(BaseHTTPMiddleware):
 
                 # Set response attributes
                 span.set_attribute("http.status_code", response.status_code)
-                span.set_attribute("http.response_content_length",
-                                 response.headers.get("content-length", "0"))
+                span.set_attribute(
+                    "http.response_content_length", response.headers.get("content-length", "0")
+                )
 
                 if response.status_code >= 400:
                     span.set_status(
@@ -218,7 +221,14 @@ def setup_observability(
         enable_tracing: Enable distributed tracing
         exclude_paths: Paths to exclude from observability
     """
-    exclude = exclude_paths or ["/health", "/metrics", "/favicon.ico", "/docs", "/redoc", "/openapi.json"]
+    exclude = exclude_paths or [
+        "/health",
+        "/metrics",
+        "/favicon.ico",
+        "/docs",
+        "/redoc",
+        "/openapi.json",
+    ]
 
     if enable_tracing:
         app.add_middleware(TracingMiddleware, exclude_paths=exclude)

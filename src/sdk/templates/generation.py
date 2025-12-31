@@ -13,8 +13,7 @@ from typing import Any, Callable, Dict, List, Optional, Set
 from src.agents.interface import CapabilityType
 from src.messaging.models import FlowRequest, FlowResponse, MessageStatus
 
-from .base import AgentTemplate, AgentConfig
-
+from .base import AgentConfig, AgentTemplate
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +21,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class GenerationResult:
     """Result of a generation process."""
+
     content: str
     content_type: str = "text"  # text, code, markdown, json, etc.
     quality_score: float = 1.0
@@ -41,6 +41,7 @@ class GenerationResult:
 @dataclass
 class GenerationConfig(AgentConfig):
     """Configuration for generation agents."""
+
     content_type: str = "text"
     max_length: int = 4096
     min_quality_score: float = 0.5
@@ -152,7 +153,7 @@ class GenerationAgentTemplate(AgentTemplate):
 
             # Truncate if needed
             if len(content) > self.generation_config.max_length:
-                content = content[:self.generation_config.max_length]
+                content = content[: self.generation_config.max_length]
                 content += "\n\n[Content truncated]"
 
             return request.create_response(

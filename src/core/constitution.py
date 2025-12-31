@@ -9,24 +9,24 @@ import hashlib
 import logging
 import threading
 import time
-from pathlib import Path
-from typing import Dict, List, Optional, Callable, Set
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
+from typing import Callable, Dict, List, Optional, Set
+
+from watchdog.events import FileModifiedEvent, FileSystemEventHandler
 from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler, FileModifiedEvent
 
 from .models import (
+    AuthorityLevel,
     Constitution,
+    ConstitutionRegistry,
     Rule,
     RuleType,
-    AuthorityLevel,
     ValidationResult,
-    ConstitutionRegistry,
 )
 from .parser import ConstitutionParser
 from .validator import ConstitutionValidator
-
 
 logger = logging.getLogger(__name__)
 
@@ -34,11 +34,12 @@ logger = logging.getLogger(__name__)
 @dataclass
 class RequestContext:
     """Context for a request being validated against the constitution."""
+
     request_id: str
-    source: str           # Agent or "user"
-    destination: str      # Target agent
-    intent: str           # Classified intent
-    content: str          # Request content
+    source: str  # Agent or "user"
+    destination: str  # Target agent
+    intent: str  # Classified intent
+    content: str  # Request content
     requires_memory: bool = False
     metadata: Dict = field(default_factory=dict)
 
@@ -46,6 +47,7 @@ class RequestContext:
 @dataclass
 class EnforcementResult:
     """Result of enforcing constitutional rules on a request."""
+
     allowed: bool
     violated_rules: List[Rule] = field(default_factory=list)
     applicable_rules: List[Rule] = field(default_factory=list)
@@ -423,7 +425,9 @@ class ConstitutionalKernel:
 
         for rule in violated_rules:
             if rule.rule_type == RuleType.PROHIBITION:
-                suggestions.append(f"Avoid actions related to: {', '.join(list(rule.keywords)[:5])}")
+                suggestions.append(
+                    f"Avoid actions related to: {', '.join(list(rule.keywords)[:5])}"
+                )
             elif rule.rule_type == RuleType.ESCALATION:
                 suggestions.append("Request human steward approval for this action")
 

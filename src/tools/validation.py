@@ -13,27 +13,28 @@ from enum import Enum, auto
 from typing import Any, Dict, List, Optional, Set
 
 from .interface import (
-    ToolSchema,
     ToolCategory,
-    ToolRiskLevel,
     ToolInvocation,
+    ToolRiskLevel,
+    ToolSchema,
 )
 from .registry import ToolRegistration
-
 
 logger = logging.getLogger(__name__)
 
 
 class ApprovalResult(Enum):
     """Result of Smith approval check."""
+
     APPROVED = auto()
     DENIED = auto()
-    ESCALATE = auto()        # Requires human approval
+    ESCALATE = auto()  # Requires human approval
     PENDING_REVIEW = auto()  # Needs further analysis
 
 
 class DenialReason(Enum):
     """Reasons for denying tool invocation."""
+
     TOOL_NOT_REGISTERED = "tool_not_registered"
     TOOL_NOT_APPROVED = "tool_not_approved"
     TOOL_DISABLED = "tool_disabled"
@@ -50,6 +51,7 @@ class DenialReason(Enum):
 @dataclass
 class SecurityCheck:
     """A security check performed on tool invocation."""
+
     check_id: str
     name: str
     passed: bool
@@ -61,6 +63,7 @@ class SecurityCheck:
 @dataclass
 class ToolApprovalResult:
     """Result of tool invocation approval."""
+
     approved: bool
     result: ApprovalResult
     denial_reason: Optional[DenialReason] = None
@@ -135,7 +138,11 @@ class ToolApprovalValidator:
         (r"/etc/passwd|/etc/shadow|\.ssh/", "sensitive_path", "Access to sensitive system path"),
         # Network addresses (internal)
         (r"127\.0\.0\.1|localhost|0\.0\.0\.0|::1", "internal_network", "Internal network address"),
-        (r"192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.", "private_network", "Private network address"),
+        (
+            r"192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.",
+            "private_network",
+            "Private network address",
+        ),
     ]
 
     # Blocked external interfaces
@@ -290,8 +297,7 @@ class ToolApprovalValidator:
         checks.extend(t7_checks)
 
         irreversible_detected = any(
-            not c.passed and c.severity in ("error", "critical")
-            for c in t7_checks
+            not c.passed and c.severity in ("error", "critical") for c in t7_checks
         )
 
         if irreversible_detected:
@@ -312,15 +318,12 @@ class ToolApprovalValidator:
             )
 
         # Determine approval result
-        has_warnings = any(
-            not c.passed and c.severity == "warning"
-            for c in checks
-        )
+        has_warnings = any(not c.passed and c.severity == "warning" for c in checks)
 
         requires_confirmation = (
-            schema.requires_confirmation or
-            schema.risk_level.value > self.max_risk_auto_approve.value or
-            has_warnings
+            schema.requires_confirmation
+            or schema.risk_level.value > self.max_risk_auto_approve.value
+            or has_warnings
         )
 
         # Add constraints based on risk
@@ -460,25 +463,37 @@ class ToolApprovalValidator:
 
             for pattern, issue_type, message in self.DANGEROUS_PARAM_PATTERNS:
                 if re.search(pattern, value_str, re.IGNORECASE):
-                    checks.append(SecurityCheck(
-                        check_id=f"T4-{issue_type}",
-                        name=f"Parameter Check ({param_name})",
-                        passed=False,
-                        severity="critical" if issue_type in (
-                            "command_injection", "sql_injection", "path_traversal", "sensitive_path"
-                        ) else "warning",
-                        message=f"{message} in parameter '{param_name}'",
-                        details={"param": param_name, "issue": issue_type},
-                    ))
+                    checks.append(
+                        SecurityCheck(
+                            check_id=f"T4-{issue_type}",
+                            name=f"Parameter Check ({param_name})",
+                            passed=False,
+                            severity=(
+                                "critical"
+                                if issue_type
+                                in (
+                                    "command_injection",
+                                    "sql_injection",
+                                    "path_traversal",
+                                    "sensitive_path",
+                                )
+                                else "warning"
+                            ),
+                            message=f"{message} in parameter '{param_name}'",
+                            details={"param": param_name, "issue": issue_type},
+                        )
+                    )
 
         if not checks:
-            checks.append(SecurityCheck(
-                check_id="T4",
-                name="Parameter Check",
-                passed=True,
-                severity="info",
-                message="No dangerous patterns detected in parameters",
-            ))
+            checks.append(
+                SecurityCheck(
+                    check_id="T4",
+                    name="Parameter Check",
+                    passed=True,
+                    severity="info",
+                    message="No dangerous patterns detected in parameters",
+                )
+            )
 
         return checks
 
@@ -494,32 +509,38 @@ class ToolApprovalValidator:
 
         # Check for credential patterns
         if re.search(r"password\s*[:=]|api[_-]?key\s*[:=]|secret\s*[:=]", all_values, re.I):
-            checks.append(SecurityCheck(
-                check_id="T5-credentials",
-                name="Credential Detection",
-                passed=False,
-                severity="warning",
-                message="Parameters may contain credentials",
-            ))
+            checks.append(
+                SecurityCheck(
+                    check_id="T5-credentials",
+                    name="Credential Detection",
+                    passed=False,
+                    severity="warning",
+                    message="Parameters may contain credentials",
+                )
+            )
 
         # Check for shell metacharacters
         if re.search(r"[`$|;&><]", all_values):
-            checks.append(SecurityCheck(
-                check_id="T5-shell",
-                name="Shell Metacharacter",
-                passed=False,
-                severity="warning",
-                message="Parameters contain shell metacharacters",
-            ))
+            checks.append(
+                SecurityCheck(
+                    check_id="T5-shell",
+                    name="Shell Metacharacter",
+                    passed=False,
+                    severity="warning",
+                    message="Parameters contain shell metacharacters",
+                )
+            )
 
         if not checks:
-            checks.append(SecurityCheck(
-                check_id="T5",
-                name="Security Pattern",
-                passed=True,
-                severity="info",
-                message="No security pattern matches",
-            ))
+            checks.append(
+                SecurityCheck(
+                    check_id="T5",
+                    name="Security Pattern",
+                    passed=True,
+                    severity="info",
+                    message="No security pattern matches",
+                )
+            )
 
         return checks
 
@@ -533,36 +554,42 @@ class ToolApprovalValidator:
 
         # Network tools always get flagged
         if schema.category == ToolCategory.NETWORK:
-            checks.append(SecurityCheck(
-                check_id="T6-network",
-                name="Network Tool",
-                passed=True,
-                severity="warning",
-                message="Tool involves network access",
-            ))
+            checks.append(
+                SecurityCheck(
+                    check_id="T6-network",
+                    name="Network Tool",
+                    passed=True,
+                    severity="warning",
+                    message="Tool involves network access",
+                )
+            )
 
         # Check parameters for external addresses
         all_values = " ".join(str(v) for v in parameters.values() if v is not None)
 
         for pattern, pattern_type in self.EXTERNAL_INTERFACE_PATTERNS:
             if re.search(pattern, all_values, re.I):
-                checks.append(SecurityCheck(
-                    check_id=f"T6-{pattern_type}",
-                    name="External Interface",
-                    passed=False,
-                    severity="warning",
-                    message=f"External interface detected: {pattern_type}",
-                    details={"type": pattern_type},
-                ))
+                checks.append(
+                    SecurityCheck(
+                        check_id=f"T6-{pattern_type}",
+                        name="External Interface",
+                        passed=False,
+                        severity="warning",
+                        message=f"External interface detected: {pattern_type}",
+                        details={"type": pattern_type},
+                    )
+                )
 
         if not checks:
-            checks.append(SecurityCheck(
-                check_id="T6",
-                name="External Interface",
-                passed=True,
-                severity="info",
-                message="No external interfaces detected",
-            ))
+            checks.append(
+                SecurityCheck(
+                    check_id="T6",
+                    name="External Interface",
+                    passed=True,
+                    severity="info",
+                    message="No external interfaces detected",
+                )
+            )
 
         return checks
 
@@ -577,23 +604,27 @@ class ToolApprovalValidator:
 
         for pattern, action_type in self.IRREVERSIBLE_PATTERNS:
             if re.search(pattern, all_values, re.I):
-                checks.append(SecurityCheck(
-                    check_id=f"T7-{action_type}",
-                    name="Irreversible Action",
-                    passed=False,
-                    severity="error",
-                    message=f"Irreversible action detected: {action_type}",
-                    details={"action": action_type},
-                ))
+                checks.append(
+                    SecurityCheck(
+                        check_id=f"T7-{action_type}",
+                        name="Irreversible Action",
+                        passed=False,
+                        severity="error",
+                        message=f"Irreversible action detected: {action_type}",
+                        details={"action": action_type},
+                    )
+                )
 
         if not checks:
-            checks.append(SecurityCheck(
-                check_id="T7",
-                name="Irreversible Action",
-                passed=True,
-                severity="info",
-                message="No irreversible actions detected",
-            ))
+            checks.append(
+                SecurityCheck(
+                    check_id="T7",
+                    name="Irreversible Action",
+                    passed=True,
+                    severity="info",
+                    message="No irreversible actions detected",
+                )
+            )
 
         return checks
 
@@ -633,8 +664,7 @@ class ToolApprovalValidator:
         # Clean old entries (keep last 5 minutes)
         cutoff = datetime.now().replace(second=0, microsecond=0)
         self._invocation_counts[user_id] = [
-            ts for ts in self._invocation_counts[user_id]
-            if ts >= cutoff
+            ts for ts in self._invocation_counts[user_id] if ts >= cutoff
         ]
 
 

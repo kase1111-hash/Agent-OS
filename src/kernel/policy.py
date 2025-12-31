@@ -452,9 +452,7 @@ class PolicyCompiler:
 
         return result
 
-    def generate_seccomp_filter(
-        self, syscall_policies: List[SyscallPolicy]
-    ) -> Dict[str, Any]:
+    def generate_seccomp_filter(self, syscall_policies: List[SyscallPolicy]) -> Dict[str, Any]:
         """Generate seccomp-bpf filter configuration.
 
         Args:

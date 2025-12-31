@@ -10,8 +10,9 @@ import logging
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, List, Dict, Any, Union
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class EmbeddingResult:
     """Result of an embedding operation."""
+
     embedding: np.ndarray
     text: str
     model: str
@@ -36,6 +38,7 @@ class EmbeddingResult:
 @dataclass
 class EmbeddingBatch:
     """Batch of embedding results."""
+
     embeddings: List[EmbeddingResult]
     model: str
     total_time_ms: float = 0.0
@@ -314,6 +317,7 @@ class EmbeddingEngine:
             EmbeddingResult
         """
         import time
+
         start_time = time.time()
 
         # Generate hash for caching
@@ -366,6 +370,7 @@ class EmbeddingEngine:
             EmbeddingBatch
         """
         import time
+
         start_time = time.time()
 
         results = []
@@ -474,9 +479,7 @@ class EmbeddingEngine:
         """Get engine metrics."""
         with self._lock:
             avg_time = (
-                self._total_time_ms / self._total_embeddings
-                if self._total_embeddings > 0
-                else 0.0
+                self._total_time_ms / self._total_embeddings if self._total_embeddings > 0 else 0.0
             )
             return {
                 "model": self._model.model_name,

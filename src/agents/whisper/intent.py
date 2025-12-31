@@ -5,13 +5,12 @@ Classifies user requests into intent categories for routing.
 Supports the 8 standard intent categories plus custom extensions.
 """
 
+import logging
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional, List, Dict, Any, Tuple, Set
-import logging
-
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -22,23 +21,24 @@ class IntentCategory(str, Enum):
 
     The Orchestrator (Whisper) MUST classify requests into one of these categories.
     """
+
     # Query intents
-    QUERY_FACTUAL = "query.factual"          # Factual information request
-    QUERY_REASONING = "query.reasoning"       # Complex reasoning or analysis
+    QUERY_FACTUAL = "query.factual"  # Factual information request
+    QUERY_REASONING = "query.reasoning"  # Complex reasoning or analysis
 
     # Content intents
-    CONTENT_CREATIVE = "content.creative"     # Creative content generation
-    CONTENT_TECHNICAL = "content.technical"   # Technical or code-related
+    CONTENT_CREATIVE = "content.creative"  # Creative content generation
+    CONTENT_TECHNICAL = "content.technical"  # Technical or code-related
 
     # Memory intents
-    MEMORY_RECALL = "memory.recall"           # Memory retrieval request
-    MEMORY_STORE = "memory.store"             # Memory storage request
+    MEMORY_RECALL = "memory.recall"  # Memory retrieval request
+    MEMORY_STORE = "memory.store"  # Memory storage request
 
     # System intents
-    SYSTEM_META = "system.meta"               # Meta-operations (status, config)
+    SYSTEM_META = "system.meta"  # Meta-operations (status, config)
 
     # Security intents
-    SECURITY_SENSITIVE = "security.sensitive" # Requires elevated security review
+    SECURITY_SENSITIVE = "security.sensitive"  # Requires elevated security review
 
     # Unknown (requires fallback)
     UNKNOWN = "unknown"
@@ -47,12 +47,13 @@ class IntentCategory(str, Enum):
 @dataclass
 class IntentClassification:
     """Result of intent classification."""
+
     primary_intent: IntentCategory
-    confidence: float                          # 0.0 to 1.0
+    confidence: float  # 0.0 to 1.0
     secondary_intents: List[Tuple[IntentCategory, float]] = field(default_factory=list)
-    reasoning: Optional[str] = None            # Why this classification
+    reasoning: Optional[str] = None  # Why this classification
     keywords_matched: List[str] = field(default_factory=list)
-    requires_smith_review: bool = False        # Pre-flagged for security
+    requires_smith_review: bool = False  # Pre-flagged for security
     timestamp: datetime = field(default_factory=datetime.now)
 
     @property
@@ -73,9 +74,19 @@ class IntentClassification:
 INTENT_PATTERNS: Dict[IntentCategory, Dict[str, Any]] = {
     IntentCategory.QUERY_FACTUAL: {
         "keywords": [
-            "what is", "who is", "when did", "where is", "how many",
-            "define", "explain", "describe", "tell me about",
-            "fact", "information", "data", "statistics",
+            "what is",
+            "who is",
+            "when did",
+            "where is",
+            "how many",
+            "define",
+            "explain",
+            "describe",
+            "tell me about",
+            "fact",
+            "information",
+            "data",
+            "statistics",
         ],
         "patterns": [
             r"^what\s+(?:is|are|was|were)\b",
@@ -88,11 +99,28 @@ INTENT_PATTERNS: Dict[IntentCategory, Dict[str, Any]] = {
     },
     IntentCategory.QUERY_REASONING: {
         "keywords": [
-            "why", "analyze", "compare", "contrast", "evaluate",
-            "reason", "deduce", "infer", "conclude", "synthesize",
-            "implications", "consequences", "cause", "effect",
-            "pros and cons", "advantages", "disadvantages",
-            "should", "would", "could", "better", "best",
+            "why",
+            "analyze",
+            "compare",
+            "contrast",
+            "evaluate",
+            "reason",
+            "deduce",
+            "infer",
+            "conclude",
+            "synthesize",
+            "implications",
+            "consequences",
+            "cause",
+            "effect",
+            "pros and cons",
+            "advantages",
+            "disadvantages",
+            "should",
+            "would",
+            "could",
+            "better",
+            "best",
         ],
         "patterns": [
             r"^why\s+",
@@ -105,10 +133,23 @@ INTENT_PATTERNS: Dict[IntentCategory, Dict[str, Any]] = {
     },
     IntentCategory.CONTENT_CREATIVE: {
         "keywords": [
-            "write", "create", "compose", "generate", "craft",
-            "story", "poem", "essay", "article", "fiction",
-            "creative", "imagine", "invent", "design",
-            "brainstorm", "ideas", "suggest",
+            "write",
+            "create",
+            "compose",
+            "generate",
+            "craft",
+            "story",
+            "poem",
+            "essay",
+            "article",
+            "fiction",
+            "creative",
+            "imagine",
+            "invent",
+            "design",
+            "brainstorm",
+            "ideas",
+            "suggest",
         ],
         "patterns": [
             r"^write\s+(?:a|an|me)\b",
@@ -121,11 +162,29 @@ INTENT_PATTERNS: Dict[IntentCategory, Dict[str, Any]] = {
     },
     IntentCategory.CONTENT_TECHNICAL: {
         "keywords": [
-            "code", "program", "function", "class", "api",
-            "implement", "debug", "fix", "bug", "error",
-            "python", "javascript", "java", "rust", "go",
-            "algorithm", "data structure", "database", "sql",
-            "deploy", "configure", "install", "setup",
+            "code",
+            "program",
+            "function",
+            "class",
+            "api",
+            "implement",
+            "debug",
+            "fix",
+            "bug",
+            "error",
+            "python",
+            "javascript",
+            "java",
+            "rust",
+            "go",
+            "algorithm",
+            "data structure",
+            "database",
+            "sql",
+            "deploy",
+            "configure",
+            "install",
+            "setup",
         ],
         "patterns": [
             r"^(?:write|create|implement)\s+(?:a\s+)?(?:function|class|method)\b",
@@ -137,10 +196,22 @@ INTENT_PATTERNS: Dict[IntentCategory, Dict[str, Any]] = {
     },
     IntentCategory.MEMORY_RECALL: {
         "keywords": [
-            "remember", "recall", "what did I", "when did I",
-            "previous", "earlier", "last time", "before",
-            "history", "conversation", "mentioned", "said",
-            "find", "search", "look up", "retrieve",
+            "remember",
+            "recall",
+            "what did I",
+            "when did I",
+            "previous",
+            "earlier",
+            "last time",
+            "before",
+            "history",
+            "conversation",
+            "mentioned",
+            "said",
+            "find",
+            "search",
+            "look up",
+            "retrieve",
         ],
         "patterns": [
             r"\bremember\s+(?:when|what|how)\b",
@@ -152,9 +223,16 @@ INTENT_PATTERNS: Dict[IntentCategory, Dict[str, Any]] = {
     },
     IntentCategory.MEMORY_STORE: {
         "keywords": [
-            "remember this", "save", "store", "keep",
-            "don't forget", "note", "bookmark", "record",
-            "for later", "for next time",
+            "remember this",
+            "save",
+            "store",
+            "keep",
+            "don't forget",
+            "note",
+            "bookmark",
+            "record",
+            "for later",
+            "for next time",
         ],
         "patterns": [
             r"\bremember\s+(?:this|that)\b",
@@ -166,10 +244,21 @@ INTENT_PATTERNS: Dict[IntentCategory, Dict[str, Any]] = {
     },
     IntentCategory.SYSTEM_META: {
         "keywords": [
-            "status", "config", "configuration", "settings",
-            "help", "version", "about", "capabilities",
-            "reset", "clear", "restart", "shutdown",
-            "list agents", "available", "supported",
+            "status",
+            "config",
+            "configuration",
+            "settings",
+            "help",
+            "version",
+            "about",
+            "capabilities",
+            "reset",
+            "clear",
+            "restart",
+            "shutdown",
+            "list agents",
+            "available",
+            "supported",
         ],
         "patterns": [
             r"^(?:show|get|what\s+is)\s+(?:the\s+)?(?:status|config)\b",
@@ -181,11 +270,25 @@ INTENT_PATTERNS: Dict[IntentCategory, Dict[str, Any]] = {
     },
     IntentCategory.SECURITY_SENSITIVE: {
         "keywords": [
-            "password", "credential", "secret", "key",
-            "private", "confidential", "sensitive",
-            "delete", "remove", "purge", "erase",
-            "override", "bypass", "ignore", "skip",
-            "admin", "root", "sudo", "permission",
+            "password",
+            "credential",
+            "secret",
+            "key",
+            "private",
+            "confidential",
+            "sensitive",
+            "delete",
+            "remove",
+            "purge",
+            "erase",
+            "override",
+            "bypass",
+            "ignore",
+            "skip",
+            "admin",
+            "root",
+            "sudo",
+            "permission",
         ],
         "patterns": [
             r"\bpassword\b",
@@ -392,11 +495,13 @@ class IntentClassifier:
             return initial
 
         # Build prompt for LLM classification
-        intent_options = "\n".join([
-            f"- {cat.value}: {self._get_intent_description(cat)}"
-            for cat in IntentCategory
-            if cat != IntentCategory.UNKNOWN
-        ])
+        intent_options = "\n".join(
+            [
+                f"- {cat.value}: {self._get_intent_description(cat)}"
+                for cat in IntentCategory
+                if cat != IntentCategory.UNKNOWN
+            ]
+        )
 
         prompt = f"""Classify the following user request into one of these intent categories:
 

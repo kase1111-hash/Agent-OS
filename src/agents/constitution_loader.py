@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ConstitutionalContext:
     """Constitutional context for an agent."""
+
     agent_name: str
     supreme_constitution: str
     agent_constitution: str
@@ -206,9 +207,7 @@ class ConstitutionLoader:
             # Track section headers
             if line.startswith("#"):
                 header_text = line_lower.lstrip("#").strip()
-                in_relevant_section = any(
-                    section in header_text for section in relevant_sections
-                )
+                in_relevant_section = any(section in header_text for section in relevant_sections)
                 if in_relevant_section:
                     current_section = header_text
                     extracted.append(line)
@@ -219,10 +218,20 @@ class ConstitutionLoader:
                 extracted.append(line)
 
             # Always include lines with mandatory keywords
-            elif any(keyword in line_lower for keyword in [
-                "must", "shall", "must not", "shall not", "never",
-                "prohibited", "forbidden", "immutable", "absolute",
-            ]):
+            elif any(
+                keyword in line_lower
+                for keyword in [
+                    "must",
+                    "shall",
+                    "must not",
+                    "shall not",
+                    "never",
+                    "prohibited",
+                    "forbidden",
+                    "immutable",
+                    "absolute",
+                ]
+            ):
                 extracted.append(line)
 
         if not extracted:

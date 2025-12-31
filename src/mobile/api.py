@@ -13,9 +13,9 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, TypeVar, Generic
+from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar
 
-from .client import MobileClient, ClientConfig, ApiError
+from .client import ApiError, ClientConfig, MobileClient
 
 logger = logging.getLogger(__name__)
 
@@ -154,13 +154,11 @@ class MobileAPI:
         "logout": APIEndpoint("/auth/logout", HttpMethod.POST),
         "refresh": APIEndpoint("/auth/refresh", HttpMethod.POST, requires_auth=False),
         "register": APIEndpoint("/auth/register", HttpMethod.POST, requires_auth=False),
-
         # User endpoints
         "get_profile": APIEndpoint("/users/me", HttpMethod.GET),
         "update_profile": APIEndpoint("/users/me", HttpMethod.PUT),
         "get_preferences": APIEndpoint("/users/me/preferences", HttpMethod.GET),
         "update_preferences": APIEndpoint("/users/me/preferences", HttpMethod.PUT),
-
         # Agent endpoints
         "list_agents": APIEndpoint("/agents", HttpMethod.GET),
         "get_agent": APIEndpoint("/agents/{agent_id}", HttpMethod.GET),
@@ -168,32 +166,26 @@ class MobileAPI:
         "update_agent": APIEndpoint("/agents/{agent_id}", HttpMethod.PUT),
         "delete_agent": APIEndpoint("/agents/{agent_id}", HttpMethod.DELETE),
         "run_agent": APIEndpoint("/agents/{agent_id}/run", HttpMethod.POST),
-
         # Task endpoints
         "list_tasks": APIEndpoint("/tasks", HttpMethod.GET),
         "get_task": APIEndpoint("/tasks/{task_id}", HttpMethod.GET),
         "create_task": APIEndpoint("/tasks", HttpMethod.POST),
         "cancel_task": APIEndpoint("/tasks/{task_id}/cancel", HttpMethod.POST),
-
         # Workflow endpoints
         "list_workflows": APIEndpoint("/workflows", HttpMethod.GET),
         "get_workflow": APIEndpoint("/workflows/{workflow_id}", HttpMethod.GET),
         "start_workflow": APIEndpoint("/workflows/{workflow_id}/start", HttpMethod.POST),
-
         # Device endpoints
         "register_device": APIEndpoint("/devices", HttpMethod.POST),
         "update_device": APIEndpoint("/devices/{device_id}", HttpMethod.PUT),
         "unregister_device": APIEndpoint("/devices/{device_id}", HttpMethod.DELETE),
-
         # Notification endpoints
         "get_notifications": APIEndpoint("/notifications", HttpMethod.GET),
         "mark_read": APIEndpoint("/notifications/{notification_id}/read", HttpMethod.POST),
         "update_push_token": APIEndpoint("/notifications/token", HttpMethod.PUT),
-
         # Sync endpoints
         "sync_pull": APIEndpoint("/sync/pull", HttpMethod.POST),
         "sync_push": APIEndpoint("/sync/push", HttpMethod.POST),
-
         # Health endpoints
         "health": APIEndpoint("/health", HttpMethod.GET, requires_auth=False),
         "version": APIEndpoint("/version", HttpMethod.GET, requires_auth=False),
@@ -274,9 +266,7 @@ class MobileAPI:
         try:
             # Execute based on method
             if endpoint.method == HttpMethod.GET:
-                response_data = await self.client.get(
-                    path, params=query_params, headers=headers
-                )
+                response_data = await self.client.get(path, params=query_params, headers=headers)
             elif endpoint.method == HttpMethod.POST:
                 response_data = await self.client.post(path, data=data, headers=headers)
             elif endpoint.method == HttpMethod.PUT:

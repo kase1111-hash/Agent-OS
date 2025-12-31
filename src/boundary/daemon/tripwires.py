@@ -9,41 +9,43 @@ distinct from the external boundary-daemon project.
 """
 
 import hashlib
-import time
-import threading
 import logging
+import threading
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
-from typing import Callable, Dict, List, Optional, Any, Set
 from pathlib import Path
-
+from typing import Any, Callable, Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
 
 class TripwireType(Enum):
     """Types of tripwires."""
-    NETWORK = auto()       # Network access detected
-    PROCESS = auto()       # Unauthorized process detected
-    FILE = auto()          # Critical file modified
-    HARDWARE = auto()      # Hardware tampering detected
-    TIME = auto()          # Time manipulation detected
-    MEMORY = auto()        # Memory tampering detected
-    CUSTOM = auto()        # Custom tripwire
+
+    NETWORK = auto()  # Network access detected
+    PROCESS = auto()  # Unauthorized process detected
+    FILE = auto()  # Critical file modified
+    HARDWARE = auto()  # Hardware tampering detected
+    TIME = auto()  # Time manipulation detected
+    MEMORY = auto()  # Memory tampering detected
+    CUSTOM = auto()  # Custom tripwire
 
 
 class TripwireState(Enum):
     """Tripwire states."""
-    ARMED = auto()         # Tripwire is active and monitoring
-    TRIGGERED = auto()     # Tripwire has been triggered
-    DISABLED = auto()      # Tripwire is disabled (requires human)
-    RESET = auto()         # Tripwire reset by human (temporary)
+
+    ARMED = auto()  # Tripwire is active and monitoring
+    TRIGGERED = auto()  # Tripwire has been triggered
+    DISABLED = auto()  # Tripwire is disabled (requires human)
+    RESET = auto()  # Tripwire reset by human (temporary)
 
 
 @dataclass
 class TripwireEvent:
     """Event from a triggered tripwire."""
+
     tripwire_id: str
     tripwire_type: TripwireType
     timestamp: datetime
@@ -66,6 +68,7 @@ class TripwireEvent:
 @dataclass
 class Tripwire:
     """A single tripwire definition."""
+
     id: str
     tripwire_type: TripwireType
     description: str
@@ -290,37 +293,44 @@ class TripwireSystem:
     def _install_default_tripwires(self) -> None:
         """Install default security tripwires."""
         # Network tripwire - detects external network access
-        self.add_tripwire(Tripwire(
-            id="network_access",
-            tripwire_type=TripwireType.NETWORK,
-            description="External network access detected",
-            condition=self._check_network_access,
-            severity=5,
-        ))
+        self.add_tripwire(
+            Tripwire(
+                id="network_access",
+                tripwire_type=TripwireType.NETWORK,
+                description="External network access detected",
+                condition=self._check_network_access,
+                severity=5,
+            )
+        )
 
         # Time manipulation tripwire
-        self.add_tripwire(Tripwire(
-            id="time_manipulation",
-            tripwire_type=TripwireType.TIME,
-            description="System time manipulation detected",
-            condition=self._check_time_manipulation,
-            severity=4,
-        ))
+        self.add_tripwire(
+            Tripwire(
+                id="time_manipulation",
+                tripwire_type=TripwireType.TIME,
+                description="System time manipulation detected",
+                condition=self._check_time_manipulation,
+                severity=4,
+            )
+        )
 
         # Critical file modification tripwire
-        self.add_tripwire(Tripwire(
-            id="config_modification",
-            tripwire_type=TripwireType.FILE,
-            description="Critical configuration file modified",
-            condition=self._check_config_files,
-            severity=4,
-            metadata={"watched_files": []},
-        ))
+        self.add_tripwire(
+            Tripwire(
+                id="config_modification",
+                tripwire_type=TripwireType.FILE,
+                description="Critical configuration file modified",
+                condition=self._check_config_files,
+                severity=4,
+                metadata={"watched_files": []},
+            )
+        )
 
     def _check_network_access(self) -> bool:
         """Check for external network access."""
         try:
             import socket
+
             # Try to resolve external domain
             socket.setdefaulttimeout(0.1)
             socket.getaddrinfo("8.8.8.8", 53)
@@ -354,6 +364,7 @@ def create_tripwire_system(
 
 
 # Pre-built tripwire conditions for common scenarios
+
 
 def create_file_tripwire(
     tripwire_id: str,

@@ -5,19 +5,20 @@ Provides document formatting, templates, and structured output generation.
 Supports Markdown, JSON, and plain text formats with change tracking.
 """
 
+import json
 import logging
 import re
-import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
-from typing import Optional, Dict, Any, List, Tuple, Callable
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
 
 class OutputFormat(Enum):
     """Supported output formats."""
+
     MARKDOWN = "markdown"
     JSON = "json"
     PLAIN_TEXT = "plain_text"
@@ -26,6 +27,7 @@ class OutputFormat(Enum):
 
 class ChangeType(Enum):
     """Types of changes in text refinement."""
+
     GRAMMAR = "grammar"
     SPELLING = "spelling"
     PUNCTUATION = "punctuation"
@@ -38,6 +40,7 @@ class ChangeType(Enum):
 @dataclass
 class TextChange:
     """A tracked change in the document."""
+
     change_type: ChangeType
     original: str
     refined: str
@@ -59,6 +62,7 @@ class TextChange:
 @dataclass
 class RefinementResult:
     """Result of text refinement."""
+
     original: str
     refined: str
     changes: List[TextChange] = field(default_factory=list)
@@ -127,6 +131,7 @@ class RefinementResult:
 @dataclass
 class DocumentTemplate:
     """A document formatting template."""
+
     name: str
     description: str
     format: OutputFormat
@@ -151,7 +156,14 @@ DEFAULT_TEMPLATES = {
         name="report",
         description="Standard business report format",
         format=OutputFormat.MARKDOWN,
-        structure=["Executive Summary", "Introduction", "Findings", "Analysis", "Recommendations", "Conclusion"],
+        structure=[
+            "Executive Summary",
+            "Introduction",
+            "Findings",
+            "Analysis",
+            "Recommendations",
+            "Conclusion",
+        ],
         style_rules={
             "heading_style": "atx",
             "list_style": "dash",
@@ -177,7 +189,14 @@ DEFAULT_TEMPLATES = {
         name="technical",
         description="Technical documentation format",
         format=OutputFormat.MARKDOWN,
-        structure=["Overview", "Requirements", "Implementation", "API Reference", "Examples", "Troubleshooting"],
+        structure=[
+            "Overview",
+            "Requirements",
+            "Implementation",
+            "API Reference",
+            "Examples",
+            "Troubleshooting",
+        ],
         style_rules={
             "heading_style": "atx",
             "code_blocks": "fenced",
@@ -319,7 +338,7 @@ class FormattingEngine:
 
         # Normalize whitespace
         if preserve_paragraphs:
-            paragraphs = re.split(r'\n\s*\n', clean)
+            paragraphs = re.split(r"\n\s*\n", clean)
             formatted_paragraphs = []
             for p in paragraphs:
                 wrapped = self._wrap_text(p.strip(), line_width)
@@ -411,38 +430,38 @@ class FormattingEngine:
 
     def _format_markdown_text(self, text: str) -> str:
         """Apply markdown formatting to text."""
-        lines = text.split('\n')
+        lines = text.split("\n")
         formatted = []
 
         for line in lines:
             line = line.rstrip()
 
             # Detect and format lists
-            if re.match(r'^\s*[-*]\s+', line):
+            if re.match(r"^\s*[-*]\s+", line):
                 formatted.append(line)
-            elif re.match(r'^\s*\d+\.\s+', line):
+            elif re.match(r"^\s*\d+\.\s+", line):
                 formatted.append(line)
             # Detect headers
-            elif re.match(r'^#+\s+', line):
+            elif re.match(r"^#+\s+", line):
                 formatted.append(line)
             else:
                 formatted.append(line)
 
-        return '\n'.join(formatted)
+        return "\n".join(formatted)
 
     def _strip_markdown(self, text: str) -> str:
         """Remove markdown formatting."""
         # Remove headers
-        text = re.sub(r'^#+\s+', '', text, flags=re.MULTILINE)
+        text = re.sub(r"^#+\s+", "", text, flags=re.MULTILINE)
         # Remove bold/italic
-        text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
-        text = re.sub(r'\*(.+?)\*', r'\1', text)
-        text = re.sub(r'__(.+?)__', r'\1', text)
-        text = re.sub(r'_(.+?)_', r'\1', text)
+        text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
+        text = re.sub(r"\*(.+?)\*", r"\1", text)
+        text = re.sub(r"__(.+?)__", r"\1", text)
+        text = re.sub(r"_(.+?)_", r"\1", text)
         # Remove links
-        text = re.sub(r'\[(.+?)\]\(.+?\)', r'\1', text)
+        text = re.sub(r"\[(.+?)\]\(.+?\)", r"\1", text)
         # Remove code
-        text = re.sub(r'`(.+?)`', r'\1', text)
+        text = re.sub(r"`(.+?)`", r"\1", text)
         return text
 
     def _wrap_text(self, text: str, width: int) -> str:
@@ -458,14 +477,14 @@ class FormattingEngine:
                 current_length += len(word) + 1
             else:
                 if current_line:
-                    lines.append(' '.join(current_line))
+                    lines.append(" ".join(current_line))
                 current_line = [word]
                 current_length = len(word)
 
         if current_line:
-            lines.append(' '.join(current_line))
+            lines.append(" ".join(current_line))
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
 
 class RefinementEngine:
@@ -502,10 +521,10 @@ class RefinementEngine:
 
     # Patterns that indicate potential issues
     ISSUE_PATTERNS = [
-        (r'\b(\w+)\s+\1\b', "Repeated word"),
-        (r'[.!?]\s*[a-z]', "Missing capitalization after sentence"),
-        (r'\s+[,.!?]', "Space before punctuation"),
-        (r'[^\s]\s{2,}[^\s]', "Multiple spaces"),
+        (r"\b(\w+)\s+\1\b", "Repeated word"),
+        (r"[.!?]\s*[a-z]", "Missing capitalization after sentence"),
+        (r"\s+[,.!?]", "Space before punctuation"),
+        (r"[^\s]\s{2,}[^\s]", "Multiple spaces"),
     ]
 
     def __init__(
@@ -548,6 +567,7 @@ class RefinementEngine:
             RefinementResult with refined text and changes
         """
         import time
+
         start_time = time.time()
 
         changes = []
@@ -568,13 +588,15 @@ class RefinementEngine:
                         replacement = correct
 
                     if track_changes:
-                        changes.append(TextChange(
-                            change_type=ChangeType.SPELLING,
-                            original=original,
-                            refined=replacement,
-                            location=match.start(),
-                            reason=f"Common spelling/grammar fix",
-                        ))
+                        changes.append(
+                            TextChange(
+                                change_type=ChangeType.SPELLING,
+                                original=original,
+                                refined=replacement,
+                                location=match.start(),
+                                reason=f"Common spelling/grammar fix",
+                            )
+                        )
 
                 refined = pattern.sub(correct, refined)
 
@@ -599,9 +621,7 @@ class RefinementEngine:
 
         # If LLM is available, use it for deeper refinement
         if self._llm_callback:
-            refined, llm_changes = self._llm_refine(
-                refined, preserve_meaning, style_guide
-            )
+            refined, llm_changes = self._llm_refine(refined, preserve_meaning, style_guide)
             changes.extend(llm_changes)
 
         processing_time = (time.time() - start_time) * 1000
@@ -631,11 +651,13 @@ class RefinementEngine:
 
         for pattern, description in self.ISSUE_PATTERNS:
             for match in re.finditer(pattern, text, re.IGNORECASE):
-                issues.append((
-                    description,
-                    match.group(),
-                    match.start(),
-                ))
+                issues.append(
+                    (
+                        description,
+                        match.group(),
+                        match.start(),
+                    )
+                )
 
         return issues
 
@@ -645,8 +667,7 @@ class RefinementEngine:
             "texts_refined": self._texts_refined,
             "total_changes": self._total_changes,
             "average_changes_per_text": (
-                self._total_changes / self._texts_refined
-                if self._texts_refined > 0 else 0
+                self._total_changes / self._texts_refined if self._texts_refined > 0 else 0
             ),
         }
 
@@ -659,30 +680,34 @@ class RefinementEngine:
         changes = []
 
         # Remove space before punctuation
-        pattern = r'\s+([,.!?;:])'
+        pattern = r"\s+([,.!?;:])"
         for match in re.finditer(pattern, text):
             if track:
-                changes.append(TextChange(
-                    change_type=ChangeType.PUNCTUATION,
-                    original=match.group(),
-                    refined=match.group(1),
-                    location=match.start(),
-                    reason="Remove space before punctuation",
-                ))
-        text = re.sub(pattern, r'\1', text)
+                changes.append(
+                    TextChange(
+                        change_type=ChangeType.PUNCTUATION,
+                        original=match.group(),
+                        refined=match.group(1),
+                        location=match.start(),
+                        reason="Remove space before punctuation",
+                    )
+                )
+        text = re.sub(pattern, r"\1", text)
 
         # Ensure space after punctuation (except at end)
-        pattern = r'([,.!?;:])([A-Za-z])'
+        pattern = r"([,.!?;:])([A-Za-z])"
         for match in re.finditer(pattern, text):
             if track:
-                changes.append(TextChange(
-                    change_type=ChangeType.PUNCTUATION,
-                    original=match.group(),
-                    refined=f"{match.group(1)} {match.group(2)}",
-                    location=match.start(),
-                    reason="Add space after punctuation",
-                ))
-        text = re.sub(pattern, r'\1 \2', text)
+                changes.append(
+                    TextChange(
+                        change_type=ChangeType.PUNCTUATION,
+                        original=match.group(),
+                        refined=f"{match.group(1)} {match.group(2)}",
+                        location=match.start(),
+                        reason="Add space after punctuation",
+                    )
+                )
+        text = re.sub(pattern, r"\1 \2", text)
 
         return text, changes
 
@@ -695,20 +720,22 @@ class RefinementEngine:
         changes = []
 
         # Capitalize after sentence endings
-        pattern = r'([.!?]\s+)([a-z])'
+        pattern = r"([.!?]\s+)([a-z])"
 
         def capitalize_match(m):
             return m.group(1) + m.group(2).upper()
 
         for match in re.finditer(pattern, text):
             if track:
-                changes.append(TextChange(
-                    change_type=ChangeType.GRAMMAR,
-                    original=match.group(),
-                    refined=match.group(1) + match.group(2).upper(),
-                    location=match.start(),
-                    reason="Capitalize first letter after sentence",
-                ))
+                changes.append(
+                    TextChange(
+                        change_type=ChangeType.GRAMMAR,
+                        original=match.group(),
+                        refined=match.group(1) + match.group(2).upper(),
+                        location=match.start(),
+                        reason="Capitalize first letter after sentence",
+                    )
+                )
 
         text = re.sub(pattern, capitalize_match, text)
 
@@ -722,18 +749,20 @@ class RefinementEngine:
         """Fix repeated words."""
         changes = []
 
-        pattern = r'\b(\w+)\s+\1\b'
+        pattern = r"\b(\w+)\s+\1\b"
         for match in re.finditer(pattern, text, re.IGNORECASE):
             if track:
-                changes.append(TextChange(
-                    change_type=ChangeType.GRAMMAR,
-                    original=match.group(),
-                    refined=match.group(1),
-                    location=match.start(),
-                    reason="Remove repeated word",
-                ))
+                changes.append(
+                    TextChange(
+                        change_type=ChangeType.GRAMMAR,
+                        original=match.group(),
+                        refined=match.group(1),
+                        location=match.start(),
+                        reason="Remove repeated word",
+                    )
+                )
 
-        text = re.sub(pattern, r'\1', text, flags=re.IGNORECASE)
+        text = re.sub(pattern, r"\1", text, flags=re.IGNORECASE)
 
         return text, changes
 
@@ -746,20 +775,22 @@ class RefinementEngine:
         changes = []
 
         # Multiple spaces to single
-        pattern = r'[^\S\n]{2,}'
+        pattern = r"[^\S\n]{2,}"
         for match in re.finditer(pattern, text):
             if track:
-                changes.append(TextChange(
-                    change_type=ChangeType.FORMATTING,
-                    original=match.group(),
-                    refined=" ",
-                    location=match.start(),
-                    reason="Normalize multiple spaces",
-                ))
-        text = re.sub(pattern, ' ', text)
+                changes.append(
+                    TextChange(
+                        change_type=ChangeType.FORMATTING,
+                        original=match.group(),
+                        refined=" ",
+                        location=match.start(),
+                        reason="Normalize multiple spaces",
+                    )
+                )
+        text = re.sub(pattern, " ", text)
 
         # Trim trailing whitespace per line
-        text = '\n'.join(line.rstrip() for line in text.split('\n'))
+        text = "\n".join(line.rstrip() for line in text.split("\n"))
 
         return text, changes
 
@@ -773,15 +804,17 @@ class RefinementEngine:
 
         # Check for passive voice (simplified)
         passive_patterns = [
-            r'\b(?:is|are|was|were|been|being)\s+\w+ed\b',
+            r"\b(?:is|are|was|were|been|being)\s+\w+ed\b",
         ]
         for pattern in passive_patterns:
             if re.search(pattern, text):
-                flags.append("Document contains passive voice - consider if active voice is clearer")
+                flags.append(
+                    "Document contains passive voice - consider if active voice is clearer"
+                )
                 break
 
         # Check for very long sentences
-        sentences = re.split(r'[.!?]+', text)
+        sentences = re.split(r"[.!?]+", text)
         for sentence in sentences:
             words = sentence.split()
             if len(words) > 50:
@@ -801,19 +834,24 @@ class RefinementEngine:
 
         prompt = self._build_refinement_prompt(text, preserve_meaning, style_guide)
 
-        response = self._llm_callback(prompt, {
-            "temperature": 0.3,
-            "max_tokens": len(text) * 2,
-        })
+        response = self._llm_callback(
+            prompt,
+            {
+                "temperature": 0.3,
+                "max_tokens": len(text) * 2,
+            },
+        )
 
         if response and response != text:
-            changes.append(TextChange(
-                change_type=ChangeType.STYLE,
-                original="(full text)",
-                refined="(see refined output)",
-                location=0,
-                reason="LLM-based style and clarity improvements",
-            ))
+            changes.append(
+                TextChange(
+                    change_type=ChangeType.STYLE,
+                    original="(full text)",
+                    refined="(see refined output)",
+                    location=0,
+                    reason="LLM-based style and clarity improvements",
+                )
+            )
             return response, changes
 
         return text, changes

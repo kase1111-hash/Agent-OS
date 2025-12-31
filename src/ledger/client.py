@@ -11,14 +11,14 @@ import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from .models import (
-    ValueEvent,
-    ValueDimension,
+    DEFAULT_MAPPINGS,
     IntentCategory,
     IntentValueMapping,
-    DEFAULT_MAPPINGS,
+    ValueDimension,
+    ValueEvent,
     get_mapping_for_intent,
 )
 
@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class LedgerConfig:
     """Configuration for ledger client."""
+
     # Path to value-ledger module (for local mode)
     ledger_module_path: Optional[Path] = None
     # Path to SQLite database
@@ -45,6 +46,7 @@ class LedgerConfig:
 @dataclass
 class LedgerEntry:
     """Represents a ledger entry (mirrors value-ledger model)."""
+
     entry_id: str
     entry_type: str
     created_at: datetime
@@ -59,6 +61,7 @@ class LedgerEntry:
 @dataclass
 class LedgerStats:
     """Statistics from the ledger."""
+
     total_entries: int
     total_value_by_dimension: Dict[str, float]
     entry_counts_by_type: Dict[str, int]
@@ -115,9 +118,9 @@ class LedgerClient:
 
             try:
                 from ledger import (
-                    LedgerStore,
                     AccrualEngine,
                     AggregationEngine,
+                    LedgerStore,
                     create_ledger_store,
                 )
 
@@ -137,9 +140,7 @@ class LedgerClient:
 
             except ImportError:
                 # Use embedded implementation
-                logger.warning(
-                    "value-ledger module not found, using embedded implementation"
-                )
+                logger.warning("value-ledger module not found, using embedded implementation")
                 self._init_embedded()
 
             self._initialized = True
@@ -275,7 +276,8 @@ class LedgerClient:
         """
         if self._aggregation_engine:
             try:
-                from ledger import AggregationQuery, ValueDimension as LedgerDimension
+                from ledger import AggregationQuery
+                from ledger import ValueDimension as LedgerDimension
 
                 query = AggregationQuery(
                     dimension=LedgerDimension(dimension.value) if dimension else None,
@@ -363,12 +365,14 @@ class LedgerClient:
 
         entry_id = f"emb_{secrets.token_hex(16)}"
 
-        self._embedded_entries.append({
-            "entry_id": entry_id,
-            "event": event.to_dict(),
-            "value": value,
-            "timestamp": datetime.now().isoformat(),
-        })
+        self._embedded_entries.append(
+            {
+                "entry_id": entry_id,
+                "event": event.to_dict(),
+                "value": value,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
 
         return entry_id
 

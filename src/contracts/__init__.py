@@ -34,89 +34,86 @@ Usage:
             abstracted = result.abstracted_content
 """
 
-# Store
-from .store import (
-    ContractStore,
-    LearningContract,
-    ContractType,
-    ContractStatus,
-    ContractScope,
-    LearningScope,
-    ContractQuery,
-    create_contract_store,
-    # Templates (learning-contracts spec)
-    ContractTemplate,
-    CONTRACT_TEMPLATES,
-    get_template,
-    list_templates,
-    create_contract_from_template,
-    # Default Agent-OS contracts
-    create_default_agent_os_contracts,
-    ensure_default_contracts,
-)
-
-# Validator
-from .validator import (
-    ContractValidator,
-    ValidationResult,
-    ValidationCode,
-    ValidationSeverity,
-    ValidationIssue,
-    LearningRequest,
-    create_validator,
-)
-
-# Prohibited Domains
-from .domains import (
-    ProhibitedDomainChecker,
-    ProhibitedDomain,
-    DomainCheckResult,
-    DomainCategory,
-    ProhibitionLevel,
-    create_domain_checker,
-)
-
 # Abstraction
 from .abstraction import (
     AbstractionGuard,
-    AbstractionRule,
-    AbstractionResult,
     AbstractionLevel,
-    AbstractionType,
     AbstractionPolicy,
+    AbstractionResult,
+    AbstractionRule,
+    AbstractionType,
     create_abstraction_guard,
-)
-
-# Enforcement
-from .enforcement import (
-    LearningContractsEngine,
-    EnforcementResult,
-    EnforcementDecision,
-    EnforcementConfig,
-    create_learning_contracts_engine,
-)
-
-# Consent
-from .consent import (
-    ConsentPrompt,
-    ConsentRequest,
-    ConsentDecision,
-    ConsentResponse,
-    ConsentMode,
-    ConsentUI,
-    create_consent_prompt,
 )
 
 # Client
 from .client import (
     ContractsClient,
     ContractsClientConfig,
-    create_contracts_client,
-    get_default_client,
     can_learn,
     check_learning,
+    create_contracts_client,
+    get_default_client,
 )
 
+# Consent
+from .consent import (
+    ConsentDecision,
+    ConsentMode,
+    ConsentPrompt,
+    ConsentRequest,
+    ConsentResponse,
+    ConsentUI,
+    create_consent_prompt,
+)
+
+# Prohibited Domains
+from .domains import (
+    DomainCategory,
+    DomainCheckResult,
+    ProhibitedDomain,
+    ProhibitedDomainChecker,
+    ProhibitionLevel,
+    create_domain_checker,
+)
+
+# Enforcement
+from .enforcement import (
+    EnforcementConfig,
+    EnforcementDecision,
+    EnforcementResult,
+    LearningContractsEngine,
+    create_learning_contracts_engine,
+)
+
+# Store
+from .store import (  # Templates (learning-contracts spec); Default Agent-OS contracts
+    CONTRACT_TEMPLATES,
+    ContractQuery,
+    ContractScope,
+    ContractStatus,
+    ContractStore,
+    ContractTemplate,
+    ContractType,
+    LearningContract,
+    LearningScope,
+    create_contract_from_template,
+    create_contract_store,
+    create_default_agent_os_contracts,
+    ensure_default_contracts,
+    get_template,
+    list_templates,
+)
+
+# Validator
+from .validator import (
+    ContractValidator,
+    LearningRequest,
+    ValidationCode,
+    ValidationIssue,
+    ValidationResult,
+    ValidationSeverity,
+    create_validator,
+)
 
 __all__ = [
     # Store

@@ -10,45 +10,44 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set
 
+from .executor import (
+    ExecutionConfig,
+    ExecutionContext,
+    ExecutionMode,
+    ToolExecutor,
+    create_executor,
+)
 from .interface import (
-    ToolInterface,
-    ToolSchema,
-    ToolResult,
-    ToolCategory,
-    ToolRiskLevel,
-    ToolParameter,
     BaseTool,
     FunctionTool,
     InvocationResult,
+    ToolCategory,
+    ToolInterface,
+    ToolParameter,
+    ToolResult,
+    ToolRiskLevel,
+    ToolSchema,
     create_function_tool,
 )
-from .registry import (
-    ToolRegistry,
-    ToolRegistration,
-    ToolQuery,
-    create_registry,
-)
 from .permissions import (
-    PermissionManager,
+    GrantType,
     PermissionGrant,
     PermissionLevel,
-    GrantType,
+    PermissionManager,
     RiskLimitPolicy,
     create_permission_manager,
 )
+from .registry import (
+    ToolQuery,
+    ToolRegistration,
+    ToolRegistry,
+    create_registry,
+)
 from .validation import (
-    ToolApprovalValidator,
     ToolApprovalResult,
+    ToolApprovalValidator,
     create_tool_validator,
 )
-from .executor import (
-    ToolExecutor,
-    ExecutionConfig,
-    ExecutionMode,
-    ExecutionContext,
-    create_executor,
-)
-
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +55,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ToolsClientConfig:
     """Configuration for the tools client."""
+
     storage_path: Optional[Path] = None
     auto_approve_low_risk: bool = False
     default_execution_mode: ExecutionMode = ExecutionMode.SUBPROCESS

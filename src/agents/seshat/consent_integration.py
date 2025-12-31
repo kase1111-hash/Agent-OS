@@ -8,24 +8,23 @@ Provides consent-aware memory operations.
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any, Callable
 from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
 
 # Import from Memory Vault
 from ...memory.consent import (
     ConsentManager,
     ConsentOperation,
+    ConsentPolicy,
     ConsentStatus,
     ConsentType,
-    ConsentPolicy,
 )
-from ...memory.index import VaultIndex, ConsentRecord
-
+from ...memory.index import ConsentRecord, VaultIndex
 from .retrieval import (
-    RetrievalPipeline,
     ConsentVerifier,
-    MemoryEntry,
     ContextType,
+    MemoryEntry,
+    RetrievalPipeline,
     RetrievalResult,
 )
 
@@ -34,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 class SeshatConsentScope(Enum):
     """Predefined scopes for Seshat operations."""
+
     CONVERSATION = "seshat:conversation"
     KNOWLEDGE = "seshat:knowledge"
     EPISODIC = "seshat:episodic"
@@ -44,6 +44,7 @@ class SeshatConsentScope(Enum):
 @dataclass
 class ConsentAwareConfig:
     """Configuration for consent-aware operations."""
+
     require_consent_for_store: bool = True
     require_consent_for_retrieve: bool = True
     require_consent_for_delete: bool = True
@@ -89,9 +90,7 @@ class ConsentBridge:
         Returns:
             ConsentVerifier configured with this bridge
         """
-        return ConsentVerifier(
-            verify_callback=self.verify_access
-        )
+        return ConsentVerifier(verify_callback=self.verify_access)
 
     def verify_access(
         self,

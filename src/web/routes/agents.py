@@ -13,15 +13,16 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from ..models import AgentControlResponse, AgentsOverviewResponse, NOT_FOUND_RESPONSE
+from ..models import NOT_FOUND_RESPONSE, AgentControlResponse, AgentsOverviewResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Try to import real agent registry
 try:
-    from src.agents.loader import AgentRegistry, AgentLoader, create_loader
     from src.agents.interface import AgentState
+    from src.agents.loader import AgentLoader, AgentRegistry, create_loader
+
     REAL_AGENTS_AVAILABLE = True
 except ImportError:
     REAL_AGENTS_AVAILABLE = False
@@ -152,7 +153,9 @@ class AgentStore:
                 description="Intent classification and request routing",
                 status=AgentStatus.ACTIVE,
                 capabilities=[
-                    AgentCapability(name="intent_classification", description="Classify user intents"),
+                    AgentCapability(
+                        name="intent_classification", description="Classify user intents"
+                    ),
                     AgentCapability(name="routing", description="Route requests to agents"),
                 ],
                 supported_intents=["*"],
@@ -171,7 +174,9 @@ class AgentStore:
                 description="Constitutional validation and safety guardian",
                 status=AgentStatus.ACTIVE,
                 capabilities=[
-                    AgentCapability(name="constitutional_check", description="Validate against constitution"),
+                    AgentCapability(
+                        name="constitutional_check", description="Validate against constitution"
+                    ),
                     AgentCapability(name="safety_filter", description="Filter unsafe content"),
                 ],
                 supported_intents=["*"],
@@ -190,8 +195,12 @@ class AgentStore:
                 description="Memory management and semantic retrieval",
                 status=AgentStatus.IDLE,
                 capabilities=[
-                    AgentCapability(name="memory_storage", description="Store and retrieve memories"),
-                    AgentCapability(name="semantic_search", description="Search memories by meaning"),
+                    AgentCapability(
+                        name="memory_storage", description="Store and retrieve memories"
+                    ),
+                    AgentCapability(
+                        name="semantic_search", description="Search memories by meaning"
+                    ),
                 ],
                 supported_intents=["memory.*", "recall.*"],
                 metrics=AgentMetrics(
@@ -208,7 +217,9 @@ class AgentStore:
                 description="Creative content generation",
                 status=AgentStatus.IDLE,
                 capabilities=[
-                    AgentCapability(name="creative_writing", description="Generate creative content"),
+                    AgentCapability(
+                        name="creative_writing", description="Generate creative content"
+                    ),
                     AgentCapability(name="brainstorming", description="Help with ideas"),
                 ],
                 supported_intents=["creative.*", "content.*"],
@@ -294,7 +305,9 @@ class AgentStore:
                 last_request_at=metrics.last_request_time,
             ),
             created_at=registered.registered_at,
-            config=registered.config.model_dump() if hasattr(registered.config, 'model_dump') else {},
+            config=(
+                registered.config.model_dump() if hasattr(registered.config, "model_dump") else {}
+            ),
         )
 
     def get_all(self) -> List[AgentInfo]:

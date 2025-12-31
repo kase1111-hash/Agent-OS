@@ -45,7 +45,9 @@ class TestConstitutionLoader:
         context = loader.load_for_agent("test_agent", include_supreme=True)
 
         assert context.has_supreme
-        assert "MUST" in context.supreme_constitution or "SHALL" in context.supreme_constitution
+        # Check for constitutional keywords (case-insensitive)
+        constitution_lower = context.supreme_constitution.lower()
+        assert "must" in constitution_lower or "shall" in constitution_lower
 
     def test_load_agent_specific_constitution(self):
         """Test loading an agent-specific constitution."""

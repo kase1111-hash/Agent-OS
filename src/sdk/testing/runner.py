@@ -14,13 +14,13 @@ from typing import Any, Callable, Dict, List, Optional, Type
 
 from .fixtures import AgentTestCase
 
-
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class TestResult:
     """Result of a single test."""
+
     name: str
     passed: bool
     duration_ms: int = 0
@@ -41,6 +41,7 @@ class TestResult:
 @dataclass
 class TestSuiteResult:
     """Result of a test suite."""
+
     suite_name: str
     results: List[TestResult] = field(default_factory=list)
     total_duration_ms: int = 0

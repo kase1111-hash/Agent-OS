@@ -11,31 +11,32 @@ All outputs are marked as drafts requiring human approval.
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Set
+from typing import Any, Dict, List, Optional, Set
 
-from ..interface import (
-    BaseAgent,
-    AgentCapabilities,
-    CapabilityType,
-    AgentState,
-    RequestValidationResult,
-)
 from src.messaging.models import FlowRequest, FlowResponse, MessageStatus
 
+from ..interface import (
+    AgentCapabilities,
+    AgentState,
+    BaseAgent,
+    CapabilityType,
+    RequestValidationResult,
+)
 from .creative import (
-    CreativeEngine,
-    CreativeStyle,
     ContentType,
-    CreativeMode,
     CreativeConstraints,
-    CreativeResult,
+    CreativeEngine,
+    CreativeMode,
     CreativeOption,
+    CreativeResult,
+    CreativeStyle,
     create_creative_engine,
 )
 
 # Optional Ollama integration
 try:
     from ..ollama import OllamaClient, create_ollama_client
+
     OLLAMA_AVAILABLE = True
 except ImportError:
     OLLAMA_AVAILABLE = False
@@ -370,7 +371,7 @@ class MuseAgent(BaseAgent):
         logger.info("Shutting down Muse agent")
 
         try:
-            if self._ollama_client and hasattr(self._ollama_client, 'close'):
+            if self._ollama_client and hasattr(self._ollama_client, "close"):
                 self._ollama_client.close()
 
             self._creative_engine = None
@@ -487,7 +488,11 @@ class MuseAgent(BaseAgent):
             return ContentType.STORY
         elif "poem" in intent_lower or "poem" in content_lower or "verse" in content_lower:
             return ContentType.POEM
-        elif "scenario" in intent_lower or "scenario" in content_lower or "situation" in content_lower:
+        elif (
+            "scenario" in intent_lower
+            or "scenario" in content_lower
+            or "situation" in content_lower
+        ):
             return ContentType.SCENARIO
         elif "brainstorm" in intent_lower or "ideas" in content_lower:
             return ContentType.BRAINSTORM
@@ -557,12 +562,14 @@ class MuseAgent(BaseAgent):
         ]
 
         for i, option in enumerate(result.options, 1):
-            lines.extend([
-                f"--- Option {i} ({option.style.value}, confidence: {option.confidence:.0%}) ---",
-                "",
-                option.content,
-                "",
-            ])
+            lines.extend(
+                [
+                    f"--- Option {i} ({option.style.value}, confidence: {option.confidence:.0%}) ---",
+                    "",
+                    option.content,
+                    "",
+                ]
+            )
 
             if option.notes:
                 lines.append(f"Note: {option.notes}")
@@ -574,11 +581,13 @@ class MuseAgent(BaseAgent):
                 lines.append(f"  • {note}")
             lines.append("")
 
-        lines.extend([
-            "---",
-            "Please review these options and provide feedback.",
-            "Which option would you like to develop further?",
-        ])
+        lines.extend(
+            [
+                "---",
+                "Please review these options and provide feedback.",
+                "Which option would you like to develop further?",
+            ]
+        )
 
         return "\n".join(lines)
 
@@ -608,7 +617,9 @@ class MuseAgent(BaseAgent):
             fallback_prompt=fallback,
         )
 
-        logger.info(f"Muse: Loaded system prompt with constitutional context ({len(self._system_prompt)} chars)")
+        logger.info(
+            f"Muse: Loaded system prompt with constitutional context ({len(self._system_prompt)} chars)"
+        )
 
     def _llm_generate(self, prompt: str, temperature: float) -> str:
         """Generate response using Ollama LLM."""

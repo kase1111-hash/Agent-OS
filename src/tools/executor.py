@@ -18,29 +18,30 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from .interface import (
-    ToolInterface,
-    ToolResult,
-    ToolInvocation,
     InvocationResult,
+    ToolInterface,
+    ToolInvocation,
+    ToolResult,
     ToolRiskLevel,
 )
-from .registry import ToolRegistry, ToolRegistration
-from .permissions import PermissionManager, PermissionCheckResult
-from .validation import ToolApprovalValidator, ToolApprovalResult, ApprovalResult
-
+from .permissions import PermissionCheckResult, PermissionManager
+from .registry import ToolRegistration, ToolRegistry
+from .validation import ApprovalResult, ToolApprovalResult, ToolApprovalValidator
 
 logger = logging.getLogger(__name__)
 
 
 class ExecutionMode(Enum):
     """Tool execution modes."""
-    IN_PROCESS = auto()   # Direct execution (lowest security)
-    SUBPROCESS = auto()   # Isolated subprocess
-    CONTAINER = auto()    # Docker/Podman container (highest security)
+
+    IN_PROCESS = auto()  # Direct execution (lowest security)
+    SUBPROCESS = auto()  # Isolated subprocess
+    CONTAINER = auto()  # Docker/Podman container (highest security)
 
 
 class ExecutionState(Enum):
     """State of a tool execution."""
+
     PENDING = auto()
     VALIDATING = auto()
     AWAITING_APPROVAL = auto()
@@ -54,6 +55,7 @@ class ExecutionState(Enum):
 @dataclass
 class ExecutionConfig:
     """Configuration for tool execution."""
+
     default_mode: ExecutionMode = ExecutionMode.SUBPROCESS
     timeout_seconds: int = 30
     memory_limit_mb: int = 256
@@ -69,6 +71,7 @@ class ExecutionConfig:
 @dataclass
 class ExecutionContext:
     """Context for a tool execution."""
+
     execution_id: str
     invocation: ToolInvocation
     state: ExecutionState = ExecutionState.PENDING
@@ -127,9 +130,7 @@ class ToolExecutor:
         self.audit_callback = audit_callback
         self._executions: Dict[str, ExecutionContext] = {}
         self._lock = threading.RLock()
-        self._human_approval_callback: Optional[
-            Callable[[ExecutionContext], bool]
-        ] = None
+        self._human_approval_callback: Optional[Callable[[ExecutionContext], bool]] = None
 
     def set_human_approval_callback(
         self,
@@ -419,7 +420,7 @@ class ToolExecutor:
         context.log("Executing in subprocess")
 
         # Build subprocess command
-        wrapper_code = f'''
+        wrapper_code = f"""
 import json
 import sys
 
@@ -447,7 +448,7 @@ except Exception as e:
         "success": False,
         "error": str(e),
     }}))
-'''
+"""
 
         try:
             # For simplicity, execute in-process with thread isolation
@@ -518,10 +519,7 @@ except Exception as e:
             results = list(self._executions.values())
 
             if user_id:
-                results = [
-                    e for e in results
-                    if e.invocation.user_id == user_id
-                ]
+                results = [e for e in results if e.invocation.user_id == user_id]
 
             if state:
                 results = [e for e in results if e.state == state]

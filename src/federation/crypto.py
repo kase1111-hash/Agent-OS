@@ -364,8 +364,8 @@ class DefaultCryptoProvider(CryptoProvider):
         if method != KeyExchangeMethod.X25519:
             raise ValueError(f"Unsupported key exchange method: {method}")
 
-        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
         from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 
         private_key = X25519PrivateKey.generate()
         public_key = private_key.public_key()
@@ -410,8 +410,8 @@ class DefaultCryptoProvider(CryptoProvider):
         key_length: int = 32,
     ) -> bytes:
         """Derive session key using HKDF."""
-        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
         from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
         hkdf = HKDF(
             algorithm=hashes.SHA256(),
@@ -673,11 +673,7 @@ class SessionManager:
 
     def list_sessions(self) -> List[Dict[str, Any]]:
         """List all active sessions."""
-        return [
-            session.to_dict()
-            for session in self._sessions.values()
-            if session.is_valid
-        ]
+        return [session.to_dict() for session in self._sessions.values() if session.is_valid]
 
 
 # =============================================================================

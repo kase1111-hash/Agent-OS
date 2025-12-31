@@ -12,35 +12,37 @@ from datetime import datetime
 from enum import Enum, auto
 from typing import Any, Callable, Dict, List, Optional, Set
 
-
 logger = logging.getLogger(__name__)
 
 
 class DomainCategory(Enum):
     """Categories of prohibited domains."""
-    PERSONAL_IDENTITY = auto()       # SSN, ID numbers
-    FINANCIAL = auto()               # Bank accounts, credit cards
-    MEDICAL = auto()                 # Health records
-    CREDENTIALS = auto()             # Passwords, API keys
-    BIOMETRIC = auto()               # Fingerprints, face data
-    LEGAL = auto()                   # Attorney-client, legal proceedings
-    GOVERNMENT = auto()              # Classified, security clearance
-    MINOR_DATA = auto()              # Children's personal data
-    RELATIONSHIP = auto()            # Private relationship details
-    CUSTOM = auto()                  # User-defined
+
+    PERSONAL_IDENTITY = auto()  # SSN, ID numbers
+    FINANCIAL = auto()  # Bank accounts, credit cards
+    MEDICAL = auto()  # Health records
+    CREDENTIALS = auto()  # Passwords, API keys
+    BIOMETRIC = auto()  # Fingerprints, face data
+    LEGAL = auto()  # Attorney-client, legal proceedings
+    GOVERNMENT = auto()  # Classified, security clearance
+    MINOR_DATA = auto()  # Children's personal data
+    RELATIONSHIP = auto()  # Private relationship details
+    CUSTOM = auto()  # User-defined
 
 
 class ProhibitionLevel(Enum):
     """Level of domain prohibition."""
-    ABSOLUTE = auto()      # Can never be learned, no override
-    STRONG = auto()        # Requires explicit human override
-    DEFAULT = auto()       # Prohibited by default, can be enabled
-    ADVISORY = auto()      # Warning only, user can proceed
+
+    ABSOLUTE = auto()  # Can never be learned, no override
+    STRONG = auto()  # Requires explicit human override
+    DEFAULT = auto()  # Prohibited by default, can be enabled
+    ADVISORY = auto()  # Warning only, user can proceed
 
 
 @dataclass
 class ProhibitedDomain:
     """A prohibited domain definition."""
+
     domain_id: str
     name: str
     category: DomainCategory
@@ -91,6 +93,7 @@ class ProhibitedDomain:
 @dataclass
 class DomainCheckResult:
     """Result of a domain check."""
+
     is_prohibited: bool
     matching_domains: List[ProhibitedDomain] = field(default_factory=list)
     highest_level: Optional[ProhibitionLevel] = None
@@ -183,8 +186,7 @@ class ProhibitedDomainChecker:
         # Determine if override is possible
         if result.is_prohibited:
             result.can_override = all(
-                d.level != ProhibitionLevel.ABSOLUTE
-                for d in result.matching_domains
+                d.level != ProhibitionLevel.ABSOLUTE for d in result.matching_domains
             )
 
         # Trigger callback if set
@@ -223,8 +225,7 @@ class ProhibitedDomainChecker:
                 key=lambda l: l.value,
             )
             result.can_override = all(
-                d.level != ProhibitionLevel.ABSOLUTE
-                for d in result.matching_domains
+                d.level != ProhibitionLevel.ABSOLUTE for d in result.matching_domains
             )
 
         return result
@@ -330,8 +331,14 @@ class ProhibitedDomainChecker:
                     r"\b(?:patient\s*id|mrn)\s*[:=]?\s*\w+",
                 ],
                 keywords={
-                    "medical record", "diagnosis", "prescription", "patient",
-                    "hipaa", "phi", "protected health information", "treatment plan",
+                    "medical record",
+                    "diagnosis",
+                    "prescription",
+                    "patient",
+                    "hipaa",
+                    "phi",
+                    "protected health information",
+                    "treatment plan",
                 },
                 description="Protected health information",
                 reason="Medical data protected under HIPAA",
@@ -344,8 +351,14 @@ class ProhibitedDomainChecker:
                 level=ProhibitionLevel.ABSOLUTE,
                 patterns=[],
                 keywords={
-                    "fingerprint", "face scan", "retina", "iris scan",
-                    "voice print", "biometric", "dna sequence", "genetic data",
+                    "fingerprint",
+                    "face scan",
+                    "retina",
+                    "iris scan",
+                    "voice print",
+                    "biometric",
+                    "dna sequence",
+                    "genetic data",
                 },
                 description="Biometric identifiers",
                 reason="Biometric data is immutable and highly sensitive",
@@ -358,8 +371,12 @@ class ProhibitedDomainChecker:
                 level=ProhibitionLevel.ABSOLUTE,
                 patterns=[],
                 keywords={
-                    "child's data", "minor's information", "coppa",
-                    "parental consent", "student records", "ferpa",
+                    "child's data",
+                    "minor's information",
+                    "coppa",
+                    "parental consent",
+                    "student records",
+                    "ferpa",
                 },
                 description="Personal data of minors",
                 reason="Children's data has heightened protection",
@@ -372,8 +389,10 @@ class ProhibitedDomainChecker:
                 level=ProhibitionLevel.STRONG,
                 patterns=[],
                 keywords={
-                    "attorney-client", "privileged communication",
-                    "legal advice", "work product",
+                    "attorney-client",
+                    "privileged communication",
+                    "legal advice",
+                    "work product",
                 },
                 description="Privileged legal communications",
                 reason="Protected by attorney-client privilege",
@@ -386,8 +405,11 @@ class ProhibitedDomainChecker:
                 level=ProhibitionLevel.ABSOLUTE,
                 patterns=[],
                 keywords={
-                    "classified", "top secret", "secret clearance",
-                    "confidential clearance", "national security",
+                    "classified",
+                    "top secret",
+                    "secret clearance",
+                    "confidential clearance",
+                    "national security",
                 },
                 description="Classified government information",
                 reason="Government classified data is prohibited",

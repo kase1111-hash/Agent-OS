@@ -11,36 +11,39 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
-from typing import Optional, Dict, Any, List, Tuple, Callable
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
 
 class ReasoningType(Enum):
     """Types of reasoning tasks."""
-    ANALYSIS = "analysis"           # Break down and analyze a problem
-    SYNTHESIS = "synthesis"         # Combine information from multiple sources
-    EVALUATION = "evaluation"       # Evaluate trade-offs and alternatives
-    DEDUCTION = "deduction"         # Logical deduction from premises
-    INDUCTION = "induction"         # Pattern recognition and generalization
-    ABDUCTION = "abduction"         # Best explanation inference
-    COMPARISON = "comparison"       # Compare and contrast options
-    CAUSAL = "causal"               # Cause and effect analysis
+
+    ANALYSIS = "analysis"  # Break down and analyze a problem
+    SYNTHESIS = "synthesis"  # Combine information from multiple sources
+    EVALUATION = "evaluation"  # Evaluate trade-offs and alternatives
+    DEDUCTION = "deduction"  # Logical deduction from premises
+    INDUCTION = "induction"  # Pattern recognition and generalization
+    ABDUCTION = "abduction"  # Best explanation inference
+    COMPARISON = "comparison"  # Compare and contrast options
+    CAUSAL = "causal"  # Cause and effect analysis
 
 
 class ConfidenceLevel(Enum):
     """Confidence levels for reasoning conclusions."""
-    VERY_HIGH = "very_high"         # 90%+ confidence
-    HIGH = "high"                   # 75-90% confidence
-    MODERATE = "moderate"           # 50-75% confidence
-    LOW = "low"                     # 25-50% confidence
-    VERY_LOW = "very_low"           # <25% confidence
-    UNCERTAIN = "uncertain"         # Cannot assess confidence
+
+    VERY_HIGH = "very_high"  # 90%+ confidence
+    HIGH = "high"  # 75-90% confidence
+    MODERATE = "moderate"  # 50-75% confidence
+    LOW = "low"  # 25-50% confidence
+    VERY_LOW = "very_low"  # <25% confidence
+    UNCERTAIN = "uncertain"  # Cannot assess confidence
 
 
 @dataclass
 class ReasoningStep:
     """A single step in a reasoning chain."""
+
     step_number: int
     description: str
     reasoning: str
@@ -100,6 +103,7 @@ class ReasoningStep:
 @dataclass
 class TradeOff:
     """A trade-off consideration."""
+
     option: str
     pros: List[str] = field(default_factory=list)
     cons: List[str] = field(default_factory=list)
@@ -119,6 +123,7 @@ class TradeOff:
 @dataclass
 class ReasoningChain:
     """Complete chain-of-thought reasoning result."""
+
     chain_id: str
     reasoning_type: ReasoningType
     query: str
@@ -230,21 +235,37 @@ class ReasoningChain:
 @dataclass
 class ReasoningConfig:
     """Configuration for the reasoning engine."""
+
     max_reasoning_steps: int = 10
     min_confidence_threshold: float = 0.25
     require_evidence: bool = True
     show_intermediate_steps: bool = True
     temperature: float = 0.2
     max_tokens_per_step: int = 1000
-    escalation_keywords: List[str] = field(default_factory=lambda: [
-        "ethical", "moral", "should", "value", "belief", "personal",
-        "decision", "choose", "prefer", "recommend"
-    ])
+    escalation_keywords: List[str] = field(
+        default_factory=lambda: [
+            "ethical",
+            "moral",
+            "should",
+            "value",
+            "belief",
+            "personal",
+            "decision",
+            "choose",
+            "prefer",
+            "recommend",
+        ]
+    )
     # Keywords that trigger human escalation
-    prohibited_conclusions: List[str] = field(default_factory=lambda: [
-        "you must", "you should definitely", "the only answer",
-        "without question", "absolutely certain"
-    ])
+    prohibited_conclusions: List[str] = field(
+        default_factory=lambda: [
+            "you must",
+            "you should definitely",
+            "the only answer",
+            "without question",
+            "absolutely certain",
+        ]
+    )
 
 
 class ReasoningEngine:
@@ -381,10 +402,13 @@ class ReasoningEngine:
             if self._llm_callback:
                 # Use LLM for trade-off analysis
                 prompt = self._build_trade_off_prompt(option, criteria, context)
-                response = self._llm_callback(prompt, {
-                    "temperature": self._config.temperature,
-                    "max_tokens": 500,
-                })
+                response = self._llm_callback(
+                    prompt,
+                    {
+                        "temperature": self._config.temperature,
+                        "max_tokens": 500,
+                    },
+                )
                 trade_off = self._parse_trade_off_response(option, response)
             else:
                 # Placeholder analysis
@@ -450,13 +474,11 @@ class ReasoningEngine:
             "total_chains": self._total_chains,
             "total_steps": self._total_steps,
             "average_steps_per_chain": (
-                self._total_steps / self._total_chains
-                if self._total_chains > 0 else 0
+                self._total_steps / self._total_chains if self._total_chains > 0 else 0
             ),
             "escalations": self._escalations,
             "escalation_rate": (
-                self._escalations / self._total_chains
-                if self._total_chains > 0 else 0
+                self._escalations / self._total_chains if self._total_chains > 0 else 0
             ),
         }
 
@@ -506,11 +528,14 @@ class ReasoningEngine:
         )
 
         # Get LLM response
-        response = self._llm_callback(prompt, {
-            "system": system_prompt,
-            "temperature": self._config.temperature,
-            "max_tokens": self._config.max_tokens_per_step * max_steps,
-        })
+        response = self._llm_callback(
+            prompt,
+            {
+                "system": system_prompt,
+                "temperature": self._config.temperature,
+                "max_tokens": self._config.max_tokens_per_step * max_steps,
+            },
+        )
 
         # Parse response into steps
         chain = self._parse_reasoning_response(chain, response)
@@ -618,7 +643,9 @@ class ReasoningEngine:
             ),
         }
 
-        return base + type_instructions.get(reasoning_type, type_instructions[ReasoningType.ANALYSIS])
+        return base + type_instructions.get(
+            reasoning_type, type_instructions[ReasoningType.ANALYSIS]
+        )
 
     def _build_reasoning_prompt(
         self,
@@ -712,7 +739,7 @@ class ReasoningEngine:
         final_match = re.search(
             r"(?:Final\s*Conclusion|FINAL|Conclusion)[:\s]*(.*?)$",
             response,
-            re.DOTALL | re.IGNORECASE
+            re.DOTALL | re.IGNORECASE,
         )
         if final_match:
             chain.final_conclusion = final_match.group(1).strip()
@@ -762,13 +789,17 @@ class ReasoningEngine:
         trade_off = TradeOff(option=option)
 
         # Extract pros
-        pros_match = re.search(r"pros?[:\s]*(.*?)(?:cons?|risk|$)", response, re.IGNORECASE | re.DOTALL)
+        pros_match = re.search(
+            r"pros?[:\s]*(.*?)(?:cons?|risk|$)", response, re.IGNORECASE | re.DOTALL
+        )
         if pros_match:
             pros_text = pros_match.group(1)
             trade_off.pros = [p.strip() for p in re.findall(r"[-•]\s*(.+)", pros_text)]
 
         # Extract cons
-        cons_match = re.search(r"cons?[:\s]*(.*?)(?:risk|recommend|$)", response, re.IGNORECASE | re.DOTALL)
+        cons_match = re.search(
+            r"cons?[:\s]*(.*?)(?:risk|recommend|$)", response, re.IGNORECASE | re.DOTALL
+        )
         if cons_match:
             cons_text = cons_match.group(1)
             trade_off.cons = [c.strip() for c in re.findall(r"[-•]\s*(.+)", cons_text)]
@@ -782,7 +813,9 @@ class ReasoningEngine:
             trade_off.risk_level = "medium"
 
         # Extract recommendation
-        rec_match = re.search(r"recommend[:\s]*(.*?)(?:\n\n|$)", response, re.IGNORECASE | re.DOTALL)
+        rec_match = re.search(
+            r"recommend[:\s]*(.*?)(?:\n\n|$)", response, re.IGNORECASE | re.DOTALL
+        )
         if rec_match:
             trade_off.recommendation = rec_match.group(1).strip()
 
@@ -811,9 +844,7 @@ class ReasoningEngine:
                     # Soften the conclusion
                     chain.final_conclusion = chain.final_conclusion.replace(
                         "you must", "you might consider"
-                    ).replace(
-                        "the only answer", "one possible answer"
-                    )
+                    ).replace("the only answer", "one possible answer")
 
         return chain
 
