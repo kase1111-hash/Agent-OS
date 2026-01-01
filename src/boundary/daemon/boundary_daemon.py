@@ -123,6 +123,7 @@ class SmithDaemon:
         self._policy_engine = create_policy_engine(
             initial_mode=self.config.initial_mode,
             on_mode_change=self._on_mode_change,
+            network_allowed=self.config.network_allowed,
         )
 
         self._enforcement = create_enforcement_layer(

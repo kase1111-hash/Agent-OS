@@ -122,6 +122,7 @@ class PolicyEngine:
         self,
         initial_mode: BoundaryMode = BoundaryMode.RESTRICTED,
         on_mode_change: Optional[Callable[[BoundaryMode, BoundaryMode], None]] = None,
+        network_allowed: bool = False,
     ):
         """
         Initialize policy engine.
@@ -129,9 +130,11 @@ class PolicyEngine:
         Args:
             initial_mode: Starting boundary mode
             on_mode_change: Callback when mode changes
+            network_allowed: Allow network access in RESTRICTED mode
         """
         self._mode = initial_mode
         self._on_mode_change = on_mode_change
+        self._network_allowed = network_allowed
         self._rules: List[PolicyRule] = []
         self._decision_log: List[PolicyDecision] = []
         self._lock = threading.Lock()
@@ -144,6 +147,11 @@ class PolicyEngine:
             BoundaryMode.TRUSTED: {},
             BoundaryMode.EMERGENCY: {},
         }
+
+        # If network access is allowed, whitelist it in RESTRICTED mode
+        if network_allowed:
+            self._whitelists[BoundaryMode.RESTRICTED][RequestType.NETWORK_ACCESS] = {"*"}
+            self._whitelists[BoundaryMode.RESTRICTED][RequestType.EXTERNAL_API] = {"*"}
 
         # Install default rules
         self._install_default_rules()
@@ -425,9 +433,11 @@ class PolicyEngine:
 def create_policy_engine(
     initial_mode: BoundaryMode = BoundaryMode.RESTRICTED,
     on_mode_change: Optional[Callable[[BoundaryMode, BoundaryMode], None]] = None,
+    network_allowed: bool = False,
 ) -> PolicyEngine:
     """Factory function to create a policy engine."""
     return PolicyEngine(
         initial_mode=initial_mode,
         on_mode_change=on_mode_change,
+        network_allowed=network_allowed,
     )
