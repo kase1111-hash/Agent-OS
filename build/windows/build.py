@@ -276,8 +276,17 @@ def build_msi(exe_path: Path, version: str) -> Optional[Path]:
         logger.warning("  Install WiX Toolset from: https://wixtoolset.org/")
         return None
 
-    # TODO: Implement WiX-based MSI creation
-    logger.warning("  MSI creation not yet implemented")
+    # Phase 2 Feature: WiX-based MSI creation
+    # This requires creating WiX XML templates for:
+    # - Product definition (upgrade codes, version info)
+    # - Directory structure (Program Files, Start Menu, etc.)
+    # - Component definitions (files, registry, services)
+    # - Feature tree (optional components)
+    # - UI customization (wizard dialogs)
+    #
+    # For now, use the portable ZIP or standalone EXE for Windows deployment.
+    # See: https://wixtoolset.org/docs/intro/
+    logger.info("  MSI creation deferred to Phase 2 - use portable ZIP or EXE for now")
     return None
 
 
