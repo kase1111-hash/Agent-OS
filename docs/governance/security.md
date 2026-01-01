@@ -23,16 +23,20 @@ Click "Report a vulnerability"
 Fill out the advisory form with details
 Submit privately
 
-Option 2: Email (Encrypted Preferred)
+Option 2: GitHub Issues (Private)
 
-Email: security@agentos.org (coming soon)
-PGP Key: [Available on repository] (coming soon)
-Subject Line: "SECURITY: [Brief Description]"
+For vulnerabilities that don't require encrypted communication:
+- Email the repository maintainer through their GitHub profile
+- Include `[SECURITY]` in your message subject
+- Request a private communication channel if needed
 
-Option 3: Private Disclosure via Community Channels
+Option 3: Direct Contact (Alpha Phase)
 
-Discord DM to maintainers (coming soon with community setup)
-Encrypted messaging through Signal/Matrix (coming soon)
+During the alpha phase, contact maintainers directly:
+- Open a GitHub issue requesting private security discussion
+- A maintainer will provide a secure contact method
+
+**Note:** Dedicated security email (security@agentos.org), PGP keys, and community channels (Discord, Signal, Matrix) are planned for Phase 2 (Q3-Q4 2026) when the project has established infrastructure.
 
 What to Include in Your Report
 Please provide as much information as possible:
@@ -878,7 +882,7 @@ Enable Automatic Security Updates (when available)
 Subscribe to Security Notifications
 
 GitHub Watch → Custom → Security alerts
-Security mailing list (coming soon)
+Follow the repository for release announcements
 
 
 Review Security Advisories
@@ -987,7 +991,7 @@ Contact
 
 General Security Questions: Create a GitHub Discussion
 Security Vulnerabilities: Follow reporting instructions above
-Security Research Collaboration: security@agentos.org (coming soon)
+Security Research Collaboration: Contact maintainers via GitHub
 
 
 Acknowledgments

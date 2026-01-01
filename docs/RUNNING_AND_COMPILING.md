@@ -288,40 +288,305 @@ Agent-OS/
 
 ## Troubleshooting
 
-### Port Already in Use
+### Installation Issues
+
+#### Python Version Errors
+
+**Error:** `Python 3.10 or higher is required`
 
 ```bash
-# Find process using port 8080
-lsof -i :8080
+# Check your Python version
+python3 --version
 
-# Kill process
-kill -9 <PID>
+# Install correct version (Ubuntu/Debian)
+sudo apt update && sudo apt install python3.11 python3.11-venv python3.11-pip
+
+# Install correct version (macOS)
+brew install python@3.11
+
+# Install correct version (Windows)
+# Download from https://python.org and reinstall
 ```
 
-### Redis Connection Failed
+#### pip Installation Fails
 
-Ensure Redis is running or disable Redis rate limiting:
-
-```bash
-AGENT_OS_RATE_LIMIT_REDIS=false
-```
-
-### Missing Dependencies
+**Error:** `Could not build wheels for...` or `Failed building wheel`
 
 ```bash
+# Upgrade pip first
+pip install --upgrade pip setuptools wheel
+
+# Install build dependencies (Linux)
+sudo apt install python3-dev build-essential libffi-dev
+
+# Install build dependencies (macOS)
+xcode-select --install
+
+# Retry installation
 pip install -r requirements.txt
-pip install -e ".[dev]"
 ```
 
-### Docker Build Fails
+#### Virtual Environment Issues
+
+**Error:** `No module named venv` or `virtualenv not found`
 
 ```bash
-# Clean build
+# Install venv (Ubuntu/Debian)
+sudo apt install python3-venv
+
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate  # Linux/macOS
+# or: venv\Scripts\activate  # Windows
+```
+
+### Runtime Issues
+
+#### Port Already in Use
+
+**Error:** `Address already in use` or `Port 8080 is already in use`
+
+```bash
+# Find process using port (Linux/macOS)
+lsof -i :8080
+# or
+netstat -tulpn | grep 8080
+
+# Find process (Windows)
+netstat -ano | findstr :8080
+
+# Kill the process
+kill -9 <PID>  # Linux/macOS
+# or: taskkill /PID <PID> /F  # Windows
+
+# Or use a different port
+AGENT_OS_WEB_PORT=8081 python -m uvicorn src.web.app:get_app --factory --port 8081
+```
+
+#### Redis Connection Failed
+
+**Error:** `Connection refused` or `Redis connection error`
+
+```bash
+# Option 1: Disable Redis (use in-memory rate limiting)
+export AGENT_OS_RATE_LIMIT_REDIS=false
+
+# Option 2: Start Redis (Docker)
+docker run -d --name redis -p 6379:6379 redis:7-alpine
+
+# Option 3: Start Redis (Ubuntu)
+sudo apt install redis-server
+sudo systemctl start redis
+
+# Verify Redis connection
+redis-cli ping  # Should respond: PONG
+```
+
+#### Ollama Not Detected
+
+**Error:** `Ollama not running` or `Connection refused to localhost:11434`
+
+```bash
+# Check if Ollama is installed
+which ollama
+
+# Install Ollama (Linux)
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Start Ollama
+ollama serve
+
+# Verify Ollama is running
+curl http://localhost:11434/api/tags
+
+# Pull a model if none available
+ollama pull mistral
+```
+
+#### Module Not Found
+
+**Error:** `ModuleNotFoundError: No module named 'src'`
+
+```bash
+# Ensure you're in the project directory
+cd /path/to/Agent-OS
+
+# Install in development mode
+pip install -e .
+
+# Or set PYTHONPATH
+export PYTHONPATH="${PYTHONPATH}:$(pwd)"
+```
+
+### Docker Issues
+
+#### Docker Build Fails
+
+**Error:** `Failed to build` or `COPY failed`
+
+```bash
+# Clean build (remove cache)
 docker compose build --no-cache
 
-# Check Docker logs
-docker compose logs
+# Check Docker daemon is running
+docker info
+
+# Clear Docker cache
+docker system prune -a
+
+# Check disk space
+df -h
 ```
+
+#### Container Won't Start
+
+**Error:** `Container exited with code 1`
+
+```bash
+# Check container logs
+docker compose logs agentos
+
+# Check if ports are available
+docker compose ps
+
+# Verify environment file exists
+ls -la .env
+
+# Recreate containers
+docker compose down && docker compose up -d
+```
+
+#### GRAFANA_ADMIN_PASSWORD Not Set
+
+**Error:** `GRAFANA_ADMIN_PASSWORD must be set`
+
+```bash
+# Set the password in your environment
+export GRAFANA_ADMIN_PASSWORD="your-secure-password-here"
+
+# Or add to .env file
+echo 'GRAFANA_ADMIN_PASSWORD=your-secure-password-here' >> .env
+
+# Generate a secure password
+openssl rand -base64 32
+```
+
+### Voice/Audio Issues
+
+#### Microphone Not Detected
+
+**Error:** `No microphone found` or `Audio device not available`
+
+```bash
+# Linux: Install audio dependencies
+sudo apt install portaudio19-dev python3-pyaudio
+
+# macOS: Install with Homebrew
+brew install portaudio
+pip install pyaudio
+
+# Check available devices
+python -c "import pyaudio; p = pyaudio.PyAudio(); print([p.get_device_info_by_index(i)['name'] for i in range(p.get_device_count())])"
+```
+
+#### TTS/STT Not Working
+
+**Error:** `Whisper model not found` or `TTS engine error`
+
+```bash
+# Disable voice features if not needed
+export AGENT_OS_STT_ENABLED=false
+export AGENT_OS_TTS_ENABLED=false
+
+# Or install voice dependencies
+pip install openai-whisper piper-tts
+```
+
+### Performance Issues
+
+#### High Memory Usage
+
+```bash
+# Use smaller AI models
+ollama pull phi  # 2.7B parameters instead of 7B
+
+# Increase swap space (Linux)
+sudo fallocate -l 8G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+
+# Monitor memory usage
+htop
+```
+
+#### Slow Response Times
+
+```bash
+# Use GPU acceleration if available
+# Check CUDA availability
+python -c "import torch; print(torch.cuda.is_available())"
+
+# Use quantized models
+ollama pull mistral:q4_0  # 4-bit quantized
+```
+
+### Test Failures
+
+#### Tests Skipped
+
+**Message:** `X tests skipped due to missing dependencies`
+
+```bash
+# Install all optional dependencies
+pip install -e ".[dev,redis,observability]"
+
+# Install post-quantum crypto (optional)
+pip install pqcrypto || echo "PQ crypto not available on this platform"
+
+# Run tests with verbose output
+pytest -v tests/
+```
+
+#### Async Test Issues
+
+**Error:** `RuntimeError: no running event loop`
+
+```bash
+# Install pytest-asyncio
+pip install pytest-asyncio
+
+# Run with async mode
+pytest --asyncio-mode=auto tests/
+```
+
+### Getting Help
+
+If you're still having issues:
+
+1. **Check the logs:**
+   ```bash
+   # Application logs
+   cat logs/agentos.log
+
+   # Docker logs
+   docker compose logs -f
+   ```
+
+2. **Verify your environment:**
+   ```bash
+   # Run the hardware check script
+   python scripts/check_requirements.py
+   ```
+
+3. **Search existing issues:**
+   https://github.com/kase1111-hash/Agent-OS/issues
+
+4. **Open a new issue** with:
+   - Operating system and version
+   - Python version (`python --version`)
+   - Error message (full traceback)
+   - Steps to reproduce
 
 ---
 

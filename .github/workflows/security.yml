@@ -1,0 +1,191 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run weekly on Sundays
+    - cron: '0 0 * * 0'
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  dependency-scan:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install safety pip-audit
+
+      - name: Run safety check
+        run: safety check -r requirements.txt --full-report
+        continue-on-error: true
+
+      - name: Run pip-audit
+        run: pip-audit -r requirements.txt --desc
+        continue-on-error: true
+
+  secret-scan:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          wget https://github.com/gitleaks/gitleaks/releases/download/v8.18.1/gitleaks_8.18.1_linux_x64.tar.gz
+          tar -xzf gitleaks_8.18.1_linux_x64.tar.gz
+          chmod +x gitleaks
+
+      - name: Run gitleaks
+        run: ./gitleaks detect --source . --verbose --redact
+        continue-on-error: true
+
+  sast:
+    name: Static Analysis (SAST)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install bandit
+        run: pip install bandit[toml]
+
+      - name: Run bandit
+        run: |
+          bandit -r src/ \
+            -f json \
+            -o bandit-results.json \
+            --severity-level medium \
+            --confidence-level medium \
+            -x "**/tests/**" \
+            || true
+
+      - name: Display bandit results
+        run: |
+          if [ -f bandit-results.json ]; then
+            python -c "
+import json
+with open('bandit-results.json') as f:
+    results = json.load(f)
+    metrics = results.get('metrics', {})
+    print('=== Bandit Security Scan Results ===')
+    print(f\"Total issues: {metrics.get('_totals', {}).get('SEVERITY.UNDEFINED', 0) + metrics.get('_totals', {}).get('SEVERITY.LOW', 0) + metrics.get('_totals', {}).get('SEVERITY.MEDIUM', 0) + metrics.get('_totals', {}).get('SEVERITY.HIGH', 0)}\")
+    for issue in results.get('results', [])[:10]:
+        print(f\"- [{issue['severity']}] {issue['issue_text']} ({issue['filename']}:{issue['line_number']})\")
+            "
+          fi
+
+      - name: Upload bandit results
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-results
+          path: bandit-results.json
+        if: always()
+
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python
+          queries: security-extended
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:python"
+
+  container-scan:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t agentos:scan .
+        continue-on-error: true
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'agentos:scan'
+          format: 'table'
+          exit-code: '0'  # Don't fail for alpha
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+        continue-on-error: true
+
+  license-check:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pip-licenses
+        run: |
+          pip install -r requirements.txt
+          pip install pip-licenses
+
+      - name: Check licenses
+        run: |
+          pip-licenses --format=markdown --with-urls > licenses.md
+          echo "## Dependency Licenses"
+          cat licenses.md
+
+      - name: Check for problematic licenses
+        run: |
+          pip-licenses --fail-on="GPL;AGPL;LGPL" || echo "Warning: Some dependencies have copyleft licenses"
+        continue-on-error: true
+
+  security-summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs: [dependency-scan, secret-scan, sast]
+    if: always()
+    steps:
+      - name: Security check summary
+        run: |
+          echo "=== Security Scan Summary ==="
+          echo "Dependency Scan: ${{ needs.dependency-scan.result }}"
+          echo "Secret Detection: ${{ needs.secret-scan.result }}"
+          echo "SAST Analysis: ${{ needs.sast.result }}"
+
+          if [[ "${{ needs.dependency-scan.result }}" == "failure" ]] || \
+             [[ "${{ needs.secret-scan.result }}" == "failure" ]] || \
+             [[ "${{ needs.sast.result }}" == "failure" ]]; then
+            echo ""
+            echo "WARNING: Some security checks reported issues."
+            echo "Please review the individual job logs for details."
+          fi
