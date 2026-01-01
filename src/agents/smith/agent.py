@@ -6,12 +6,14 @@ The security validation agent responsible for:
 - Post-execution monitoring (S6-S8)
 - Refusal handling (S9-S12)
 - Emergency controls
+- Attack detection and auto-remediation (when enabled)
 """
 
 import logging
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set
 
 from src.agents.interface import (
@@ -42,6 +44,25 @@ from .post_monitor import MonitorResult, PostExecutionMonitor, PostMonitorResult
 from .pre_validator import CheckResult, PreExecutionValidator, PreValidationResult
 from .refusal_engine import RefusalEngine, RefusalResponse, RefusalType
 
+# Attack detection imports (optional feature)
+try:
+    from .attack_detection import (
+        AttackDetector,
+        AttackEvent,
+        AttackSeverity,
+        AttackAnalyzer,
+        RemediationEngine,
+        RecommendationSystem,
+        DetectorConfig,
+        create_attack_detector,
+        create_attack_analyzer,
+        create_remediation_engine,
+        create_recommendation_system,
+    )
+    ATTACK_DETECTION_AVAILABLE = True
+except ImportError:
+    ATTACK_DETECTION_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -56,6 +77,12 @@ class SmithMetrics:
     safe_mode_triggers: int = 0
     avg_validation_time_ms: float = 0.0
     blocks_by_check: Dict[str, int] = field(default_factory=dict)
+
+    # Attack detection metrics
+    attacks_detected: int = 0
+    attacks_mitigated: int = 0
+    recommendations_generated: int = 0
+    auto_lockdowns_triggered: int = 0
 
 
 class SmithAgent(BaseAgent):
@@ -100,6 +127,16 @@ class SmithAgent(BaseAgent):
         self._refusal_engine: Optional[RefusalEngine] = None
         self._emergency: Optional[EmergencyControls] = None
 
+        # Attack detection components (optional, initialized if enabled)
+        self._attack_detector: Optional[Any] = None  # AttackDetector
+        self._attack_analyzer: Optional[Any] = None  # AttackAnalyzer
+        self._remediation_engine: Optional[Any] = None  # RemediationEngine
+        self._recommendation_system: Optional[Any] = None  # RecommendationSystem
+        self._attack_detection_enabled: bool = False
+
+        # Callbacks for attack events
+        self._on_attack_callbacks: List[Callable[[Any], None]] = []
+
         # Smith-specific metrics
         self._smith_metrics = SmithMetrics()
 
@@ -116,6 +153,8 @@ class SmithAgent(BaseAgent):
                 - allow_escalation: Allow human escalation
                 - auto_escalate_mode: Auto-trigger safe mode on critical incidents
                 - incident_log_path: Path to incident log
+                - attack_detection_enabled: Enable attack detection system
+                - attack_detection_config: Attack detector configuration
 
         Returns:
             True if initialization successful
@@ -151,6 +190,11 @@ class SmithAgent(BaseAgent):
                 auto_escalate=auto_escalate,
             )
 
+            # Initialize attack detection if enabled
+            attack_detection_enabled = config.get("attack_detection_enabled", False)
+            if attack_detection_enabled and ATTACK_DETECTION_AVAILABLE:
+                self._initialize_attack_detection(config.get("attack_detection_config", {}))
+
             self._state = AgentState.READY
             logger.info("Smith (Guardian) initialized successfully")
             return True
@@ -159,6 +203,62 @@ class SmithAgent(BaseAgent):
             logger.error(f"Smith initialization failed: {e}")
             self._state = AgentState.ERROR
             return False
+
+    def _initialize_attack_detection(self, config: Dict[str, Any]) -> None:
+        """
+        Initialize the attack detection subsystem.
+
+        Args:
+            config: Attack detection configuration
+        """
+        if not ATTACK_DETECTION_AVAILABLE:
+            logger.warning("Attack detection module not available")
+            return
+
+        try:
+            # Build detector config
+            detector_config = DetectorConfig(
+                enable_siem=config.get("enable_siem", False),
+                enable_boundary_events=config.get("enable_boundary_events", True),
+                enable_flow_monitoring=config.get("enable_flow_monitoring", True),
+                min_confidence=config.get("min_confidence", 0.3),
+                auto_lockdown_on_critical=config.get("auto_lockdown_on_critical", True),
+            )
+
+            # Initialize attack detector
+            self._attack_detector = create_attack_detector(
+                config=detector_config,
+                on_attack=self._on_attack_detected,
+            )
+
+            # Initialize analyzer
+            codebase_root = config.get("codebase_root")
+            self._attack_analyzer = create_attack_analyzer(
+                codebase_root=Path(codebase_root) if codebase_root else None,
+            )
+
+            # Initialize remediation engine
+            self._remediation_engine = create_remediation_engine(
+                codebase_root=Path(codebase_root) if codebase_root else None,
+                test_command=config.get("test_command", "pytest tests/"),
+                allow_auto_apply=config.get("allow_auto_apply", False),
+            )
+
+            # Initialize recommendation system
+            self._recommendation_system = create_recommendation_system(
+                remediation_engine=self._remediation_engine,
+                on_recommendation=self._on_recommendation_created,
+            )
+
+            # Start the detector
+            self._attack_detector.start()
+            self._attack_detection_enabled = True
+
+            logger.info("Attack detection system initialized and started")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize attack detection: {e}")
+            self._attack_detection_enabled = False
 
     def validate_request(self, request: FlowRequest) -> RequestValidationResult:
         """
@@ -229,6 +329,10 @@ class SmithAgent(BaseAgent):
             validation_time = int((time.time() - start_time) * 1000)
             self._update_timing(validation_time)
 
+            # Run attack detection on the request (non-blocking)
+            if self._attack_detection_enabled and self._attack_detector:
+                self._run_attack_detection(request)
+
         except Exception as e:
             logger.error(f"Validation error: {e}")
             result.add_error(f"Validation failed: {str(e)}")
@@ -242,6 +346,42 @@ class SmithAgent(BaseAgent):
             )
 
         return result
+
+    def _run_attack_detection(self, request: FlowRequest) -> None:
+        """
+        Run attack detection on a request.
+
+        This is called during validation to check for attack patterns.
+        Detection is performed but doesn't block the request directly -
+        instead, attacks trigger callbacks and may cause lockdown.
+
+        Args:
+            request: The request to analyze
+        """
+        if not self._attack_detector:
+            return
+
+        try:
+            # Convert request to event format for attack detector
+            event_data = {
+                "type": "agent_request",
+                "request_id": str(request.request_id),
+                "source": request.source,
+                "destination": request.destination,
+                "intent": request.intent,
+                "content": request.content.prompt if request.content else "",
+                "metadata": request.metadata,
+                "timestamp": datetime.now().isoformat(),
+            }
+
+            # Process through attack detector
+            self._attack_detector.process_flow_event(
+                request=event_data,
+                agent=request.destination,
+            )
+
+        except Exception as e:
+            logger.warning(f"Attack detection error (non-fatal): {e}")
 
     def post_validate(
         self,
@@ -321,11 +461,80 @@ class SmithAgent(BaseAgent):
         if "incident" in prompt_lower:
             return self._handle_incident_request(request)
 
+        # Handle attack-related requests
+        if any(word in prompt_lower for word in ["attack", "threat", "security"]):
+            return self._handle_attack_request(request)
+
+        # Handle recommendation requests
+        if any(word in prompt_lower for word in ["recommendation", "fix", "patch"]):
+            return self._handle_recommendation_request(request)
+
         # Default response
         return request.create_response(
             source="smith",
             status=MessageStatus.SUCCESS,
             output="Smith (Guardian) is active and monitoring system security.",
+        )
+
+    def _handle_attack_request(self, request: FlowRequest) -> FlowResponse:
+        """Handle attack-related queries."""
+        if not self._attack_detection_enabled:
+            return request.create_response(
+                source="smith",
+                status=MessageStatus.SUCCESS,
+                output="Attack detection is not enabled.",
+            )
+
+        attacks = self.get_detected_attacks(limit=10)
+        status = self.get_attack_detection_status()
+
+        output = "Attack Detection Status:\n"
+        output += f"  Enabled: {status['enabled']}\n"
+        output += f"  Attacks Detected: {status['attacks_detected']}\n"
+        output += f"  Recommendations Generated: {status['recommendations_generated']}\n"
+        output += f"  Auto-Lockdowns: {status['auto_lockdowns_triggered']}\n\n"
+
+        if attacks:
+            output += "Recent Attacks:\n"
+            for attack in attacks[:5]:
+                output += f"  [{attack['severity']}] {attack['attack_id']}: {attack['attack_type']}\n"
+        else:
+            output += "No recent attacks detected.\n"
+
+        return request.create_response(
+            source="smith",
+            status=MessageStatus.SUCCESS,
+            output=output,
+        )
+
+    def _handle_recommendation_request(self, request: FlowRequest) -> FlowResponse:
+        """Handle recommendation-related queries."""
+        if not self._recommendation_system:
+            return request.create_response(
+                source="smith",
+                status=MessageStatus.SUCCESS,
+                output="Recommendation system is not enabled.",
+            )
+
+        pending = self.get_pending_recommendations()
+
+        if not pending:
+            return request.create_response(
+                source="smith",
+                status=MessageStatus.SUCCESS,
+                output="No pending fix recommendations.",
+            )
+
+        output = f"Pending Fix Recommendations ({len(pending)}):\n\n"
+        for rec in pending[:5]:
+            output += f"  {rec['recommendation_id']}: {rec['title']}\n"
+            output += f"    Priority: {rec['priority']}\n"
+            output += f"    Patches: {len(rec.get('patches', []))}\n\n"
+
+        return request.create_response(
+            source="smith",
+            status=MessageStatus.SUCCESS,
+            output=output,
         )
 
     def get_capabilities(self) -> AgentCapabilities:
@@ -361,6 +570,14 @@ class SmithAgent(BaseAgent):
         """Shutdown Smith agent."""
         logger.info("Smith shutting down")
 
+        # Stop attack detector if running
+        if self._attack_detector and self._attack_detection_enabled:
+            try:
+                self._attack_detector.stop()
+                logger.info("Attack detector stopped")
+            except Exception as e:
+                logger.warning(f"Error stopping attack detector: {e}")
+
         # Log shutdown
         if self._emergency:
             self._emergency.log_incident(
@@ -372,6 +589,273 @@ class SmithAgent(BaseAgent):
 
         self._state = AgentState.SHUTDOWN
         return True
+
+    # =========================================================================
+    # Attack Detection Methods
+    # =========================================================================
+
+    def _on_attack_detected(self, attack: Any) -> None:
+        """
+        Callback when an attack is detected.
+
+        This is called by the AttackDetector when a potential attack
+        is identified. Triggers analysis, remediation, and potentially
+        emergency responses.
+
+        Args:
+            attack: The detected AttackEvent
+        """
+        if not ATTACK_DETECTION_AVAILABLE:
+            return
+
+        self._smith_metrics.attacks_detected += 1
+
+        logger.warning(
+            f"Attack detected: {attack.attack_id} - "
+            f"{attack.attack_type.name} ({attack.severity.name})"
+        )
+
+        # Log as security incident
+        severity_mapping = {
+            1: IncidentSeverity.LOW,  # AttackSeverity.LOW
+            2: IncidentSeverity.MEDIUM,  # AttackSeverity.MEDIUM
+            3: IncidentSeverity.HIGH,  # AttackSeverity.HIGH
+            4: IncidentSeverity.CRITICAL,  # AttackSeverity.CRITICAL
+            5: IncidentSeverity.CRITICAL,  # AttackSeverity.CATASTROPHIC
+        }
+
+        if self._emergency:
+            self._emergency.log_incident(
+                severity=severity_mapping.get(attack.severity.value, IncidentSeverity.MEDIUM),
+                category=f"attack_detected_{attack.attack_type.name.lower()}",
+                description=attack.description,
+                triggered_by="attack_detector",
+            )
+
+        # Trigger emergency response for critical attacks
+        if attack.severity.value >= 4:  # CRITICAL or CATASTROPHIC
+            self._handle_critical_attack(attack)
+
+        # Analyze and generate remediation
+        if self._attack_analyzer and self._remediation_engine:
+            self._analyze_and_remediate(attack)
+
+        # Notify external callbacks
+        for callback in self._on_attack_callbacks:
+            try:
+                callback(attack)
+            except Exception as e:
+                logger.error(f"Attack callback error: {e}")
+
+    def _handle_critical_attack(self, attack: Any) -> None:
+        """
+        Handle a critical or catastrophic attack.
+
+        Args:
+            attack: The critical AttackEvent
+        """
+        logger.critical(f"CRITICAL ATTACK: {attack.attack_id}")
+
+        self._smith_metrics.auto_lockdowns_triggered += 1
+
+        # Trigger lockdown for catastrophic attacks
+        if attack.severity.value >= 5:  # CATASTROPHIC
+            self.trigger_lockdown(
+                f"Catastrophic attack detected: {attack.attack_id}"
+            )
+        else:
+            # Safe mode for critical attacks
+            self.trigger_safe_mode(
+                f"Critical attack detected: {attack.attack_id}"
+            )
+
+    def _analyze_and_remediate(self, attack: Any) -> None:
+        """
+        Analyze an attack and generate remediation recommendations.
+
+        Args:
+            attack: The AttackEvent to analyze
+        """
+        try:
+            # Analyze the attack
+            report = self._attack_analyzer.analyze(attack)
+
+            if not report.findings:
+                logger.info(f"No vulnerable code found for attack {attack.attack_id}")
+                return
+
+            # Generate remediation plan
+            plan = self._remediation_engine.generate_remediation_plan(attack, report)
+
+            if plan.patches:
+                logger.info(
+                    f"Generated {len(plan.patches)} patches for attack {attack.attack_id}"
+                )
+
+                # Create recommendation
+                if self._recommendation_system:
+                    recommendation = self._recommendation_system.create_recommendation(
+                        attack, report, plan
+                    )
+                    self._smith_metrics.recommendations_generated += 1
+
+                    logger.info(
+                        f"Created recommendation {recommendation.recommendation_id} "
+                        f"for attack {attack.attack_id}"
+                    )
+
+        except Exception as e:
+            logger.error(f"Error analyzing/remediating attack {attack.attack_id}: {e}")
+
+    def _on_recommendation_created(self, recommendation: Any) -> None:
+        """
+        Callback when a fix recommendation is created.
+
+        Args:
+            recommendation: The FixRecommendation
+        """
+        logger.info(
+            f"New fix recommendation: {recommendation.recommendation_id} - "
+            f"{recommendation.title}"
+        )
+
+    def register_attack_callback(self, callback: Callable[[Any], None]) -> None:
+        """
+        Register a callback for attack events.
+
+        Args:
+            callback: Function to call when attack detected
+        """
+        self._on_attack_callbacks.append(callback)
+
+    def process_boundary_event(self, event: Dict[str, Any]) -> None:
+        """
+        Process an event from the boundary daemon.
+
+        This allows the boundary daemon to send events to Smith
+        for attack detection analysis.
+
+        Args:
+            event: Boundary daemon event data
+        """
+        if self._attack_detector and self._attack_detection_enabled:
+            try:
+                self._attack_detector.process_boundary_event(event)
+            except Exception as e:
+                logger.warning(f"Error processing boundary event: {e}")
+
+    def process_tripwire_event(self, event: Dict[str, Any]) -> None:
+        """
+        Process a tripwire event from the boundary daemon.
+
+        Args:
+            event: Tripwire event data
+        """
+        if self._attack_detector and self._attack_detection_enabled:
+            try:
+                self._attack_detector.process_tripwire_event(event)
+            except Exception as e:
+                logger.warning(f"Error processing tripwire event: {e}")
+
+    def get_detected_attacks(
+        self,
+        since: Optional[datetime] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get list of detected attacks.
+
+        Args:
+            since: Only return attacks after this time
+            limit: Maximum number to return
+
+        Returns:
+            List of attack dictionaries
+        """
+        if not self._attack_detector or not self._attack_detection_enabled:
+            return []
+
+        try:
+            attacks = self._attack_detector.get_attacks(since=since)
+            return [a.to_dict() for a in attacks[:limit]]
+        except Exception as e:
+            logger.error(f"Error getting attacks: {e}")
+            return []
+
+    def get_pending_recommendations(self) -> List[Dict[str, Any]]:
+        """
+        Get pending fix recommendations awaiting review.
+
+        Returns:
+            List of recommendation dictionaries
+        """
+        if not self._recommendation_system:
+            return []
+
+        try:
+            from .attack_detection import RecommendationStatus
+            pending = self._recommendation_system.list_recommendations(
+                status=RecommendationStatus.PENDING
+            )
+            return [r.to_dict() for r in pending]
+        except Exception as e:
+            logger.error(f"Error getting recommendations: {e}")
+            return []
+
+    def approve_recommendation(
+        self,
+        recommendation_id: str,
+        approver: str,
+        comments: str = "",
+    ) -> bool:
+        """
+        Approve a fix recommendation.
+
+        Args:
+            recommendation_id: ID of recommendation to approve
+            approver: Who is approving
+            comments: Approval comments
+
+        Returns:
+            True if successful
+        """
+        if not self._recommendation_system:
+            return False
+
+        try:
+            return self._recommendation_system.approve(
+                recommendation_id,
+                approver,
+                comments,
+            )
+        except Exception as e:
+            logger.error(f"Error approving recommendation: {e}")
+            return False
+
+    def get_attack_detection_status(self) -> Dict[str, Any]:
+        """
+        Get attack detection system status.
+
+        Returns:
+            Status dictionary
+        """
+        status = {
+            "enabled": self._attack_detection_enabled,
+            "available": ATTACK_DETECTION_AVAILABLE,
+            "attacks_detected": self._smith_metrics.attacks_detected,
+            "attacks_mitigated": self._smith_metrics.attacks_mitigated,
+            "recommendations_generated": self._smith_metrics.recommendations_generated,
+            "auto_lockdowns_triggered": self._smith_metrics.auto_lockdowns_triggered,
+        }
+
+        if self._attack_detector and self._attack_detection_enabled:
+            try:
+                detector_stats = self._attack_detector.get_stats()
+                status["detector"] = detector_stats
+            except Exception:
+                status["detector"] = None
+
+        return status
 
     def trigger_safe_mode(self, reason: str) -> bool:
         """

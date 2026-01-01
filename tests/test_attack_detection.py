@@ -830,6 +830,231 @@ class TestModuleImports:
             FixRecommendation,
         ])
 
+    def test_import_integration(self):
+        from src.agents.smith.attack_detection import integration
+        assert integration.connect_boundary_to_smith is not None
+        assert integration.AttackDetectionPipeline is not None
+        assert integration.setup_attack_detection_pipeline is not None
+        assert integration.create_attack_alert_handler is not None
+
+    def test_import_integration_from_init(self):
+        from src.agents.smith.attack_detection import (
+            connect_boundary_to_smith,
+            AttackDetectionPipeline,
+            setup_attack_detection_pipeline,
+            create_attack_alert_handler,
+        )
+        assert all([
+            connect_boundary_to_smith,
+            AttackDetectionPipeline,
+            setup_attack_detection_pipeline,
+            create_attack_alert_handler,
+        ])
+
+
+# ============================================================================
+# Integration Module Tests
+# ============================================================================
+
+
+class TestIntegrationModule:
+    """Tests for the integration module."""
+
+    def test_attack_alert_handler_creation(self):
+        """Test creating an attack alert handler."""
+        from src.agents.smith.attack_detection.integration import (
+            create_attack_alert_handler,
+        )
+
+        handler = create_attack_alert_handler(
+            trigger_lockdown_severity=5,
+        )
+        assert handler is not None
+        assert callable(handler)
+
+    def test_attack_alert_handler_with_file_logging(self):
+        """Test attack alert handler with file logging."""
+        from src.agents.smith.attack_detection.integration import (
+            create_attack_alert_handler,
+        )
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False) as f:
+            log_path = f.name
+
+        try:
+            handler = create_attack_alert_handler(
+                log_to_file=log_path,
+                trigger_lockdown_severity=3,
+            )
+
+            # Create a mock attack event
+            mock_attack = MagicMock()
+            mock_attack.attack_id = "ATK-TEST-HANDLER"
+            mock_attack.attack_type = MagicMock()
+            mock_attack.attack_type.name = "PROMPT_INJECTION"
+            mock_attack.severity = MagicMock()
+            mock_attack.severity.name = "HIGH"
+            mock_attack.severity.value = 4
+            mock_attack.description = "Test attack for handler"
+
+            # Call the handler
+            handler(mock_attack)
+
+            # Verify log was written
+            with open(log_path, "r") as f:
+                content = f.read()
+                assert "ATK-TEST-HANDLER" in content
+                assert "PROMPT_INJECTION" in content
+        finally:
+            import os
+            os.unlink(log_path)
+
+    def test_attack_detection_pipeline_creation(self):
+        """Test creating an attack detection pipeline."""
+        from src.agents.smith.attack_detection.integration import (
+            AttackDetectionPipeline,
+        )
+
+        # Create a mock SmithAgent
+        mock_smith = MagicMock()
+        mock_smith.register_attack_callback = MagicMock()
+        mock_smith.get_attack_detection_status = MagicMock(return_value={"enabled": True})
+
+        pipeline = AttackDetectionPipeline(
+            smith=mock_smith,
+            daemon=None,
+        )
+
+        assert pipeline is not None
+        assert pipeline.smith == mock_smith
+        assert not pipeline._running
+
+    def test_attack_detection_pipeline_start_stop(self):
+        """Test starting and stopping the pipeline."""
+        from src.agents.smith.attack_detection.integration import (
+            AttackDetectionPipeline,
+        )
+
+        mock_smith = MagicMock()
+        mock_smith.register_attack_callback = MagicMock()
+        mock_smith.get_attack_detection_status = MagicMock(return_value={"enabled": True})
+
+        pipeline = AttackDetectionPipeline(smith=mock_smith)
+
+        # Start
+        result = pipeline.start()
+        assert result is True
+        assert pipeline._running
+
+        # Start again (already running)
+        result = pipeline.start()
+        assert result is True
+
+        # Stop
+        pipeline.stop()
+        assert not pipeline._running
+
+        # Stop again (already stopped)
+        pipeline.stop()
+        assert not pipeline._running
+
+    def test_attack_detection_pipeline_with_daemon(self):
+        """Test pipeline with boundary daemon connected."""
+        from src.agents.smith.attack_detection.integration import (
+            AttackDetectionPipeline,
+        )
+
+        mock_smith = MagicMock()
+        mock_smith.register_attack_callback = MagicMock()
+        mock_smith.get_attack_detection_status = MagicMock(return_value={"enabled": True})
+
+        mock_daemon = MagicMock()
+        mock_daemon.subscribe = MagicMock()
+        mock_daemon.unsubscribe = MagicMock()
+        mock_daemon.mode = MagicMock()
+        mock_daemon.mode.name = "ENFORCING"
+        mock_daemon.is_running = True
+
+        pipeline = AttackDetectionPipeline(
+            smith=mock_smith,
+            daemon=mock_daemon,
+        )
+
+        # Start
+        pipeline.start()
+        assert pipeline._running
+        mock_daemon.subscribe.assert_called_once()
+
+        # Get status
+        status = pipeline.get_status()
+        assert status["running"] is True
+        assert status["daemon_connected"] is True
+        assert status["daemon_mode"] == "ENFORCING"
+
+        # Stop
+        pipeline.stop()
+        mock_daemon.unsubscribe.assert_called_once()
+
+    def test_setup_attack_detection_pipeline(self):
+        """Test the convenience setup function."""
+        from src.agents.smith.attack_detection.integration import (
+            setup_attack_detection_pipeline,
+        )
+
+        mock_smith = MagicMock()
+        mock_smith.register_attack_callback = MagicMock()
+
+        # Without auto_start
+        pipeline = setup_attack_detection_pipeline(
+            smith=mock_smith,
+            auto_start=False,
+        )
+        assert pipeline is not None
+        assert not pipeline._running
+
+        # With auto_start
+        pipeline = setup_attack_detection_pipeline(
+            smith=mock_smith,
+            auto_start=True,
+        )
+        assert pipeline._running
+        pipeline.stop()
+
+    def test_connect_boundary_to_smith(self):
+        """Test connecting boundary daemon to Smith."""
+        from src.agents.smith.attack_detection.integration import (
+            connect_boundary_to_smith,
+        )
+
+        mock_smith = MagicMock()
+        mock_smith.process_tripwire_event = MagicMock()
+        mock_smith.process_boundary_event = MagicMock()
+
+        mock_daemon = MagicMock()
+        mock_daemon.subscribe = MagicMock()
+        mock_daemon.unsubscribe = MagicMock()
+
+        # Connect
+        disconnect = connect_boundary_to_smith(mock_daemon, mock_smith)
+        assert disconnect is not None
+        assert callable(disconnect)
+        mock_daemon.subscribe.assert_called_once()
+
+        # Get the event handler that was registered
+        event_handler = mock_daemon.subscribe.call_args[0][0]
+
+        # Simulate tripwire event
+        event_handler("tripwire", {"trigger": "test"})
+        mock_smith.process_tripwire_event.assert_called_once_with({"trigger": "test"})
+
+        # Simulate other boundary event
+        event_handler("policy_violation", {"policy": "test"})
+        mock_smith.process_boundary_event.assert_called_once()
+
+        # Disconnect
+        disconnect()
+        mock_daemon.unsubscribe.assert_called_once()
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
