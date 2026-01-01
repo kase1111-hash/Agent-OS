@@ -231,7 +231,7 @@ body::before {
     color: var(--text-muted);
     border: 1px solid rgba(168, 85, 247, 0.2);
     margin-right: 0.75rem;
-    max-width: 200px;
+    max-width: 400px;
     overflow: hidden;
     transition: var(--transition-normal);
 }
