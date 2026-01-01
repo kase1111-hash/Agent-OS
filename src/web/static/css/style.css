@@ -218,6 +218,98 @@ body::before {
     50% { opacity: 0.5; transform: scale(1.2); }
 }
 
+/* Dreaming Status Indicator */
+.dreaming-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.3rem 0.8rem;
+    border-radius: 2rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    background: rgba(168, 85, 247, 0.1);
+    color: var(--text-muted);
+    border: 1px solid rgba(168, 85, 247, 0.2);
+    margin-right: 0.75rem;
+    max-width: 200px;
+    overflow: hidden;
+    transition: var(--transition-normal);
+}
+
+.dreaming-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    flex-shrink: 0;
+    transition: var(--transition-normal);
+}
+
+.dreaming-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Dreaming phases */
+.dreaming-indicator.dreaming-idle {
+    background: rgba(100, 100, 100, 0.1);
+    border-color: rgba(100, 100, 100, 0.2);
+}
+
+.dreaming-indicator.dreaming-idle .dreaming-dot {
+    background: var(--text-muted);
+}
+
+.dreaming-indicator.dreaming-starting {
+    background: rgba(74, 158, 255, 0.15);
+    border-color: rgba(74, 158, 255, 0.3);
+    color: var(--primary-color);
+}
+
+.dreaming-indicator.dreaming-starting .dreaming-dot {
+    background: var(--primary-color);
+    box-shadow: 0 0 8px var(--primary-glow);
+}
+
+.dreaming-indicator.dreaming-running {
+    background: rgba(168, 85, 247, 0.15);
+    border-color: rgba(168, 85, 247, 0.3);
+    color: var(--accent-color);
+}
+
+.dreaming-indicator.dreaming-running .dreaming-dot {
+    background: var(--accent-color);
+    box-shadow: 0 0 8px var(--accent-glow);
+}
+
+.dreaming-indicator.dreaming-completed {
+    background: rgba(16, 185, 129, 0.15);
+    border-color: rgba(16, 185, 129, 0.3);
+    color: var(--success-color);
+}
+
+.dreaming-indicator.dreaming-completed .dreaming-dot {
+    background: var(--success-color);
+    box-shadow: 0 0 8px var(--success-glow);
+}
+
+/* Pulse animation for active states */
+.dreaming-pulse {
+    animation: dreamingPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes dreamingPulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.6;
+        transform: scale(1.3);
+    }
+}
+
 /* ===== MAIN CONTENT ===== */
 .main-content {
     flex: 1;
