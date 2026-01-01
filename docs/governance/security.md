@@ -248,7 +248,7 @@ Smith Watchdog Agent
 
 Real-time request validation
 Output sanitization
-Anomaly detection (planned)
+**Attack detection and auto-remediation** (NEW)
 Emergency shutdown capability
 
 Memory Consent System
@@ -272,6 +272,141 @@ No direct agent-to-agent communication
 Centralized authorization checking
 Request/response validation
 
+## Attack Detection System {#attack-detection}
+
+Agent Smith now includes a comprehensive attack detection and auto-remediation system that provides enterprise-grade security monitoring capabilities.
+
+### Overview
+
+The attack detection system monitors boundary daemon events and external SIEM feeds in real-time, detecting threats using pattern matching and LLM-powered analysis. When attacks are detected, the system can automatically generate patches and submit them for human review.
+
+### Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Real-time Detection** | Monitor boundary daemon events for attack indicators |
+| **SIEM Integration** | Connect to Splunk, Elasticsearch, Microsoft Sentinel, Syslog |
+| **Pattern Matching** | Signature-based detection using attack pattern library |
+| **LLM Analysis** | Deep attack analysis using Sage agent with MITRE ATT&CK mapping |
+| **Auto-Remediation** | Generate patches to fix identified vulnerabilities |
+| **Sandbox Testing** | Test patches in isolation before recommendation |
+| **Git Integration** | Automatically create PRs for security fixes |
+| **Multi-Channel Alerts** | Notify via Slack, Email, PagerDuty, Teams, Webhooks |
+| **Persistent Storage** | SQLite or in-memory storage for attack history |
+| **YAML Configuration** | Flexible config with environment variable substitution |
+
+### SIEM Integration
+
+Connect to enterprise SIEM systems for centralized threat monitoring:
+
+- **Splunk**: Query via REST API, real-time alerts, custom indexes
+- **Elasticsearch**: SIEM index queries, alert rules, cross-cluster search
+- **Microsoft Sentinel**: Azure Log Analytics integration, KQL queries
+- **Syslog**: RFC 5424 support, UDP/TCP transport
+
+### Notification Channels
+
+Configure multi-channel alerting based on severity:
+
+- **Slack**: Team notifications with configurable severity thresholds
+- **Email**: SMTP-based alerts with multi-recipient support
+- **PagerDuty**: On-call escalation for critical incidents
+- **Microsoft Teams**: Enterprise team notifications
+- **Webhooks**: Custom integrations with flexible payload templates
+- **Console**: Development and debugging output
+
+### Configuration Example
+
+```yaml
+attack_detection:
+  enabled: true
+  severity_threshold: low
+
+  detector:
+    enable_boundary_events: true
+    enable_siem_events: true
+    auto_lockdown_on_critical: false
+    detection_confidence_threshold: 0.7
+
+  siem:
+    sources:
+      - name: splunk-prod
+        provider: splunk
+        endpoint: ${SPLUNK_URL}
+        username: ${SPLUNK_USER}
+        password: ${SPLUNK_PASS}
+        poll_interval: 30
+
+  notifications:
+    channels:
+      - name: slack-security
+        type: slack
+        webhook_url: ${SLACK_WEBHOOK_URL}
+        min_severity: high
+
+      - name: email-oncall
+        type: email
+        min_severity: critical
+        smtp_host: ${SMTP_HOST}
+        from_address: security@example.com
+        to_addresses:
+          - oncall@example.com
+
+  storage:
+    backend: sqlite
+    path: ./data/attack_detection.db
+    cleanup_older_than_days: 90
+
+  analyzer:
+    enable_llm_analysis: true
+    use_sage_agent: true
+    mitre_mapping_enabled: true
+
+  remediation:
+    enabled: true
+    auto_generate_patches: true
+    require_approval: true
+    test_patches_in_sandbox: true
+
+  git:
+    enabled: false
+    auto_create_pr: false
+    pr_draft_mode: true
+    base_branch: main
+```
+
+### Security API Endpoints
+
+The attack detection system exposes RESTful API endpoints:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/security/attacks` | GET | List detected attacks with filtering |
+| `/api/security/attacks/{id}` | GET | Get detailed attack information |
+| `/api/security/attacks/{id}/false-positive` | POST | Mark attack as false positive |
+| `/api/security/recommendations` | GET | List fix recommendations |
+| `/api/security/recommendations/{id}` | GET | Get recommendation details |
+| `/api/security/recommendations/{id}/markdown` | GET | Get markdown-formatted recommendation |
+| `/api/security/recommendations/{id}/approve` | POST | Approve a recommendation |
+| `/api/security/recommendations/{id}/reject` | POST | Reject a recommendation |
+| `/api/security/recommendations/{id}/comments` | POST | Add review comment |
+| `/api/security/recommendations/{id}/assign` | POST | Assign reviewers |
+| `/api/security/status` | GET | Get system status |
+| `/api/security/pipeline` | POST | Start/stop detection pipeline |
+| `/api/security/patterns` | GET | List detection patterns |
+| `/api/security/patterns/{id}/enable` | POST | Enable a pattern |
+| `/api/security/patterns/{id}/disable` | POST | Disable a pattern |
+
+### Best Practices
+
+1. **Start with restrictive severity thresholds** - Begin with `min_severity: high` and lower as needed
+2. **Enable sandbox testing** - Always test patches before applying
+3. **Require human approval** - Keep `require_approval: true` for production
+4. **Use persistent storage** - SQLite is recommended for production deployments
+5. **Configure multiple notification channels** - Use different channels for different severities
+6. **Review false positives** - Regularly review and tune detection patterns
+7. **Keep SIEM credentials secure** - Use environment variables for sensitive data
+
 Planned Security Features (Phase 2-3)
 Encryption at Rest
 
@@ -287,12 +422,12 @@ Air-gap operation mode
 Optional internet connectivity
 VPN integration support
 
-Advanced Threat Detection
+Advanced Threat Detection (✅ Partially Implemented)
 
-Behavioral anomaly detection
-Pattern recognition for attacks
-Machine learning-based threat intelligence
-Automated threat response (with human approval)
+Behavioral anomaly detection (via attack detection system)
+Pattern recognition for attacks (via pattern library)
+Machine learning-based threat intelligence (via LLM analyzer)
+Automated threat response (with human approval via recommendation system)
 
 Formal Verification
 
@@ -659,8 +794,8 @@ Disclaimer
 AGENT OS IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND. See the LICENSE for full details.
 While we make every effort to maintain security, we cannot guarantee the absence of vulnerabilities. Users deploy Agent OS at their own risk and responsibility.
 
-Document Version: 1.0
-Last Updated: December 2025
-Next Review: Q2 2025
+Document Version: 1.1
+Last Updated: January 2026
+Next Review: Q2 2026
 Maintained By: Agent OS Security Team
 License: CC0 1.0 Universal (Public Domain)

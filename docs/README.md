@@ -68,6 +68,17 @@ Welcome to the Agent-OS documentation. This guide will help you navigate the com
 - [governance/agent-os-security-policy-making-guide.md](./governance/agent-os-security-policy-making-guide.md) - User guide for creating document-based security policies
 - [technical/red-team.md](./technical/red-team.md) - Security testing guidelines and adversarial scenarios
 
+### Attack Detection & Auto-Remediation (NEW)
+Agent Smith now includes a comprehensive attack detection and auto-remediation system:
+- **Real-time Detection**: Monitor boundary daemon events and SIEM feeds for attack indicators
+- **SIEM Integration**: Connect to Splunk, Elasticsearch, Microsoft Sentinel, and Syslog
+- **LLM-Powered Analysis**: Deep attack analysis using Sage agent with MITRE ATT&CK mapping
+- **Auto-Remediation**: Generate patches to fix vulnerabilities with sandbox testing
+- **Git Integration**: Automatically create PRs for security fixes
+- **Multi-Channel Notifications**: Alerts via Slack, Email, PagerDuty, Teams, and webhooks
+- **YAML Configuration**: Flexible configuration with environment variable substitution
+- **Security API**: RESTful endpoints for attack management and recommendations
+
 ### Policy & Licensing
 - [governance/policy-brief.md](./governance/policy-brief.md) - High-level policy framework summary
 - [governance/license-strategy.md](./governance/license-strategy.md) - CC0 licensing approach and rationale
@@ -168,6 +179,13 @@ See [ROADMAP.md](../ROADMAP.md) for detailed development timeline.
 
 ## Recent Updates
 
+- **January 2026**: Added comprehensive attack detection & auto-remediation system to Agent Smith
+- **January 2026**: Added SIEM integration (Splunk, Elasticsearch, Sentinel, Syslog)
+- **January 2026**: Added multi-channel notification system (Slack, Email, PagerDuty, Teams)
+- **January 2026**: Added YAML-based configuration for attack detection
+- **January 2026**: Added Git integration for automatic security fix PRs
+- **January 2026**: Added LLM-powered attack analysis with MITRE ATT&CK mapping
+- **January 2026**: Added Security API endpoints for attack management
 - **January 2026**: Added custom exception classes for improved error handling
 - **December 2025**: Added Windows build scripts (`build.bat`, `start.bat`)
 - **December 2025**: Added beginner-friendly quick start guide (`START_HERE.md`)
@@ -183,6 +201,7 @@ See [ROADMAP.md](../ROADMAP.md) for detailed development timeline.
 | **Understand the philosophy** | [lni-manifesto.md](./lni-manifesto.md) |
 | **Read technical specs** | [technical/architecture.md](./technical/architecture.md) |
 | **Report a security issue** | [governance/security.md](./governance/security.md#reporting-vulnerabilities) |
+| **Configure attack detection** | [governance/security.md](./governance/security.md#attack-detection) |
 | **Contribute code** | [CONTRIBUTING.md](../CONTRIBUTING.md) |
 | **Create a new agent** | [agents/template/](../agents/template/) |
 | **Understand agent roles** | [CONSTITUTION.md](../CONSTITUTION.md) |

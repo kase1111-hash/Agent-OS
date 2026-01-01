@@ -119,7 +119,7 @@ Agent-OS/
 ├── agents/                 # Agent constitutional definitions
 ├── docs/                   # Comprehensive documentation
 ├── examples/               # Practical usage examples
-├── tests/                  # Test suite (31 modules)
+├── tests/                  # Test suite (39 modules)
 ├── benchmarks/             # Performance benchmarks
 └── deploy/                 # Deployment configurations
 ```
@@ -131,7 +131,7 @@ Agent-OS/
 | Agent | Role | Description |
 |-------|------|-------------|
 | **Whisper** | Orchestrator | Intent classification and request routing |
-| **Smith** | Guardian | Security validation and constitutional enforcement |
+| **Smith** | Guardian | Security validation, constitutional enforcement, and attack detection |
 | **Seshat** | Archivist | Memory management and RAG retrieval |
 | **Sage** | Elder | Complex reasoning and synthesis |
 | **Quill** | Refiner | Document formatting and writing assistance |
@@ -146,11 +146,14 @@ Agent-OS/
 - **Memory Consent**: No data persistence without explicit permission
 - **Multi-Agent Architecture**: Specialized agents with clear authority boundaries
 - **Encrypted Memory Vault**: Secure, consent-based data storage
+- **Attack Detection & Auto-Remediation**: Real-time threat detection with LLM-powered analysis and automatic patch generation
+- **SIEM Integration**: Connect to Splunk, Elasticsearch, Microsoft Sentinel, and Syslog
 - **Voice Interface**: Speech-to-text and text-to-speech integration
 - **Web Interface**: Modern FastAPI-based UI with WebSocket support
 - **Mobile Backend**: API support for iOS/Android applications
 - **Federation**: Multi-node deployment with post-quantum cryptography
 - **Agent SDK**: Framework for building custom agents
+- **Multi-Channel Notifications**: Alerts via Slack, Email, PagerDuty, Teams, and webhooks
 
 ---
 
@@ -218,6 +221,7 @@ mypy src/
 | Main App | http://localhost:8080 | Web interface |
 | API Docs | http://localhost:8080/docs | Swagger documentation |
 | Health Check | http://localhost:8080/health | System status |
+| Security API | http://localhost:8080/api/security | Attack detection & recommendations |
 | Prometheus | http://localhost:9090 | Metrics (Docker) |
 | Grafana | http://localhost:3000 | Dashboards (Docker) |
 
