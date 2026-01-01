@@ -81,6 +81,12 @@ from .recommendation import (
     RecommendationStatus,
     create_recommendation_system,
 )
+from .integration import (
+    connect_boundary_to_smith,
+    AttackDetectionPipeline,
+    setup_attack_detection_pipeline,
+    create_attack_alert_handler,
+)
 
 __all__ = [
     # Detector
@@ -115,4 +121,9 @@ __all__ = [
     "FixRecommendation",
     "RecommendationStatus",
     "create_recommendation_system",
+    # Integration
+    "connect_boundary_to_smith",
+    "AttackDetectionPipeline",
+    "setup_attack_detection_pipeline",
+    "create_attack_alert_handler",
 ]

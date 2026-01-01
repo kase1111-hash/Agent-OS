@@ -101,6 +101,9 @@ class SmithDaemon:
         self._running = False
         self._started_at: Optional[datetime] = None
 
+        # Event subscribers for attack detection integration
+        self._event_subscribers: List[Callable[[str, Dict[str, Any]], None]] = []
+
         # Initialize components
         self._event_log = create_event_log(
             log_path=self.config.log_path,
@@ -360,6 +363,13 @@ class SmithDaemon:
                 details="External network access detected",
             )
 
+            # Publish to subscribers for attack detection
+            self._publish_event("security_violation", {
+                "type": "network_access",
+                "details": "External network access detected",
+                "timestamp": datetime.now().isoformat(),
+            })
+
             if self.mode != BoundaryMode.TRUSTED:
                 self._enforcement.alert(
                     "External network access detected",
@@ -373,6 +383,13 @@ class SmithDaemon:
                 processes=state.suspicious_processes,
             )
 
+            # Publish to subscribers for attack detection
+            self._publish_event("security_warning", {
+                "type": "suspicious_process",
+                "processes": state.suspicious_processes,
+                "timestamp": datetime.now().isoformat(),
+            })
+
     def _on_tripwire_triggered(self, event: TripwireEvent) -> None:
         """Handle tripwire triggers."""
         # Log the event
@@ -382,6 +399,9 @@ class SmithDaemon:
             severity=event.severity,
             data=event.trigger_data,
         )
+
+        # Publish to subscribers for attack detection
+        self._publish_event("tripwire", event.to_dict())
 
         # Determine enforcement action based on severity
         severity = EnforcementSeverity(min(event.severity, 5))
@@ -414,6 +434,13 @@ class SmithDaemon:
             reason="Mode transition",
         )
 
+        # Publish to subscribers
+        self._publish_event("mode_change", {
+            "old_mode": old_mode.name,
+            "new_mode": new_mode.name,
+            "timestamp": datetime.now().isoformat(),
+        })
+
     def _on_enforcement(self, event: EnforcementEvent) -> None:
         """Handle enforcement events."""
         self._event_log.log_enforcement(
@@ -422,6 +449,73 @@ class SmithDaemon:
             success=event.success,
             severity=event.severity.name,
         )
+
+        # Publish to subscribers for attack detection
+        self._publish_event("enforcement", {
+            "action": event.action.name,
+            "reason": event.reason,
+            "success": event.success,
+            "severity": event.severity.name,
+            "timestamp": datetime.now().isoformat(),
+        })
+
+    # =========================================================================
+    # Event Subscription for Attack Detection Integration
+    # =========================================================================
+
+    def subscribe(
+        self,
+        callback: Callable[[str, Dict[str, Any]], None],
+    ) -> None:
+        """
+        Subscribe to boundary daemon events.
+
+        This allows external systems (like Smith's attack detector) to
+        receive events from the boundary daemon for security analysis.
+
+        Args:
+            callback: Function to call with (event_type, event_data)
+        """
+        if callback not in self._event_subscribers:
+            self._event_subscribers.append(callback)
+            logger.debug(f"Subscriber added, total: {len(self._event_subscribers)}")
+
+    def unsubscribe(
+        self,
+        callback: Callable[[str, Dict[str, Any]], None],
+    ) -> bool:
+        """
+        Unsubscribe from boundary daemon events.
+
+        Args:
+            callback: The callback to remove
+
+        Returns:
+            True if callback was removed
+        """
+        try:
+            self._event_subscribers.remove(callback)
+            return True
+        except ValueError:
+            return False
+
+    def _publish_event(
+        self,
+        event_type: str,
+        event_data: Dict[str, Any],
+    ) -> None:
+        """
+        Publish an event to all subscribers.
+
+        Args:
+            event_type: Type of event
+            event_data: Event data dictionary
+        """
+        for subscriber in self._event_subscribers:
+            try:
+                subscriber(event_type, event_data)
+            except Exception as e:
+                logger.warning(f"Event subscriber error: {e}")
 
 
 def create_smith_daemon(
