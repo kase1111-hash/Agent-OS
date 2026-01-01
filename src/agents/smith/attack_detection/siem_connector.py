@@ -42,6 +42,7 @@ class SIEMProvider(Enum):
     SENTINEL = auto()
     SYSLOG = auto()
     WEBHOOK = auto()
+    BOUNDARY_SIEM = auto()  # Boundary SIEM integration
     MOCK = auto()  # For testing
 
 
@@ -1237,6 +1238,294 @@ class SyslogAdapter(SIEMAdapter):
             return None
 
 
+class BoundarySIEMAdapter(SIEMAdapter):
+    """
+    Boundary SIEM adapter.
+
+    Connects to Boundary SIEM (https://github.com/kase1111-hash/Boundary-SIEM)
+    for enterprise-grade security analytics and event correlation.
+
+    Boundary SIEM provides:
+    - 103 blockchain-specific and general security detection rules
+    - ClickHouse-based analytics with tiered retention
+    - MITRE ATT&CK framework mapping
+    - Compliance reporting (SOC 2, ISO 27001, NIST CSF, PCI DSS, GDPR)
+
+    Required config:
+        endpoint: Boundary SIEM API URL (e.g., "https://boundary-siem.example.com")
+        api_key: Boundary SIEM API key
+        extra_params.query_filter: Custom query filter (optional)
+        extra_params.severity_min: Minimum severity to fetch (optional)
+    """
+
+    def __init__(self, config: SIEMConfig):
+        self.config = config
+        self._connected = False
+        self._session: Optional[Any] = None
+
+    def connect(self) -> bool:
+        """Connect to Boundary SIEM via REST API."""
+        try:
+            import requests
+        except ImportError:
+            logger.error("requests library required for Boundary SIEM adapter")
+            return False
+
+        if not self.config.endpoint:
+            logger.error("Boundary SIEM endpoint not configured")
+            return False
+
+        try:
+            # Test connection with health check
+            health_url = urljoin(self.config.endpoint, "/api/v1/health")
+            headers = {"Authorization": f"Bearer {self.config.api_key}"}
+
+            response = requests.get(
+                health_url,
+                headers=headers,
+                verify=self.config.verify_ssl,
+                timeout=self.config.timeout,
+            )
+
+            if response.status_code == 200:
+                self._connected = True
+                data = response.json()
+                version = data.get("version", "unknown")
+                logger.info(f"Connected to Boundary SIEM v{version} at {self.config.endpoint}")
+                return True
+            else:
+                logger.error(f"Boundary SIEM health check failed: {response.status_code}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Boundary SIEM connection error: {e}")
+            return False
+
+    def disconnect(self) -> None:
+        """Disconnect from Boundary SIEM."""
+        self._connected = False
+        logger.info("Disconnected from Boundary SIEM")
+
+    def is_connected(self) -> bool:
+        return self._connected
+
+    def fetch_events(
+        self,
+        since: datetime,
+        filters: Optional[Dict[str, Any]] = None,
+    ) -> List[SIEMEvent]:
+        """Fetch events from Boundary SIEM via REST API."""
+        if not self._connected:
+            logger.warning("Boundary SIEM adapter not connected")
+            return []
+
+        try:
+            import requests
+        except ImportError:
+            return []
+
+        events = []
+        query_filter = self.config.extra_params.get("query_filter", "")
+        severity_min = self.config.extra_params.get("severity_min", "low")
+
+        try:
+            # Build query
+            events_url = urljoin(self.config.endpoint, "/api/v1/events")
+            headers = {
+                "Authorization": f"Bearer {self.config.api_key}",
+                "Content-Type": "application/json",
+            }
+
+            params = {
+                "start_time": since.isoformat(),
+                "limit": self.config.batch_size,
+                "severity_min": severity_min,
+            }
+
+            if query_filter:
+                params["query"] = query_filter
+
+            response = requests.get(
+                events_url,
+                headers=headers,
+                params=params,
+                verify=self.config.verify_ssl,
+                timeout=self.config.timeout,
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                results = data.get("events", [])
+
+                for result in results:
+                    event = self._parse_boundary_event(result)
+                    if event and (not filters or event.matches_filter(filters)):
+                        events.append(event)
+
+            else:
+                logger.error(f"Boundary SIEM query failed: {response.status_code}")
+
+        except Exception as e:
+            logger.error(f"Boundary SIEM fetch error: {e}")
+
+        return events
+
+    def fetch_alerts(
+        self,
+        since: datetime,
+        filters: Optional[Dict[str, Any]] = None,
+    ) -> List[SIEMEvent]:
+        """Fetch correlated alerts from Boundary SIEM."""
+        if not self._connected:
+            return []
+
+        try:
+            import requests
+        except ImportError:
+            return []
+
+        events = []
+
+        try:
+            alerts_url = urljoin(self.config.endpoint, "/api/v1/alerts")
+            headers = {
+                "Authorization": f"Bearer {self.config.api_key}",
+                "Content-Type": "application/json",
+            }
+
+            params = {
+                "start_time": since.isoformat(),
+                "limit": self.config.batch_size,
+                "status": "open",
+            }
+
+            response = requests.get(
+                alerts_url,
+                headers=headers,
+                params=params,
+                verify=self.config.verify_ssl,
+                timeout=self.config.timeout,
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                for alert in data.get("alerts", []):
+                    event = self._parse_boundary_alert(alert)
+                    if event and (not filters or event.matches_filter(filters)):
+                        events.append(event)
+
+        except Exception as e:
+            logger.error(f"Boundary SIEM alerts fetch error: {e}")
+
+        return events
+
+    def _parse_boundary_event(self, result: Dict[str, Any]) -> Optional[SIEMEvent]:
+        """Parse Boundary SIEM event into SIEMEvent."""
+        try:
+            # Parse timestamp
+            time_str = result.get("timestamp", "")
+            try:
+                timestamp = datetime.fromisoformat(time_str.replace("Z", "+00:00"))
+            except ValueError:
+                timestamp = datetime.now()
+
+            # Map severity
+            sev_str = str(result.get("severity", "")).lower()
+            severity_map = {
+                "critical": EventSeverity.CRITICAL,
+                "high": EventSeverity.HIGH,
+                "medium": EventSeverity.MEDIUM,
+                "low": EventSeverity.LOW,
+                "informational": EventSeverity.INFORMATIONAL,
+                "info": EventSeverity.INFORMATIONAL,
+            }
+            severity = severity_map.get(sev_str, EventSeverity.UNKNOWN)
+
+            # Extract MITRE tactics from Boundary SIEM
+            mitre_tactics = result.get("mitre_attack", {}).get("tactics", [])
+            mitre_techniques = result.get("mitre_attack", {}).get("techniques", [])
+
+            # Extract indicators
+            indicators = []
+            iocs = result.get("indicators", {})
+            for ip in iocs.get("ips", []):
+                indicators.append(f"ip:{ip}")
+            for domain in iocs.get("domains", []):
+                indicators.append(f"domain:{domain}")
+            for hash_val in iocs.get("hashes", []):
+                indicators.append(f"hash:{hash_val}")
+
+            return SIEMEvent(
+                event_id=f"boundary_siem_{result.get('id', hashlib.md5(str(result).encode()).hexdigest()[:16])}",
+                timestamp=timestamp,
+                source=result.get("source", result.get("host", "boundary-siem")),
+                event_type=result.get("event_type", result.get("rule_name", "security_event")),
+                severity=severity,
+                category=result.get("category", "security"),
+                description=result.get("message", result.get("description", "")),
+                raw_data=result,
+                metadata={
+                    "provider": "boundary_siem",
+                    "rule_id": result.get("rule_id", ""),
+                    "rule_name": result.get("rule_name", ""),
+                    "techniques": mitre_techniques,
+                },
+                indicators=indicators,
+                mitre_tactics=mitre_tactics,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to parse Boundary SIEM event: {e}")
+            return None
+
+    def _parse_boundary_alert(self, alert: Dict[str, Any]) -> Optional[SIEMEvent]:
+        """Parse Boundary SIEM alert into SIEMEvent."""
+        try:
+            # Parse timestamp
+            time_str = alert.get("created_at", alert.get("timestamp", ""))
+            try:
+                timestamp = datetime.fromisoformat(time_str.replace("Z", "+00:00"))
+            except ValueError:
+                timestamp = datetime.now()
+
+            # Map severity
+            sev_str = str(alert.get("severity", "")).lower()
+            severity_map = {
+                "critical": EventSeverity.CRITICAL,
+                "high": EventSeverity.HIGH,
+                "medium": EventSeverity.MEDIUM,
+                "low": EventSeverity.LOW,
+            }
+            severity = severity_map.get(sev_str, EventSeverity.MEDIUM)
+
+            # Get related events
+            related_events = [str(e) for e in alert.get("event_ids", [])]
+
+            # Get MITRE info
+            mitre_tactics = alert.get("mitre_attack", {}).get("tactics", [])
+
+            return SIEMEvent(
+                event_id=f"boundary_siem_alert_{alert.get('id', '')}",
+                timestamp=timestamp,
+                source=alert.get("source", "boundary-siem"),
+                event_type=f"alert:{alert.get('name', 'unknown')}",
+                severity=severity,
+                category="alert",
+                description=alert.get("description", alert.get("name", "")),
+                raw_data=alert,
+                metadata={
+                    "provider": "boundary_siem",
+                    "alert_id": alert.get("id", ""),
+                    "alert_status": alert.get("status", ""),
+                    "correlation_rule": alert.get("correlation_rule", ""),
+                },
+                related_events=related_events,
+                mitre_tactics=mitre_tactics,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to parse Boundary SIEM alert: {e}")
+            return None
+
+
 class SIEMConnector:
     """
     Main SIEM connector managing multiple SIEM sources.
@@ -1437,6 +1726,7 @@ class SIEMConnector:
             SIEMProvider.ELASTIC: ElasticAdapter,
             SIEMProvider.SENTINEL: SentinelAdapter,
             SIEMProvider.SYSLOG: SyslogAdapter,
+            SIEMProvider.BOUNDARY_SIEM: BoundarySIEMAdapter,
         }
 
         adapter_class = adapters.get(config.provider)

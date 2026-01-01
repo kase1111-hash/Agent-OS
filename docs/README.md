@@ -68,16 +68,26 @@ Welcome to the Agent-OS documentation. This guide will help you navigate the com
 - [governance/agent-os-security-policy-making-guide.md](./governance/agent-os-security-policy-making-guide.md) - User guide for creating document-based security policies
 - [technical/red-team.md](./technical/red-team.md) - Security testing guidelines and adversarial scenarios
 
-### Attack Detection & Auto-Remediation (NEW)
+### Attack Detection & Auto-Remediation
 Agent Smith now includes a comprehensive attack detection and auto-remediation system:
 - **Real-time Detection**: Monitor boundary daemon events and SIEM feeds for attack indicators
-- **SIEM Integration**: Connect to Splunk, Elasticsearch, Microsoft Sentinel, and Syslog
+- **SIEM Integration**: Connect to Splunk, Elasticsearch, Microsoft Sentinel, Syslog, and Boundary SIEM
 - **LLM-Powered Analysis**: Deep attack analysis using Sage agent with MITRE ATT&CK mapping
 - **Auto-Remediation**: Generate patches to fix vulnerabilities with sandbox testing
 - **Git Integration**: Automatically create PRs for security fixes
 - **Multi-Channel Notifications**: Alerts via Slack, Email, PagerDuty, Teams, and webhooks
 - **YAML Configuration**: Flexible configuration with environment variable substitution
 - **Security API**: RESTful endpoints for attack management and recommendations
+
+### External Security Tools (Optional)
+Agent OS supports optional integration with external security infrastructure:
+
+- **[Boundary Daemon](https://github.com/kase1111-hash/boundary-daemon-)**: Trust policy and audit layer with six security modes, process sandboxing, and cryptographic logging
+- **[Boundary SIEM](https://github.com/kase1111-hash/Boundary-SIEM)**: Enterprise SIEM with 103 detection rules, ClickHouse analytics, and compliance reporting
+
+See:
+- [Boundary Tools Integration Guide](./integration/boundary-tools.md) - Detailed setup and configuration
+- [Security Policy - External Tools](./governance/security.md#external-tools) - Overview and best practices
 
 ### Policy & Licensing
 - [governance/policy-brief.md](./governance/policy-brief.md) - High-level policy framework summary
@@ -179,8 +189,11 @@ See [ROADMAP.md](../ROADMAP.md) for detailed development timeline.
 
 ## Recent Updates
 
+- **January 2026**: Added Boundary Daemon and Boundary SIEM as optional external security tools
+- **January 2026**: Added BoundarySIEMAdapter for native Boundary SIEM integration
+- **January 2026**: Added [Boundary Tools Integration Guide](./integration/boundary-tools.md)
 - **January 2026**: Added comprehensive attack detection & auto-remediation system to Agent Smith
-- **January 2026**: Added SIEM integration (Splunk, Elasticsearch, Sentinel, Syslog)
+- **January 2026**: Added SIEM integration (Splunk, Elasticsearch, Sentinel, Syslog, Boundary SIEM)
 - **January 2026**: Added multi-channel notification system (Slack, Email, PagerDuty, Teams)
 - **January 2026**: Added YAML-based configuration for attack detection
 - **January 2026**: Added Git integration for automatic security fix PRs
@@ -202,6 +215,7 @@ See [ROADMAP.md](../ROADMAP.md) for detailed development timeline.
 | **Read technical specs** | [technical/architecture.md](./technical/architecture.md) |
 | **Report a security issue** | [governance/security.md](./governance/security.md#reporting-vulnerabilities) |
 | **Configure attack detection** | [governance/security.md](./governance/security.md#attack-detection) |
+| **Integrate Boundary tools** | [integration/boundary-tools.md](./integration/boundary-tools.md) |
 | **Contribute code** | [CONTRIBUTING.md](../CONTRIBUTING.md) |
 | **Create a new agent** | [agents/template/](../agents/template/) |
 | **Understand agent roles** | [CONSTITUTION.md](../CONSTITUTION.md) |
