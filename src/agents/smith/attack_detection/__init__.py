@@ -113,6 +113,16 @@ from .storage_integration import (
     StorageIntegration,
     create_storage_integration,
 )
+from .llm_analyzer import (
+    LLMAnalyzer,
+    LLMAnalysisResult,
+    AttackIntent,
+    MITRETactic,
+    ImpactAssessment,
+    CodeVulnerability,
+    AnalysisConfidence,
+    create_llm_analyzer,
+)
 
 __all__ = [
     # Detector
@@ -176,4 +186,13 @@ __all__ = [
     # Storage Integration
     "StorageIntegration",
     "create_storage_integration",
+    # LLM Analyzer
+    "LLMAnalyzer",
+    "LLMAnalysisResult",
+    "AttackIntent",
+    "MITRETactic",
+    "ImpactAssessment",
+    "CodeVulnerability",
+    "AnalysisConfidence",
+    "create_llm_analyzer",
 ]
