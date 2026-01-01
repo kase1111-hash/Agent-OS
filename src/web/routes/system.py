@@ -16,6 +16,8 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from src import __version__ as PKG_VERSION
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
@@ -50,7 +52,7 @@ except ImportError:
 class SystemInfo(BaseModel):
     """System information."""
 
-    version: str = "1.0.0"
+    version: str = PKG_VERSION
     python_version: str
     platform: str
     hostname: str
@@ -230,7 +232,7 @@ async def get_component_health() -> List[ComponentHealth]:
             status="up",
             latency_ms=1.0,
             last_check=now,
-            details={"version": "1.0.0", "framework": "FastAPI"},
+            details={"version": PKG_VERSION, "framework": "FastAPI"},
         )
     )
 
@@ -495,9 +497,9 @@ async def restart_system(confirm: bool = False) -> Dict[str, str]:
 async def get_version() -> Dict[str, str]:
     """Get version information."""
     return {
-        "version": "1.0.0",
+        "version": PKG_VERSION,
         "api_version": "v1",
-        "build": "2024.12.21",
+        "build": "2026.01.01",
         "python": platform.python_version(),
     }
 

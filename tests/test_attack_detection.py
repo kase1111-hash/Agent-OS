@@ -28,6 +28,7 @@ from src.agents.smith.attack_detection.patterns import (
     create_pattern_library,
 )
 from src.agents.smith.attack_detection.siem_connector import (
+    BoundarySIEMAdapter,
     EventSeverity,
     SIEMConfig,
     SIEMConnector,
@@ -1054,6 +1055,168 @@ class TestIntegrationModule:
         # Disconnect
         disconnect()
         mock_daemon.unsubscribe.assert_called_once()
+
+
+# ============================================================================
+# Boundary SIEM Integration Tests
+# ============================================================================
+
+
+class TestBoundarySIEMAdapter:
+    """Tests for Boundary SIEM adapter integration.
+
+    See: https://github.com/kase1111-hash/Boundary-SIEM
+    """
+
+    def test_create_boundary_siem_adapter(self):
+        """Test creating a Boundary SIEM adapter."""
+        config = SIEMConfig(
+            provider=SIEMProvider.BOUNDARY_SIEM,
+            endpoint="http://localhost:8080",
+            api_key="test-api-key",
+        )
+        adapter = BoundarySIEMAdapter(config)
+        assert adapter is not None
+        assert adapter.config.provider == SIEMProvider.BOUNDARY_SIEM
+
+    def test_boundary_siem_provider_enum(self):
+        """Test that BOUNDARY_SIEM is a valid provider."""
+        assert SIEMProvider.BOUNDARY_SIEM is not None
+        assert SIEMProvider.BOUNDARY_SIEM.name == "BOUNDARY_SIEM"
+
+    def test_boundary_siem_config_defaults(self):
+        """Test Boundary SIEM configuration with defaults."""
+        config = SIEMConfig(
+            provider=SIEMProvider.BOUNDARY_SIEM,
+            endpoint="https://boundary-siem.example.com",
+            api_key="secure-api-key",
+        )
+        # Check defaults
+        assert config.verify_ssl is True
+        assert config.timeout == 30
+        assert config.poll_interval == 60
+        assert config.batch_size == 100
+
+    def test_boundary_siem_config_custom(self):
+        """Test Boundary SIEM configuration with custom values."""
+        config = SIEMConfig(
+            provider=SIEMProvider.BOUNDARY_SIEM,
+            endpoint="https://boundary-siem.example.com",
+            api_key="secure-api-key",
+            verify_ssl=False,
+            timeout=60,
+            poll_interval=30,
+            batch_size=200,
+            extra_params={
+                "query_filter": "source:agent-os",
+                "severity_min": "medium",
+                "include_alerts": True,
+            },
+        )
+        assert config.verify_ssl is False
+        assert config.timeout == 60
+        assert config.extra_params["severity_min"] == "medium"
+
+    def test_boundary_siem_not_connected_initially(self):
+        """Test that adapter is not connected initially."""
+        config = SIEMConfig(
+            provider=SIEMProvider.BOUNDARY_SIEM,
+            endpoint="http://localhost:8080",
+            api_key="test-key",
+        )
+        adapter = BoundarySIEMAdapter(config)
+        assert adapter.is_connected() is False
+
+    def test_boundary_siem_fetch_without_connect(self):
+        """Test fetching events without connection returns empty list."""
+        config = SIEMConfig(
+            provider=SIEMProvider.BOUNDARY_SIEM,
+            endpoint="http://localhost:8080",
+            api_key="test-key",
+        )
+        adapter = BoundarySIEMAdapter(config)
+        events = adapter.fetch_events(datetime.now())
+        assert events == []
+
+    def test_add_boundary_siem_to_connector(self):
+        """Test adding Boundary SIEM source to connector."""
+        connector = create_siem_connector()
+
+        config = SIEMConfig(
+            provider=SIEMProvider.BOUNDARY_SIEM,
+            endpoint="http://boundary-siem:8080",
+            api_key="test-integration-key",
+            extra_params={
+                "query_filter": "source:agent-os OR source:boundary-daemon",
+            },
+        )
+
+        connector.add_source("boundary-siem", config)
+        stats = connector.get_stats()
+        assert stats["sources_total"] >= 1
+
+    def test_boundary_siem_event_parsing(self):
+        """Test that Boundary SIEM adapter can parse event responses."""
+        config = SIEMConfig(
+            provider=SIEMProvider.BOUNDARY_SIEM,
+            endpoint="http://localhost:8080",
+            api_key="test-key",
+        )
+        adapter = BoundarySIEMAdapter(config)
+
+        # Test parsing a mock event
+        mock_event = {
+            "id": "evt-001",
+            "timestamp": datetime.now().isoformat(),
+            "source": "agent-os",
+            "event_type": "security_violation",
+            "severity": "high",
+            "category": "policy",
+            "message": "Constitutional rule violation detected",
+            "mitre_tactics": ["TA0001"],
+            "iocs": {
+                "ips": ["192.168.1.100"],
+                "domains": [],
+                "hashes": [],
+            },
+        }
+
+        event = adapter._parse_boundary_event(mock_event)
+        assert event is not None
+        assert event.event_id.startswith("boundary_siem_")
+        assert event.source == "agent-os"
+
+    def test_boundary_siem_alert_parsing(self):
+        """Test that Boundary SIEM adapter can parse alert responses."""
+        config = SIEMConfig(
+            provider=SIEMProvider.BOUNDARY_SIEM,
+            endpoint="http://localhost:8080",
+            api_key="test-key",
+        )
+        adapter = BoundarySIEMAdapter(config)
+
+        # Test parsing a mock alert
+        mock_alert = {
+            "id": "alert-001",
+            "timestamp": datetime.now().isoformat(),
+            "name": "Multi-stage Attack Detected",
+            "severity": "critical",
+            "status": "open",
+            "source": "correlation-engine",
+            "description": "Correlated events indicate potential attack",
+            "mitre_tactics": ["TA0001", "TA0002"],
+            "mitre_techniques": ["T1190", "T1059"],
+            "correlated_events": ["evt-001", "evt-002"],
+            "iocs": {
+                "ips": ["10.0.0.50"],
+                "domains": ["malicious.example.com"],
+                "hashes": [],
+            },
+        }
+
+        event = adapter._parse_boundary_alert(mock_alert)
+        assert event is not None
+        assert event.severity == EventSeverity.CRITICAL
 
 
 if __name__ == "__main__":

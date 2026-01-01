@@ -1,0 +1,137 @@
+# Boundary SIEM Integration Configuration
+# ========================================
+#
+# This file configures the Agent OS integration with Boundary SIEM.
+# See: https://github.com/kase1111-hash/Boundary-SIEM
+#
+# Copy this file to boundary-siem.yaml and update the values for your environment.
+# Do NOT commit the actual config file with real credentials.
+
+# SIEM Connection Settings
+siem:
+  # Boundary SIEM API endpoint
+  # For Docker: http://boundary-siem:8080
+  # For Kubernetes: http://boundary-siem.security.svc.cluster.local:8080
+  endpoint: "${BOUNDARY_SIEM_URL:-http://localhost:8080}"
+
+  # API key for authentication (REQUIRED)
+  # Generate in Boundary SIEM: Settings > API Keys > Create
+  api_key: "${BOUNDARY_SIEM_API_KEY}"
+
+  # Connection settings
+  verify_ssl: true
+  timeout: 30  # seconds
+  poll_interval: 30  # seconds between polls
+  batch_size: 100  # events per request
+  lookback_minutes: 15  # how far back to look for new events
+
+# Query Filtering
+query:
+  # Filter to only Agent OS and Boundary Daemon events
+  filter: "source:agent-os OR source:boundary-daemon"
+
+  # Minimum severity level (informational, low, medium, high, critical)
+  severity_min: medium
+
+  # Include correlated alerts in addition to raw events
+  include_alerts: true
+
+  # Event categories to include (empty = all)
+  categories: []
+  # - authentication
+  # - authorization
+  # - policy
+  # - network
+  # - process
+
+# Alert Handling
+alerts:
+  # Enable alert processing
+  enabled: true
+
+  # Only process alerts in these statuses
+  statuses:
+    - open
+    - investigating
+
+  # Auto-acknowledge alerts after processing
+  auto_acknowledge: false
+
+# MITRE ATT&CK Mapping
+mitre:
+  # Enable MITRE ATT&CK tactic/technique extraction
+  enabled: true
+
+  # Tactics to prioritize for detection
+  priority_tactics:
+    - TA0001  # Initial Access
+    - TA0002  # Execution
+    - TA0003  # Persistence
+    - TA0004  # Privilege Escalation
+    - TA0005  # Defense Evasion
+    - TA0006  # Credential Access
+    - TA0007  # Discovery
+    - TA0008  # Lateral Movement
+    - TA0009  # Collection
+    - TA0010  # Exfiltration
+    - TA0011  # Command and Control
+
+# IoC Extraction
+iocs:
+  # Enable Indicator of Compromise extraction
+  enabled: true
+
+  # Types of IoCs to extract
+  types:
+    - ip
+    - domain
+    - hash
+    - url
+    - email
+
+# Event Correlation
+correlation:
+  # Enable event correlation with Smith's attack detector
+  enabled: true
+
+  # Time window for correlation (seconds)
+  window: 300
+
+  # Minimum events to trigger correlation
+  threshold: 3
+
+# Logging
+logging:
+  # Log level for SIEM connector (DEBUG, INFO, WARNING, ERROR)
+  level: INFO
+
+  # Log successful event fetches
+  log_fetches: false
+
+  # Log connection status changes
+  log_connections: true
+
+# Health Checks
+health:
+  # Enable periodic health checks
+  enabled: true
+
+  # Health check interval (seconds)
+  interval: 60
+
+  # Mark as unhealthy after N consecutive failures
+  failure_threshold: 3
+
+# Retry Configuration
+retry:
+  # Maximum retry attempts for failed requests
+  max_attempts: 3
+
+  # Initial backoff delay (seconds)
+  initial_delay: 1
+
+  # Backoff multiplier
+  multiplier: 2
+
+  # Maximum backoff delay (seconds)
+  max_delay: 30
