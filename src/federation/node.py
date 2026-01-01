@@ -157,8 +157,9 @@ class PeerConnection:
             self.writer.close()
             try:
                 await self.writer.wait_closed()
-            except Exception:
-                pass
+            except Exception as e:
+                # Connection may already be closed; log for debugging
+                logger.debug(f"Error closing writer for {self.peer_id}: {e}")
 
 
 class FederationNode:

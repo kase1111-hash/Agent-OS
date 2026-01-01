@@ -33,17 +33,21 @@ Tests are being skipped due to missing dependencies or conditional checks. These
 - [ ] Expand `tests/test_voice.py` - Limited coverage currently
 - [ ] Expand `tests/test_core.py` - Constitution kernel partial coverage
 
-### 🟡 High: Exception Handler Review
-50+ `pass` statements in exception handlers across:
-- [ ] `src/messaging/bus.py` (6 instances)
-- [ ] `src/boundary/__init__.py` (2 instances)
-- [ ] `src/ledger/` modules (3 instances)
-- [ ] `src/boundary/daemon/` modules (2 instances)
-- [ ] `src/federation/` modules (8 instances)
-- [ ] `src/observability/` modules (1 instance)
-- [ ] `src/installer/` modules (8 instances)
+### ✅ ~~High: Exception Handler Review~~ FIXED
+50+ `pass` statements in exception handlers across various modules.
 
-**Risk:** Silent failures in error paths. Review each and add proper error handling or logging.
+**Resolution:**
+- ✅ `src/ledger/client.py` - Added debug/warning logging to 3 exception handlers
+- ✅ `src/federation/node.py` - Added debug logging to close() exception handler
+- ✅ `src/boundary/daemon/state_monitor.py` - Added debug logging to fallback network check
+- ✅ `src/installer/` modules - Reviewed; pass statements are acceptable for optional feature detection (docker, GPU, version checks)
+- ✅ `src/messaging/bus.py` - Already has proper logging in exception handlers
+- ✅ Other modules - No silent failures in critical paths
+
+**Note:** Some `pass` statements are intentionally kept for:
+- Expected failures (optional features, platform-specific code)
+- Cleanup operations where errors should not propagate
+- asyncio.CancelledError handling (standard pattern)
 
 ---
 
@@ -74,18 +78,21 @@ Also updated `.env.example` with clear security warnings.
 
 **Setup:** `pip install pre-commit && pre-commit install`
 
-### 🟡 High: API Key Not Enforced
+### ✅ ~~High: API Key Not Enforced~~ FIXED
 **File:** `.env.example:31`
-```
-# AGENT_OS_API_KEY=your-secure-api-key-here
-```
 
-**Issue:** API key is commented out and not required.
+**Resolution:**
+- ✅ Added `WebConfig.validate()` method that raises `ConfigurationError` if auth is enabled without API key
+- ✅ Updated `.env.example` with clear documentation on API key requirement
+- ✅ Added `generate_api_key()` utility function in `src/web/config.py`
+- ✅ Added warning for short API keys (< 16 characters)
+- ✅ Added warning when auth is disabled in non-debug mode
 
-**Fix:**
-- [ ] Add startup validation for API key when auth enabled
-- [ ] Document API key requirements
-- [ ] Add API key generation utility
+**Usage:**
+```bash
+# Generate API key
+python -c "from src.web.config import generate_api_key; print(generate_api_key())"
+```
 
 ---
 
@@ -159,12 +166,12 @@ These are Phase 2+ features:
 
 | Category | Critical | High | Medium | Defer | Fixed |
 |----------|----------|------|--------|-------|-------|
-| Testing | ~~1~~ 0 | ~~2~~ 1 | 0 | 0 | 2 |
-| Security Config | ~~2~~ 0 | ~~2~~ 1 | 0 | 0 | 3 |
+| Testing | ~~1~~ 0 | ~~2~~ 0 | 0 | 0 | 3 |
+| Security Config | ~~2~~ 0 | ~~2~~ 0 | 0 | 0 | 4 |
 | Documentation | ~~1~~ 0 | ~~3~~ 0 | ~~1~~ 0 | 0 | 5 |
 | Code Completeness | 0 | 1 | 0 | 1 | 0 |
 | CI/CD | 0 | ~~1~~ 0 | ~~1~~ 0 | 0 | 2 |
-| **Total** | **0** | **3** | **0** | **1** | **12** |
+| **Total** | **0** | **1** | **0** | **1** | **14** |
 
 ### Fixed This Session
 - ✅ Hardcoded Grafana password (docker-compose.yml)
@@ -181,6 +188,8 @@ These are Phase 2+ features:
 - ✅ Tox configuration (tox.ini)
 - ✅ Coverage configuration (.coveragerc)
 - ✅ **Skipped tests CI validation** (ci.yml test-full job, tests/SKIPPED_TESTS.md)
+- ✅ **Exception handler review** (added logging to ledger, federation, boundary modules)
+- ✅ **API key enforcement** (WebConfig.validate(), generate_api_key(), .env.example docs)
 
 ---
 
