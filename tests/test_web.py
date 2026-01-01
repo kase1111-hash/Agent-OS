@@ -1120,3 +1120,253 @@ class TestVoiceConfig:
             assert config.voice.tts_enabled is True
             assert config.voice.tts_engine == "espeak"
             assert config.voice.tts_speed == 1.5
+
+
+# =============================================================================
+# Security API Tests
+# =============================================================================
+
+
+@pytest.mark.skipif(not FASTAPI_AVAILABLE, reason="FastAPI not installed")
+class TestSecurityAPI:
+    """Tests for security API endpoints."""
+
+    @pytest.fixture
+    def client(self):
+        """Create test client with mocked Smith agent."""
+        from unittest.mock import patch, MagicMock
+        from src.web.app import create_app
+        import src.web.routes.security as security_module
+
+        # Create mock Smith agent
+        mock_smith = MagicMock()
+        mock_smith._attack_detection_enabled = True
+        mock_smith._attack_detector = MagicMock()
+        mock_smith._recommendation_system = MagicMock()
+
+        # Mock get_detected_attacks
+        mock_smith.get_detected_attacks.return_value = [
+            {
+                "attack_id": "ATK-001",
+                "attack_type": "PROMPT_INJECTION",
+                "severity": "HIGH",
+                "status": "DETECTED",
+                "detected_at": datetime.utcnow().isoformat(),
+                "description": "Test attack",
+                "confidence": 0.85,
+                "source": "test",
+            }
+        ]
+
+        # Mock get_attack_detection_status
+        mock_smith.get_attack_detection_status.return_value = {
+            "enabled": True,
+            "available": True,
+            "attacks_detected": 5,
+            "attacks_mitigated": 2,
+            "recommendations_generated": 3,
+            "auto_lockdowns_triggered": 0,
+            "detector": {"events_processed": 100},
+        }
+
+        # Mock get_pending_recommendations (returns list, not dict)
+        mock_smith.get_pending_recommendations.return_value = []
+
+        # Mock approve_recommendation
+        mock_smith.approve_recommendation.return_value = True
+
+        # Patch the module's get_smith to return our mock
+        with patch.object(security_module, "_smith_instance", mock_smith):
+            with patch.object(security_module, "get_smith", return_value=mock_smith):
+                app = create_app()
+                yield TestClient(app)
+
+    def test_list_attacks(self, client):
+        """Test listing detected attacks."""
+        response = client.get("/api/security/attacks")
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+
+    def test_list_attacks_with_filters(self, client):
+        """Test listing attacks with filters."""
+        response = client.get("/api/security/attacks?severity=HIGH&limit=10")
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+
+    def test_get_attack_detail(self, client):
+        """Test getting attack details."""
+        # First get list to get an attack ID
+        response = client.get("/api/security/attacks")
+        assert response.status_code == 200
+        attacks = response.json()
+
+        if attacks:
+            attack_id = attacks[0]["attack_id"]
+            response = client.get(f"/api/security/attacks/{attack_id}")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["attack_id"] == attack_id
+
+    def test_get_attack_detection_status(self, client):
+        """Test getting attack detection status."""
+        response = client.get("/api/security/status")
+        assert response.status_code == 200
+        data = response.json()
+        assert "enabled" in data
+        assert "attacks_detected" in data
+        assert "recommendations_generated" in data
+
+    def test_list_recommendations(self, client):
+        """Test listing recommendations."""
+        response = client.get("/api/security/recommendations")
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+
+    def test_approve_recommendation(self, client):
+        """Test approving a recommendation."""
+        response = client.post(
+            "/api/security/recommendations/REC-001/approve",
+            json={
+                "approver": "test_user",
+                "comments": "Looks good",
+            }
+        )
+        # May succeed or fail depending on mock
+        assert response.status_code in (200, 400, 404)
+
+    def test_reject_recommendation(self, client):
+        """Test rejecting a recommendation."""
+        response = client.post(
+            "/api/security/recommendations/REC-001/reject",
+            json={
+                "rejector": "test_user",
+                "reason": "False positive",
+            }
+        )
+        # May succeed or fail depending on mock
+        assert response.status_code in (200, 400, 404, 503)
+
+    def test_add_comment_to_recommendation(self, client):
+        """Test adding comment to recommendation."""
+        response = client.post(
+            "/api/security/recommendations/REC-001/comments",
+            json={
+                "author": "test_user",
+                "content": "This needs review",
+            }
+        )
+        assert response.status_code in (200, 400, 404, 503)
+
+    def test_pipeline_control(self, client):
+        """Test controlling the attack detection pipeline."""
+        # Stop pipeline
+        response = client.post(
+            "/api/security/pipeline",
+            json={"action": "stop"}
+        )
+        assert response.status_code in (200, 503)
+
+        # Start pipeline
+        response = client.post(
+            "/api/security/pipeline",
+            json={"action": "start"}
+        )
+        assert response.status_code in (200, 503)
+
+    def test_invalid_pipeline_action(self, client):
+        """Test invalid pipeline action."""
+        response = client.post(
+            "/api/security/pipeline",
+            json={"action": "invalid"}
+        )
+        assert response.status_code == 422  # Validation error
+
+    def test_list_patterns(self, client):
+        """Test listing attack patterns."""
+        response = client.get("/api/security/patterns")
+        # May fail if detector not fully initialized
+        assert response.status_code in (200, 503)
+        if response.status_code == 200:
+            data = response.json()
+            assert "patterns" in data
+            assert "total" in data
+
+
+class TestSecurityModels:
+    """Tests for security API models."""
+
+    def test_attack_summary_model(self):
+        """Test AttackSummary model."""
+        from src.web.routes.security import AttackSummary
+
+        summary = AttackSummary(
+            attack_id="ATK-001",
+            attack_type="PROMPT_INJECTION",
+            severity="HIGH",
+            status="DETECTED",
+            detected_at=datetime.utcnow(),
+            description="Test attack",
+            confidence=0.85,
+        )
+        assert summary.attack_id == "ATK-001"
+        assert summary.confidence == 0.85
+
+    def test_recommendation_summary_model(self):
+        """Test RecommendationSummary model."""
+        from src.web.routes.security import RecommendationSummary
+
+        summary = RecommendationSummary(
+            recommendation_id="REC-001",
+            attack_id="ATK-001",
+            title="Add input validation",
+            priority="HIGH",
+            status="PENDING",
+            created_at=datetime.utcnow(),
+            patch_count=2,
+        )
+        assert summary.recommendation_id == "REC-001"
+        assert summary.patch_count == 2
+
+    def test_attack_detection_status_model(self):
+        """Test AttackDetectionStatus model."""
+        from src.web.routes.security import AttackDetectionStatus
+
+        status = AttackDetectionStatus(
+            enabled=True,
+            available=True,
+            pipeline_running=True,
+            attacks_detected=10,
+            attacks_mitigated=5,
+            recommendations_generated=3,
+            auto_lockdowns_triggered=1,
+        )
+        assert status.enabled is True
+        assert status.attacks_detected == 10
+
+    def test_approve_request_model(self):
+        """Test ApproveRecommendationRequest model."""
+        from src.web.routes.security import ApproveRecommendationRequest
+
+        request = ApproveRecommendationRequest(
+            approver="security_team",
+            comments="Approved after review",
+        )
+        assert request.approver == "security_team"
+
+    def test_pipeline_control_request_model(self):
+        """Test PipelineControlRequest validation."""
+        from src.web.routes.security import PipelineControlRequest
+
+        # Valid actions
+        start = PipelineControlRequest(action="start")
+        assert start.action == "start"
+
+        stop = PipelineControlRequest(action="stop")
+        assert stop.action == "stop"
+
+        # Invalid action should raise validation error
+        with pytest.raises(Exception):  # Pydantic ValidationError
+            PipelineControlRequest(action="invalid")

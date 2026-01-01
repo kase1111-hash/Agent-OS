@@ -72,6 +72,11 @@ OPENAPI_TAGS = [
         "description": "Metrics, tracing, and health monitoring endpoints. "
         "Prometheus-compatible metrics export at /api/observability/metrics.",
     },
+    {
+        "name": "Security",
+        "description": "Attack detection, security monitoring, and remediation. "
+        "View detected attacks, manage fix recommendations, and control the attack detection pipeline.",
+    },
 ]
 
 logger = logging.getLogger(__name__)
@@ -315,6 +320,7 @@ Real-time streaming is available via WebSocket:
         images,
         intent_log,
         memory,
+        security,
         system,
         voice,
     )
@@ -327,6 +333,7 @@ Real-time streaming is available via WebSocket:
     app.include_router(contracts.router, prefix="/api/contracts", tags=["Contracts"])
     app.include_router(intent_log.router, prefix="/api/intent-log", tags=["Intent Log"])
     app.include_router(memory.router, prefix="/api/memory", tags=["Memory"])
+    app.include_router(security.router, prefix="/api/security", tags=["Security"])
     app.include_router(system.router, prefix="/api/system", tags=["System"])
     app.include_router(voice.router, prefix="/api/voice", tags=["Voice"])
 
