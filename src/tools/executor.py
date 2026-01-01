@@ -17,6 +17,14 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
+from .exceptions import (
+    HumanApprovalError,
+    SmithValidationError,
+    ToolNotFoundError,
+    ToolPermissionError,
+    ToolSandboxError,
+    ToolTimeoutError,
+)
 from .interface import (
     InvocationResult,
     ToolInterface,
@@ -240,16 +248,17 @@ class ToolExecutor:
             if approval_result.requires_human_approval:
                 context.state = ExecutionState.AWAITING_APPROVAL
 
-                if not self._request_human_approval(context):
-                    context.log("Human approval denied")
+                try:
+                    self._request_human_approval(context)
+                    invocation.approved_by = "human"
+                    invocation.approval_time = datetime.now()
+                except HumanApprovalError as e:
+                    context.log(f"Human approval failed: {e}")
                     return self._fail_execution(
                         context,
                         InvocationResult.PERMISSION_DENIED,
-                        "Human approval denied",
+                        str(e),
                     )
-
-                invocation.approved_by = "human"
-                invocation.approval_time = datetime.now()
             else:
                 invocation.approved_by = "smith"
                 invocation.approval_time = datetime.now()
@@ -310,12 +319,49 @@ class ToolExecutor:
 
             return result
 
+        except ToolNotFoundError as e:
+            return self._fail_execution(
+                context,
+                InvocationResult.VALIDATION_ERROR,
+                str(e),
+            )
+        except ToolPermissionError as e:
+            return self._fail_execution(
+                context,
+                InvocationResult.PERMISSION_DENIED,
+                str(e),
+            )
+        except SmithValidationError as e:
+            return self._fail_execution(
+                context,
+                InvocationResult.PERMISSION_DENIED,
+                str(e),
+            )
+        except HumanApprovalError as e:
+            return self._fail_execution(
+                context,
+                InvocationResult.PERMISSION_DENIED,
+                str(e),
+            )
+        except ToolTimeoutError as e:
+            return self._fail_execution(
+                context,
+                InvocationResult.TIMEOUT,
+                str(e),
+            )
+        except ToolSandboxError as e:
+            logger.error(f"Sandbox error for {tool_name}: {e}")
+            return self._fail_execution(
+                context,
+                InvocationResult.SANDBOX_ERROR,
+                str(e),
+            )
         except Exception as e:
-            logger.exception(f"Tool execution error: {e}")
+            logger.exception(f"Unexpected tool execution error for {tool_name}: {type(e).__name__}")
             return self._fail_execution(
                 context,
                 InvocationResult.EXECUTION_ERROR,
-                str(e),
+                f"Unexpected error: {type(e).__name__}: {e}",
             )
 
     def _fail_execution(
@@ -359,18 +405,40 @@ class ToolExecutor:
         return self.config.default_mode
 
     def _request_human_approval(self, context: ExecutionContext) -> bool:
-        """Request human approval for execution."""
+        """
+        Request human approval for execution.
+
+        Raises:
+            HumanApprovalError: If approval callback is not configured or fails
+        """
         context.log("Requesting human approval")
 
         if not self._human_approval_callback:
-            logger.warning("No human approval callback configured")
-            return False
+            raise HumanApprovalError(
+                message="No human approval callback configured",
+                tool_name=context.invocation.tool_name,
+                approval_denied=False,
+            )
 
         try:
-            return self._human_approval_callback(context)
+            approved = self._human_approval_callback(context)
+            if not approved:
+                raise HumanApprovalError(
+                    message="Human approval was denied",
+                    tool_name=context.invocation.tool_name,
+                    approval_denied=True,
+                )
+            return approved
+        except HumanApprovalError:
+            raise
         except Exception as e:
-            logger.error(f"Human approval callback error: {e}")
-            return False
+            logger.error(f"Human approval callback error: {type(e).__name__}: {e}")
+            raise HumanApprovalError(
+                message=f"Approval callback failed: {e}",
+                tool_name=context.invocation.tool_name,
+                approval_denied=False,
+                original_error=e,
+            )
 
     def _execute_in_process(
         self,
