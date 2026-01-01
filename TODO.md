@@ -10,22 +10,21 @@ This document tracks items that need to be addressed before the alpha release.
 
 ---
 
-## Testing ⚠️ Needs Work
+## Testing ✅ Resolved
 
-### 🔴 Critical: 59 Skipped Tests
-Tests are being skipped due to missing dependencies or conditional checks. These need validation in CI.
+### ✅ ~~Critical: 59 Skipped Tests~~ FIXED
+Tests are being skipped due to missing dependencies or conditional checks. These are now validated in CI.
 
 **Affected areas:**
 - `test_web.py` (~13 skips) - FastAPI availability checks
 - `test_pq_keys.py` (~23 skips) - Post-quantum crypto not available
 - `test_value_ledger.py` (5 skips) - Optional dependency
-- `test_web.py` (2 skips) - No rules/configurations to test
 
-**Action items:**
-- [ ] Install optional dependencies in CI environment
-- [ ] Add conditional skip documentation explaining why each is skipped
-- [ ] Validate that skipped tests pass when dependencies available
-- [ ] Create CI matrix to test with/without optional deps
+**Resolution:**
+- ✅ Added `test-full` CI job that installs liboqs and all optional dependencies
+- ✅ Created `tests/SKIPPED_TESTS.md` documenting why each test is conditionally skipped
+- ✅ CI now validates that skipped tests pass when dependencies are available
+- ✅ Two CI test jobs: `test` (core deps) and `test-full` (all deps including liboqs)
 
 ### ✅ ~~High: Missing Test Modules~~ PARTIALLY FIXED
 **Resolution:** Created key test files:
@@ -160,12 +159,12 @@ These are Phase 2+ features:
 
 | Category | Critical | High | Medium | Defer | Fixed |
 |----------|----------|------|--------|-------|-------|
-| Testing | 1 | ~~2~~ 1 | 0 | 0 | 1 |
+| Testing | ~~1~~ 0 | ~~2~~ 1 | 0 | 0 | 2 |
 | Security Config | ~~2~~ 0 | ~~2~~ 1 | 0 | 0 | 3 |
 | Documentation | ~~1~~ 0 | ~~3~~ 0 | ~~1~~ 0 | 0 | 5 |
 | Code Completeness | 0 | 1 | 0 | 1 | 0 |
 | CI/CD | 0 | ~~1~~ 0 | ~~1~~ 0 | 0 | 2 |
-| **Total** | **1** | **3** | **0** | **1** | **11** |
+| **Total** | **0** | **3** | **0** | **1** | **12** |
 
 ### Fixed This Session
 - ✅ Hardcoded Grafana password (docker-compose.yml)
@@ -181,6 +180,7 @@ These are Phase 2+ features:
 - ✅ Hardware check script (scripts/check_requirements.py)
 - ✅ Tox configuration (tox.ini)
 - ✅ Coverage configuration (.coveragerc)
+- ✅ **Skipped tests CI validation** (ci.yml test-full job, tests/SKIPPED_TESTS.md)
 
 ---
 
