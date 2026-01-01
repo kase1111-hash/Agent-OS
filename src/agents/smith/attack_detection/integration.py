@@ -46,6 +46,17 @@ from .notifications import (
     create_notification_manager,
     create_alert_from_attack,
     create_console_channel,
+    create_slack_channel,
+    create_email_channel,
+    create_pagerduty_channel,
+    create_webhook_channel,
+)
+from .config import (
+    AttackDetectionConfig,
+    ConfigLoader,
+    load_config,
+    SeverityLevel,
+    NotificationChannelType,
 )
 
 logger = logging.getLogger(__name__)
@@ -358,10 +369,152 @@ def create_attack_alert_handler(
     return handler
 
 
+def setup_pipeline_from_config(
+    smith: "SmithAgent",
+    config: Optional[AttackDetectionConfig] = None,
+    config_path: Optional[str] = None,
+    daemon: Optional["SmithDaemon"] = None,
+    auto_start: bool = True,
+    on_attack: Optional[Callable[[Any], None]] = None,
+    on_recommendation: Optional[Callable[[Any], None]] = None,
+) -> AttackDetectionPipeline:
+    """
+    Set up attack detection pipeline from configuration.
+
+    This is a convenience function that loads configuration and creates
+    a fully configured pipeline with notifications based on config.
+
+    Args:
+        smith: Smith agent (must have attack detection enabled)
+        config: Pre-loaded configuration (overrides config_path)
+        config_path: Path to YAML configuration file
+        daemon: Optional boundary daemon to connect
+        auto_start: Whether to start the pipeline immediately
+        on_attack: Optional callback for attack events
+        on_recommendation: Optional callback for recommendations
+
+    Returns:
+        Configured AttackDetectionPipeline
+
+    Example:
+        from src.agents.smith.attack_detection import setup_pipeline_from_config
+
+        pipeline = setup_pipeline_from_config(
+            smith=smith,
+            config_path="config/attack_detection.yaml",
+            daemon=daemon,
+        )
+    """
+    # Load configuration
+    if config is None:
+        if config_path:
+            config = load_config(path=config_path)
+        else:
+            config = load_config()
+
+    # Create notification manager and configure channels from config
+    notification_manager = create_notification_manager()
+
+    # Add console channel if enabled in config
+    if config.notifications.include_console:
+        name, channel_config = create_console_channel()
+        notification_manager.add_channel(name, channel_config)
+
+    # Configure notification channels from config
+    for channel_cfg in config.notifications.channels:
+        if not channel_cfg.enabled:
+            continue
+
+        try:
+            # Map severity
+            severity_map = {
+                SeverityLevel.LOW: NotificationPriority.LOW,
+                SeverityLevel.MEDIUM: NotificationPriority.MEDIUM,
+                SeverityLevel.HIGH: NotificationPriority.HIGH,
+                SeverityLevel.CRITICAL: NotificationPriority.URGENT,
+                SeverityLevel.CATASTROPHIC: NotificationPriority.CRITICAL,
+            }
+            min_severity = severity_map.get(channel_cfg.min_severity, NotificationPriority.MEDIUM)
+
+            if channel_cfg.type == NotificationChannelType.SLACK:
+                if channel_cfg.webhook_url:
+                    name, channel = create_slack_channel(
+                        name=channel_cfg.name,
+                        webhook_url=channel_cfg.webhook_url,
+                        channel=channel_cfg.channel,
+                        min_severity=min_severity,
+                    )
+                    notification_manager.add_channel(name, channel)
+
+            elif channel_cfg.type == NotificationChannelType.EMAIL:
+                if channel_cfg.smtp_host and channel_cfg.from_address and channel_cfg.to_addresses:
+                    name, channel = create_email_channel(
+                        name=channel_cfg.name,
+                        smtp_host=channel_cfg.smtp_host,
+                        from_address=channel_cfg.from_address,
+                        to_addresses=channel_cfg.to_addresses,
+                        smtp_port=channel_cfg.smtp_port,
+                        use_tls=channel_cfg.use_tls,
+                        username=channel_cfg.username,
+                        password=channel_cfg.password,
+                        min_severity=min_severity,
+                    )
+                    notification_manager.add_channel(name, channel)
+
+            elif channel_cfg.type == NotificationChannelType.PAGERDUTY:
+                if channel_cfg.routing_key:
+                    name, channel = create_pagerduty_channel(
+                        name=channel_cfg.name,
+                        routing_key=channel_cfg.routing_key,
+                        min_severity=min_severity,
+                    )
+                    notification_manager.add_channel(name, channel)
+
+            elif channel_cfg.type == NotificationChannelType.WEBHOOK:
+                if channel_cfg.webhook_url:
+                    name, channel = create_webhook_channel(
+                        name=channel_cfg.name,
+                        url=channel_cfg.webhook_url,
+                        headers=channel_cfg.headers,
+                        min_severity=min_severity,
+                    )
+                    notification_manager.add_channel(name, channel)
+
+            elif channel_cfg.type == NotificationChannelType.CONSOLE:
+                name, channel = create_console_channel(
+                    name=channel_cfg.name,
+                    min_severity=min_severity,
+                )
+                notification_manager.add_channel(name, channel)
+
+            logger.info(f"Configured notification channel: {channel_cfg.name} ({channel_cfg.type.value})")
+
+        except Exception as e:
+            logger.error(f"Failed to configure notification channel {channel_cfg.name}: {e}")
+
+    # Create pipeline with configured notification manager
+    pipeline = AttackDetectionPipeline(
+        smith=smith,
+        daemon=daemon,
+        notification_manager=notification_manager,
+        on_attack=on_attack,
+        on_recommendation=on_recommendation,
+        enable_console_notifications=False,  # Already handled above
+    )
+
+    if auto_start:
+        pipeline.start()
+
+    logger.info(f"Attack detection pipeline configured from {'file' if config_path else 'defaults'}")
+
+    return pipeline
+
+
 # Export key classes/functions
 __all__ = [
     "connect_boundary_to_smith",
     "AttackDetectionPipeline",
     "setup_attack_detection_pipeline",
+    "setup_pipeline_from_config",
     "create_attack_alert_handler",
 ]
