@@ -135,8 +135,12 @@ class AgentStore:
                 agents_dir = Path.cwd() / "agents"
                 if agents_dir.exists():
                     self._loader.discover_agents(agents_dir)
-                self._use_real_agents = True
-                logger.info("Connected to real agent registry")
+                # Only use real agents if any were actually discovered
+                if self._registry.get_all():
+                    self._use_real_agents = True
+                    logger.info("Connected to real agent registry")
+                else:
+                    logger.info("No agents discovered, falling back to mock agents")
             except Exception as e:
                 logger.warning(f"Failed to initialize real agent registry: {e}")
                 self._use_real_agents = False
