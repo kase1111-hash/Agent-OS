@@ -1,0 +1,104 @@
+# Coverage.py configuration for Agent OS
+# https://coverage.readthedocs.io/en/latest/config.html
+#
+# Usage:
+#   pytest --cov=src tests/
+#   coverage run -m pytest tests/
+#   coverage report
+#   coverage html
+
+[run]
+# Source directories to measure
+source = src
+
+# Enable branch coverage
+branch = true
+
+# Files/directories to exclude from coverage
+omit =
+    */tests/*
+    */__pycache__/*
+    */migrations/*
+    */.venv/*
+    */venv/*
+    */site-packages/*
+    src/installer/*
+    src/sdk/testing/*
+
+# Parallel mode for multi-process testing
+parallel = true
+
+# Context for coverage data (helpful for debugging)
+dynamic_context = test_function
+
+[paths]
+# Map paths for combining coverage from different environments
+source =
+    src/
+    */site-packages/
+
+[report]
+# Regexes for lines to exclude from consideration
+exclude_lines =
+    # Standard exclusions
+    pragma: no cover
+
+    # Debug-only code
+    def __repr__
+    def __str__
+
+    # Defensive assertions
+    raise AssertionError
+    raise NotImplementedError
+
+    # Non-runnable code
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+
+    # Abstract methods
+    @abstractmethod
+    @abc.abstractmethod
+
+    # Ellipsis (used in stubs)
+    \.\.\.
+    pass
+
+    # Conditional imports
+    except ImportError:
+    except ModuleNotFoundError:
+
+# Fail if coverage is below this percentage
+fail_under = 50
+
+# Show missing lines in report
+show_missing = true
+
+# Precision for coverage percentages
+precision = 2
+
+# Sort report by coverage percentage
+sort = Cover
+
+# Ignore files with no executable code
+ignore_errors = true
+
+[html]
+# Directory for HTML report
+directory = htmlcov
+
+# Title for HTML report
+title = Agent OS Coverage Report
+
+# Show contexts in HTML report
+show_contexts = true
+
+[xml]
+# Output file for XML report (for CI tools)
+output = coverage.xml
+
+[json]
+# Output file for JSON report
+output = coverage.json
+
+# Pretty print JSON
+pretty_print = true

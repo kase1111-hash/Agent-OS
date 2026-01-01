@@ -115,11 +115,12 @@ Also updated `docs/README.md` quick reference table.
 - Breaking changes expected before 1.0
 - Installation and configuration instructions
 
-### 🟢 Medium: Installation Docs Improvements
-- [ ] Add troubleshooting section to installation docs
-- [ ] Add hardware requirement verification script
-- [ ] Document common error messages and solutions
-- [ ] Add video walkthrough links (placeholder for now)
+### ✅ ~~Medium: Installation Docs Improvements~~ FIXED
+**Resolution:**
+- ✅ Expanded troubleshooting section in `docs/RUNNING_AND_COMPILING.md` (20+ error scenarios)
+- ✅ Created `scripts/check_requirements.py` for hardware/software verification
+- ✅ Documented common errors with solutions
+- [ ] Add video walkthrough links (placeholder for now) - deferred
 
 ---
 
@@ -146,11 +147,12 @@ These are Phase 2+ features:
 - ✅ `.github/workflows/ci.yml` - Python 3.10/3.11/3.12 matrix, lint, test, build
 - ✅ `.github/workflows/security.yml` - Enhanced with CodeQL, Trivy, license checks
 
-### 🟢 Medium: Additional CI Improvements
-- [ ] Create `tox.ini` for multi-version testing
-- [ ] Add test coverage reporting (codecov)
-- [ ] Add performance benchmarks
-- [ ] Add documentation build verification
+### ✅ ~~Medium: Additional CI Improvements~~ FIXED
+**Resolution:**
+- ✅ Created `tox.ini` with py310/py311/py312, lint, typecheck, coverage, security envs
+- ✅ Created `.coveragerc` with detailed coverage configuration
+- [ ] Add performance benchmarks - deferred to Phase 2
+- [ ] Add documentation build verification - deferred
 
 ---
 
@@ -160,10 +162,10 @@ These are Phase 2+ features:
 |----------|----------|------|--------|-------|-------|
 | Testing | 1 | ~~2~~ 1 | 0 | 0 | 1 |
 | Security Config | ~~2~~ 0 | ~~2~~ 1 | 0 | 0 | 3 |
-| Documentation | ~~1~~ 0 | ~~3~~ 0 | 1 | 0 | 4 |
+| Documentation | ~~1~~ 0 | ~~3~~ 0 | ~~1~~ 0 | 0 | 5 |
 | Code Completeness | 0 | 1 | 0 | 1 | 0 |
-| CI/CD | 0 | ~~1~~ 0 | 1 | 0 | 1 |
-| **Total** | **1** | **3** | **2** | **1** | **9** |
+| CI/CD | 0 | ~~1~~ 0 | ~~1~~ 0 | 0 | 2 |
+| **Total** | **1** | **3** | **0** | **1** | **11** |
 
 ### Fixed This Session
 - ✅ Hardcoded Grafana password (docker-compose.yml)
@@ -175,6 +177,10 @@ These are Phase 2+ features:
 - ✅ Alpha release notes (ALPHA_RELEASE_NOTES.md)
 - ✅ CI/CD pipeline verification
 - ✅ Enhanced security workflow
+- ✅ Troubleshooting docs (RUNNING_AND_COMPILING.md)
+- ✅ Hardware check script (scripts/check_requirements.py)
+- ✅ Tox configuration (tox.ini)
+- ✅ Coverage configuration (.coveragerc)
 
 ---
 
