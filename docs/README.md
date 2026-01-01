@@ -6,7 +6,9 @@ Welcome to the Agent-OS documentation. This guide will help you navigate the com
 
 **New to Agent-OS?** Start here:
 1. [README.md](../README.md) - Project overview and vision
-2. [START_HERE.md](../START_HERE.md) - Windows quick start guide (beginner-friendly)
+2. Quick Start Guides (beginner-friendly):
+   - [START_HERE.md](../START_HERE.md) - Windows quick start
+   - [START_HERE_LINUX.md](../START_HERE_LINUX.md) - Linux & macOS quick start
 3. [FAQ.md](./FAQ.md) - Frequently asked questions (all levels)
 4. [RUNNING_AND_COMPILING.md](./RUNNING_AND_COMPILING.md) - Detailed installation and running guide
 5. [examples/basic-homestead-setup.md](../examples/basic-homestead-setup.md) - Step-by-step setup guide
@@ -210,6 +212,7 @@ See [ROADMAP.md](../ROADMAP.md) for detailed development timeline.
 | I want to... | Go to... |
 |--------------|----------|
 | **Get started on Windows** | [START_HERE.md](../START_HERE.md) |
+| **Get started on Linux/macOS** | [START_HERE_LINUX.md](../START_HERE_LINUX.md) |
 | **Get started quickly** | [RUNNING_AND_COMPILING.md](./RUNNING_AND_COMPILING.md) |
 | **Understand the philosophy** | [lni-manifesto.md](./lni-manifesto.md) |
 | **Read technical specs** | [technical/architecture.md](./technical/architecture.md) |
