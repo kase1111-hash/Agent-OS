@@ -249,7 +249,7 @@ class MockEmbeddingModel(EmbeddingModel):
     def embed(self, text: str) -> np.ndarray:
         """Generate deterministic mock embedding."""
         # Use text hash as seed for reproducibility
-        seed = int(hashlib.md5(text.encode()).hexdigest()[:8], 16)
+        seed = int(hashlib.md5(text.encode(), usedforsecurity=False).hexdigest()[:8], 16)
         rng = np.random.RandomState(seed)
         embedding = rng.randn(self.dimension).astype(np.float32)
         # Normalize

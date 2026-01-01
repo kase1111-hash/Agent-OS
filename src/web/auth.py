@@ -779,7 +779,7 @@ class UserStore:
 
         with self._lock:
             cursor = self._connection.cursor()
-            cursor.execute(f"UPDATE users SET {', '.join(updates)} WHERE user_id = ?", params)
+            cursor.execute(f"UPDATE users SET {', '.join(updates)} WHERE user_id = ?", params)  # nosec B608 - column names are hardcoded
             self._connection.commit()
             return cursor.rowcount > 0
 
