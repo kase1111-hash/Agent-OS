@@ -171,7 +171,7 @@ Minimal VRAM footprint (4-8GB)
 
 
 Smith (Watchdog)
-Primary Role: Security validation and constitutional enforcement
+Primary Role: Security validation, constitutional enforcement, and attack detection
 Model Specifications:
 
 Recommended Models: Qwen 0.5B/1.8B, Llama 3 8B (quantized)
@@ -186,6 +186,9 @@ Detect potentially harmful or unauthorized operations
 Enforce security policies
 Audit agent behavior
 Emergency shutdown capabilities
+**Attack detection and auto-remediation** (see Attack Detection System below)
+**SIEM integration** for external threat feeds
+**LLM-powered attack analysis** with MITRE ATT&CK mapping
 
 Performance Requirements:
 
@@ -405,9 +408,145 @@ Orchestration Isolation: No direct agent-to-agent communication
 Memory Consent: Explicit authorization for persistence
 Audit Logging: Comprehensive operation tracking
 Emergency Shutdown: Human-triggered kill switch
+**Attack Detection**: Real-time threat detection and auto-remediation
 
 Example Security Flows
 User InputExpected FlowExpected Output"Write a short essay on AI ethics and remember it."Whisper → Quill (Writes) → Seshat (Checks Consent Requirement)Refusal: "Memory Write Consent Required. Please confirm: [Y/N]""Tell me the system password."Whisper → Smith (Checks Cannot Be Remembered list)Refusal: "Request blocked. System cannot store or provide credentials (Memory Law)."
+
+## Attack Detection System
+
+Agent Smith includes a comprehensive attack detection and auto-remediation system that provides real-time threat detection, analysis, and automated response capabilities.
+
+### Architecture
+
+```
+┌─────────────────┐     ┌─────────────────┐
+│ Boundary Daemon │────▶│  Attack         │
+│ Event Stream    │     │  Detector       │
+└─────────────────┘     └────────┬────────┘
+                                 │
+┌─────────────────┐              │
+│ SIEM Feed       │──────────────┤
+│ (External)      │              │
+└─────────────────┘              ▼
+                        ┌────────────────┐
+                        │ Attack         │
+                        │ Analyzer       │
+                        └────────┬───────┘
+                                 │
+                                 ▼
+                        ┌────────────────┐
+                        │ Remediation    │
+                        │ Engine         │
+                        └────────┬───────┘
+                                 │
+                                 ▼
+                        ┌────────────────┐
+                        │ Recommendation │
+                        │ System         │
+                        └────────────────┘
+                                 │
+                                 ▼
+                        ┌────────────────┐
+                        │ Human Review   │
+                        │ (PR/Approval)  │
+                        └────────────────┘
+```
+
+### Components
+
+| Component | Description |
+|-----------|-------------|
+| **Attack Detector** | Monitors boundary daemon events and SIEM feeds for attack indicators |
+| **Pattern Library** | Collection of attack patterns for signature-based detection |
+| **SIEM Connector** | Integration with Splunk, Elasticsearch, Microsoft Sentinel, Syslog |
+| **Attack Analyzer** | Analyzes attacks to identify vulnerable code paths |
+| **LLM Analyzer** | Uses Sage agent for deep analysis with MITRE ATT&CK mapping |
+| **Remediation Engine** | Generates patches to immunize against detected attacks |
+| **Recommendation System** | Submits patches for human review and approval |
+| **Notification Manager** | Multi-channel alerting (Slack, Email, PagerDuty, Teams, Webhooks) |
+| **Storage** | Persistent storage for attacks, recommendations, and patches (SQLite/Memory) |
+| **Git Integration** | Automatic PR creation for security fixes |
+
+### SIEM Integration
+
+Agent Smith can connect to enterprise SIEM systems:
+
+| Provider | Features |
+|----------|----------|
+| **Splunk** | Query via REST API, real-time alerts, custom indexes |
+| **Elasticsearch** | SIEM index queries, alert rules, cross-cluster search |
+| **Microsoft Sentinel** | Azure Log Analytics integration, KQL queries |
+| **Syslog** | RFC 5424 support, UDP/TCP transport |
+
+### Notification Channels
+
+| Channel | Use Case |
+|---------|----------|
+| **Slack** | Team notifications, configurable severity thresholds |
+| **Email** | SMTP-based alerts, multi-recipient support |
+| **PagerDuty** | On-call escalation for critical incidents |
+| **Microsoft Teams** | Enterprise team notifications |
+| **Webhooks** | Custom integrations, flexible payload templates |
+| **Console** | Development and debugging output |
+
+### Configuration
+
+Attack detection is configured via YAML with environment variable support:
+
+```yaml
+attack_detection:
+  enabled: true
+  severity_threshold: low
+
+  detector:
+    enable_boundary_events: true
+    enable_siem_events: true
+    auto_lockdown_on_critical: false
+
+  siem:
+    sources:
+      - name: splunk-prod
+        provider: splunk
+        endpoint: ${SPLUNK_URL}
+        username: ${SPLUNK_USER}
+        password: ${SPLUNK_PASS}
+
+  notifications:
+    channels:
+      - name: slack-security
+        type: slack
+        webhook_url: ${SLACK_WEBHOOK}
+        min_severity: high
+
+  storage:
+    backend: sqlite
+    path: ./data/attack_detection.db
+
+  remediation:
+    enabled: true
+    auto_generate_patches: true
+    require_approval: true
+
+  git:
+    enabled: false
+    auto_create_pr: false
+```
+
+### Security API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/security/attacks` | GET | List detected attacks |
+| `/api/security/attacks/{id}` | GET | Get attack details |
+| `/api/security/attacks/{id}/false-positive` | POST | Mark as false positive |
+| `/api/security/recommendations` | GET | List fix recommendations |
+| `/api/security/recommendations/{id}` | GET | Get recommendation details |
+| `/api/security/recommendations/{id}/approve` | POST | Approve recommendation |
+| `/api/security/recommendations/{id}/reject` | POST | Reject recommendation |
+| `/api/security/status` | GET | System status |
+| `/api/security/pipeline` | POST | Start/stop detection |
+| `/api/security/patterns` | GET | List detection patterns |
 
 Reference Implementation (Phase 0)
 This section provides the foundational components and deployment steps necessary to instantiate the Agent OS Phase 0 Kernel in a local development environment.
@@ -563,14 +702,16 @@ The reference implementation includes the following completed components:
 |-----------|--------|---------------|
 | Constitutional Kernel (`src/core/`) | ✅ Complete | ~1,200 |
 | Agent Framework (`src/agents/`) | ✅ Complete | ~58,000 |
+| Attack Detection (`src/agents/smith/attack_detection/`) | ✅ Complete | ~5,000 |
 | Message Bus (`src/messaging/`) | ✅ Complete | ~700 |
 | Memory Vault (`src/memory/`) | ✅ Complete | ~1,500 |
 | Boundary Daemon (`src/boundary/`) | ✅ Complete | ~800 |
 | Web Interface (`src/web/`) | ✅ Complete | ~600 |
+| Security API (`src/web/routes/security.py`) | ✅ Complete | ~800 |
 | Voice Interface (`src/voice/`) | ✅ Complete | ~500 |
 | Mobile Backend (`src/mobile/`) | ✅ Complete | ~900 |
 | Federation (`src/federation/`) | ✅ Complete | ~1,200 |
 | Agent SDK (`src/sdk/`) | ✅ Complete | ~800 |
 | Ceremony (`src/ceremony/`) | ✅ Complete | ~600 |
 
-**Total Implementation:** ~64,000 lines of Python across 244 files
+**Total Implementation:** ~72,000+ lines of Python across 260+ files
