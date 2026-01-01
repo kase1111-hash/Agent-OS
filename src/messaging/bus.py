@@ -27,6 +27,11 @@ from typing import (
 )
 from uuid import UUID, uuid4
 
+from .exceptions import (
+    BusShutdownError,
+    HandlerExecutionError,
+    MessageDeliveryError,
+)
 from .models import (
     AuditLogEntry,
     DeadLetterMessage,
@@ -216,7 +221,7 @@ class InMemoryMessageBus(MessageBus):
         """Publish a message to a channel."""
         if not self._running:
             logger.warning("Cannot publish: bus is shutting down")
-            return False
+            raise BusShutdownError("publish")
 
         with self._lock:
             # Ensure channel stats exist
@@ -238,18 +243,35 @@ class InMemoryMessageBus(MessageBus):
 
             # Deliver to all subscribers
             delivered = 0
+            delivery_errors: List[str] = []
             for subscription in active_subscribers:
                 try:
                     self._deliver_message(subscription, message)
                     subscription.increment_count()
                     stats.messages_delivered += 1
                     delivered += 1
-                except Exception as e:
-                    logger.error(f"Delivery failed to {subscription.subscriber_name}: {e}")
+                except HandlerExecutionError as e:
+                    error_msg = f"{subscription.subscriber_name}: {e}"
+                    logger.error(f"Handler error during delivery: {error_msg}")
                     stats.messages_failed += 1
+                    delivery_errors.append(error_msg)
+                    self._add_dead_letter(message, channel, str(e))
+                except Exception as e:
+                    error_msg = f"{subscription.subscriber_name}: {type(e).__name__}: {e}"
+                    logger.error(f"Unexpected delivery error: {error_msg}")
+                    stats.messages_failed += 1
+                    delivery_errors.append(error_msg)
                     self._add_dead_letter(message, channel, str(e))
 
             self._log_audit(message, channel)
+
+            # If all deliveries failed, raise an exception
+            if delivered == 0 and delivery_errors:
+                raise MessageDeliveryError(
+                    f"All deliveries failed: {'; '.join(delivery_errors)}",
+                    channel=channel,
+                    partial_delivery=False,
+                )
 
             return delivered > 0
 
@@ -272,9 +294,17 @@ class InMemoryMessageBus(MessageBus):
                     # No running loop, create one
                     asyncio.run(result)
 
+        except HandlerExecutionError:
+            # Already wrapped, re-raise
+            raise
         except Exception as e:
             logger.error(f"Handler error for {subscription.subscriber_name}: {e}")
-            raise
+            raise HandlerExecutionError(
+                message=f"Handler execution failed: {e}",
+                channel=subscription.channel,
+                handler_name=subscription.subscriber_name,
+                original_error=e,
+            )
 
     def subscribe(
         self,

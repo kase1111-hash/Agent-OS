@@ -17,6 +17,12 @@ from typing import Callable, Dict, List, Optional, Set
 from watchdog.events import FileModifiedEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
+from .exceptions import (
+    ConstitutionLoadError,
+    KernelNotInitializedError,
+    ReloadCallbackError,
+    SupremeConstitutionError,
+)
 from .models import (
     AuthorityLevel,
     Constitution,
@@ -129,20 +135,40 @@ class ConstitutionalKernel:
 
         Returns:
             ValidationResult from loading all constitutions
+
+        Raises:
+            SupremeConstitutionError: If the supreme constitution cannot be loaded
+                (this is a fatal error that prevents safe operation)
         """
         result = ValidationResult(is_valid=True)
 
         with self._lock:
-            # Load supreme constitution first
+            # Load supreme constitution first - this is CRITICAL and must succeed
             if self.supreme_constitution_path:
                 try:
                     supreme = self._load_constitution(self.supreme_constitution_path)
                     self._registry.register(supreme)
                     logger.info(f"Loaded supreme constitution: {self.supreme_constitution_path}")
+                except FileNotFoundError as e:
+                    raise SupremeConstitutionError(
+                        f"Supreme constitution file not found: {self.supreme_constitution_path}",
+                        path=self.supreme_constitution_path,
+                        original_error=e,
+                    )
+                except PermissionError as e:
+                    raise SupremeConstitutionError(
+                        f"Permission denied reading supreme constitution: {self.supreme_constitution_path}",
+                        path=self.supreme_constitution_path,
+                        original_error=e,
+                    )
                 except Exception as e:
-                    result.add_error(f"Failed to load supreme constitution: {e}")
+                    raise SupremeConstitutionError(
+                        f"Failed to load supreme constitution: {e}",
+                        path=self.supreme_constitution_path,
+                        original_error=e,
+                    )
 
-            # Load other constitutions from directory
+            # Load other constitutions from directory - these are non-fatal
             if self.constitution_dir and self.constitution_dir.exists():
                 for path in self._find_constitution_files(self.constitution_dir):
                     if path != self.supreme_constitution_path:
@@ -150,8 +176,12 @@ class ConstitutionalKernel:
                             constitution = self._load_constitution(path)
                             self._registry.register(constitution)
                             logger.info(f"Loaded constitution: {path}")
+                        except FileNotFoundError:
+                            result.add_warning(f"Constitution file not found: {path}")
+                        except PermissionError:
+                            result.add_warning(f"Permission denied reading: {path}")
                         except Exception as e:
-                            result.add_warning(f"Failed to load {path}: {e}")
+                            result.add_warning(f"Failed to load {path}: {type(e).__name__}: {e}")
 
             # Validate the entire registry
             registry_validation = self._validator.validate_registry(self._registry)
@@ -187,13 +217,12 @@ class ConstitutionalKernel:
 
         Returns:
             EnforcementResult indicating if request is allowed
+
+        Raises:
+            KernelNotInitializedError: If kernel has not been initialized
         """
         if not self._initialized:
-            return EnforcementResult(
-                allowed=False,
-                reason="Constitutional kernel not initialized",
-                escalate_to_human=True,
-            )
+            raise KernelNotInitializedError("enforce")
 
         with self._lock:
             # Get applicable rules for destination agent
@@ -354,15 +383,36 @@ class ConstitutionalKernel:
 
                 logger.info(f"Successfully reloaded constitution: {path}")
 
-                # Notify callbacks
+                # Notify callbacks - collect errors but don't let them prevent other callbacks
+                callback_errors = []
                 for callback in self._reload_callbacks:
                     try:
                         callback(path)
                     except Exception as e:
-                        logger.error(f"Reload callback error: {e}")
+                        callback_name = getattr(callback, "__name__", repr(callback))
+                        logger.error(f"Reload callback '{callback_name}' error: {e}")
+                        callback_errors.append(
+                            ReloadCallbackError(
+                                message=f"Callback failed: {e}",
+                                callback_name=callback_name,
+                                original_error=e,
+                            )
+                        )
 
+                # Log summary if there were callback errors
+                if callback_errors:
+                    logger.warning(
+                        f"Constitution reloaded but {len(callback_errors)} callback(s) failed"
+                    )
+
+            except FileNotFoundError:
+                logger.error(f"Constitution file no longer exists: {path}")
+            except PermissionError:
+                logger.error(f"Permission denied reloading constitution: {path}")
             except Exception as e:
-                logger.error(f"Failed to reload constitution {path}: {e}")
+                logger.error(
+                    f"Failed to reload constitution {path}: {type(e).__name__}: {e}"
+                )
 
     def _rule_applies(self, rule: Rule, context: RequestContext) -> bool:
         """Check if a rule applies to the given context."""

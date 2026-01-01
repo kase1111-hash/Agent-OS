@@ -23,6 +23,14 @@ from .consent import (
     ConsentStatus,
 )
 from .deletion import DeletionManager, DeletionResult, DeletionScope, TTLEnforcer
+from .exceptions import (
+    BlobNotFoundError,
+    ConsentDeniedError,
+    GenesisVerificationError,
+    StorageError,
+    VaultInitializationError,
+    VaultNotInitializedError,
+)
 from .genesis import GenesisProofSystem, GenesisRecord, IntegrityProof
 from .index import AccessType, ConsentRecord, VaultIndex
 from .keys import KeyManager, KeyStatus
@@ -136,6 +144,10 @@ class MemoryVault:
 
         Returns:
             True if initialization successful
+
+        Raises:
+            VaultInitializationError: If a critical component fails to initialize
+            GenesisVerificationError: If genesis record verification fails
         """
         try:
             # Ensure directories exist
@@ -143,7 +155,20 @@ class MemoryVault:
             self._blobs_path.mkdir(parents=True, exist_ok=True)
             self._keys_path.mkdir(parents=True, exist_ok=True)
             self._proofs_path.mkdir(parents=True, exist_ok=True)
+        except PermissionError as e:
+            raise VaultInitializationError(
+                f"Permission denied creating vault directories: {e}",
+                component="directories",
+                original_error=e,
+            )
+        except OSError as e:
+            raise VaultInitializationError(
+                f"Failed to create vault directories: {e}",
+                component="directories",
+                original_error=e,
+            )
 
+        try:
             # Initialize profile manager
             self._profile_manager = ProfileManager()
 
@@ -157,74 +182,91 @@ class MemoryVault:
                 hardware_config=hardware_config,
             )
             self._key_manager.initialize(self._config.master_password)
+        except Exception as e:
+            raise VaultInitializationError(
+                f"Failed to initialize key manager: {e}",
+                component="key_manager",
+                original_error=e,
+            )
 
+        try:
             # Initialize index
             self._index = VaultIndex(self._index_path)
+        except Exception as e:
+            raise VaultInitializationError(
+                f"Failed to initialize vault index: {e}",
+                component="index",
+                original_error=e,
+            )
 
+        try:
             # Initialize storage
             self._storage = BlobStorage(
                 storage_path=self._blobs_path,
                 key_manager=self._key_manager,
                 profile_manager=self._profile_manager,
             )
-
-            # Initialize consent manager
-            policy = ConsentPolicy()
-            if self._config.strict_consent:
-                policy.always_require.add(ConsentOperation.READ)
-
-            self._consent_manager = ConsentManager(
-                index=self._index,
-                policy=policy,
-                prompt_callback=self._consent_prompt,
-            )
-
-            # Initialize deletion manager
-            self._deletion_manager = DeletionManager(
-                storage=self._storage,
-                index=self._index,
-                key_manager=self._key_manager,
-            )
-
-            # Initialize TTL enforcer
-            if self._config.enable_ttl_enforcement:
-                self._ttl_enforcer = TTLEnforcer(
-                    deletion_manager=self._deletion_manager,
-                    index=self._index,
-                    check_interval=self._config.ttl_check_interval,
-                )
-                self._ttl_enforcer.start()
-
-            # Initialize genesis proof system
-            self._genesis = GenesisProofSystem(
-                index=self._index,
-                proof_dir=self._proofs_path,
-            )
-
-            # Create or verify genesis
-            if not self._genesis.get_genesis():
-                self._vault_id = self._config.vault_id or f"vault_{secrets.token_hex(8)}"
-                self._genesis.create_genesis(
-                    vault_id=self._vault_id,
-                    created_by=self._config.owner,
-                    encryption_profiles=["WORKING", "PRIVATE", "SEALED", "VAULTED"],
-                    hardware_bound=self._config.enable_hardware_binding,
-                    constitution_path=self._config.constitution_path,
-                )
-            else:
-                self._vault_id = self._genesis.get_genesis().vault_id
-                is_valid, message = self._genesis.verify_genesis()
-                if not is_valid:
-                    logger.error(f"Genesis verification failed: {message}")
-                    return False
-
-            self._initialized = True
-            logger.info(f"Memory Vault initialized: {self._vault_id}")
-            return True
-
         except Exception as e:
-            logger.error(f"Vault initialization failed: {e}")
-            return False
+            raise VaultInitializationError(
+                f"Failed to initialize blob storage: {e}",
+                component="storage",
+                original_error=e,
+            )
+
+        # Initialize consent manager
+        policy = ConsentPolicy()
+        if self._config.strict_consent:
+            policy.always_require.add(ConsentOperation.READ)
+
+        self._consent_manager = ConsentManager(
+            index=self._index,
+            policy=policy,
+            prompt_callback=self._consent_prompt,
+        )
+
+        # Initialize deletion manager
+        self._deletion_manager = DeletionManager(
+            storage=self._storage,
+            index=self._index,
+            key_manager=self._key_manager,
+        )
+
+        # Initialize TTL enforcer
+        if self._config.enable_ttl_enforcement:
+            self._ttl_enforcer = TTLEnforcer(
+                deletion_manager=self._deletion_manager,
+                index=self._index,
+                check_interval=self._config.ttl_check_interval,
+            )
+            self._ttl_enforcer.start()
+
+        # Initialize genesis proof system
+        self._genesis = GenesisProofSystem(
+            index=self._index,
+            proof_dir=self._proofs_path,
+        )
+
+        # Create or verify genesis
+        if not self._genesis.get_genesis():
+            self._vault_id = self._config.vault_id or f"vault_{secrets.token_hex(8)}"
+            self._genesis.create_genesis(
+                vault_id=self._vault_id,
+                created_by=self._config.owner,
+                encryption_profiles=["WORKING", "PRIVATE", "SEALED", "VAULTED"],
+                hardware_bound=self._config.enable_hardware_binding,
+                constitution_path=self._config.constitution_path,
+            )
+        else:
+            self._vault_id = self._genesis.get_genesis().vault_id
+            is_valid, message = self._genesis.verify_genesis()
+            if not is_valid:
+                raise GenesisVerificationError(
+                    f"Genesis verification failed: {message}"
+                )
+
+        self._initialized = True
+        logger.info(f"Memory Vault initialized: {self._vault_id}")
+        return True
 
     def shutdown(self) -> None:
         """Shutdown the vault."""
@@ -266,9 +308,12 @@ class MemoryVault:
 
         Returns:
             StoreResult
+
+        Raises:
+            VaultNotInitializedError: If vault is not initialized
         """
         if not self._initialized:
-            return StoreResult(success=False, error="Vault not initialized")
+            raise VaultNotInitializedError("store")
 
         # Request consent
         decision = self._consent_manager.request_consent(
@@ -317,9 +362,15 @@ class MemoryVault:
                 metadata=metadata,
             )
 
+        except PermissionError as e:
+            logger.error(f"Permission denied storing blob: {e}")
+            return StoreResult(success=False, error=f"Permission denied: {e}")
+        except IOError as e:
+            logger.error(f"I/O error storing blob: {e}")
+            return StoreResult(success=False, error=f"Storage I/O error: {e}")
         except Exception as e:
-            logger.error(f"Store failed: {e}")
-            return StoreResult(success=False, error=str(e))
+            logger.error(f"Store failed: {type(e).__name__}: {e}")
+            return StoreResult(success=False, error=f"Storage error: {type(e).__name__}: {e}")
 
     def store_text(
         self,
@@ -355,9 +406,12 @@ class MemoryVault:
 
         Returns:
             RetrieveResult
+
+        Raises:
+            VaultNotInitializedError: If vault is not initialized
         """
         if not self._initialized:
-            return RetrieveResult(success=False, error="Vault not initialized")
+            raise VaultNotInitializedError("retrieve")
 
         # Get metadata
         metadata = self._storage.get_metadata(blob_id)
@@ -365,7 +419,7 @@ class MemoryVault:
             return RetrieveResult(
                 success=False,
                 blob_id=blob_id,
-                error="Blob not found",
+                error=f"Blob not found: {blob_id}",
             )
 
         # Verify consent if required
@@ -453,9 +507,12 @@ class MemoryVault:
 
         Returns:
             DeletionResult
+
+        Raises:
+            VaultNotInitializedError: If vault is not initialized
         """
         if not self._initialized:
-            raise RuntimeError("Vault not initialized")
+            raise VaultNotInitializedError("delete")
 
         return self._deletion_manager.delete_blob(
             blob_id=blob_id,
@@ -479,9 +536,12 @@ class MemoryVault:
 
         Returns:
             DeletionResult
+
+        Raises:
+            VaultNotInitializedError: If vault is not initialized
         """
         if not self._initialized:
-            raise RuntimeError("Vault not initialized")
+            raise VaultNotInitializedError("forget")
 
         # Revoke the consent
         self._consent_manager.revoke_consent(
@@ -498,9 +558,14 @@ class MemoryVault:
         )
 
     def seal(self, blob_id: str) -> bool:
-        """Seal a blob (prevent access until unseal)."""
+        """
+        Seal a blob (prevent access until unseal).
+
+        Raises:
+            VaultNotInitializedError: If vault is not initialized
+        """
         if not self._initialized:
-            return False
+            raise VaultNotInitializedError("seal")
 
         success = self._storage.seal(blob_id)
         if success:
@@ -513,9 +578,14 @@ class MemoryVault:
         return success
 
     def unseal(self, blob_id: str) -> bool:
-        """Unseal a sealed blob."""
+        """
+        Unseal a sealed blob.
+
+        Raises:
+            VaultNotInitializedError: If vault is not initialized
+        """
         if not self._initialized:
-            return False
+            raise VaultNotInitializedError("unseal")
 
         success = self._storage.unseal(blob_id)
         if success:
@@ -545,9 +615,12 @@ class MemoryVault:
 
         Returns:
             ConsentRecord
+
+        Raises:
+            VaultNotInitializedError: If vault is not initialized
         """
         if not self._initialized:
-            raise RuntimeError("Vault not initialized")
+            raise VaultNotInitializedError("grant_consent")
 
         return self._consent_manager.grant_consent(
             granted_by=granted_by,
@@ -561,9 +634,14 @@ class MemoryVault:
         consent_id: str,
         revoked_by: str = "user",
     ) -> bool:
-        """Revoke a consent."""
+        """
+        Revoke a consent.
+
+        Raises:
+            VaultNotInitializedError: If vault is not initialized
+        """
         if not self._initialized:
-            return False
+            raise VaultNotInitializedError("revoke_consent")
 
         return self._consent_manager.revoke_consent(
             consent_id=consent_id,
@@ -577,9 +655,14 @@ class MemoryVault:
         consent_id: Optional[str] = None,
         limit: int = 100,
     ) -> List[BlobMetadata]:
-        """List blobs with optional filters."""
+        """
+        List blobs with optional filters.
+
+        Raises:
+            VaultNotInitializedError: If vault is not initialized
+        """
         if not self._initialized:
-            return []
+            raise VaultNotInitializedError("list_blobs")
 
         return self._index.query_blobs(
             tier=tier,
@@ -593,9 +676,14 @@ class MemoryVault:
         scope: Optional[str] = None,
         active_only: bool = True,
     ) -> List[ConsentRecord]:
-        """List consents."""
+        """
+        List consents.
+
+        Raises:
+            VaultNotInitializedError: If vault is not initialized
+        """
         if not self._initialized:
-            return []
+            raise VaultNotInitializedError("list_consents")
 
         return self._consent_manager.list_consents(
             scope=scope,
@@ -603,33 +691,58 @@ class MemoryVault:
         )
 
     def get_metadata(self, blob_id: str) -> Optional[BlobMetadata]:
-        """Get blob metadata."""
+        """
+        Get blob metadata.
+
+        Raises:
+            VaultNotInitializedError: If vault is not initialized
+        """
         if not self._initialized:
-            return None
+            raise VaultNotInitializedError("get_metadata")
         return self._storage.get_metadata(blob_id)
 
     def create_integrity_proof(self) -> IntegrityProof:
-        """Create an integrity proof for current state."""
+        """
+        Create an integrity proof for current state.
+
+        Raises:
+            VaultNotInitializedError: If vault is not initialized
+        """
         if not self._initialized:
-            raise RuntimeError("Vault not initialized")
+            raise VaultNotInitializedError("create_integrity_proof")
         return self._genesis.create_integrity_proof()
 
     def verify_integrity(self) -> tuple:
-        """Verify vault integrity."""
+        """
+        Verify vault integrity.
+
+        Raises:
+            VaultNotInitializedError: If vault is not initialized
+        """
         if not self._initialized:
-            return False, "Vault not initialized"
+            raise VaultNotInitializedError("verify_integrity")
         return self._genesis.verify_integrity()
 
     def get_genesis(self) -> Optional[GenesisRecord]:
-        """Get the genesis record."""
+        """
+        Get the genesis record.
+
+        Raises:
+            VaultNotInitializedError: If vault is not initialized
+        """
         if not self._initialized:
-            return None
+            raise VaultNotInitializedError("get_genesis")
         return self._genesis.get_genesis()
 
     def get_statistics(self) -> Dict[str, Any]:
-        """Get vault statistics."""
+        """
+        Get vault statistics.
+
+        Raises:
+            VaultNotInitializedError: If vault is not initialized
+        """
         if not self._initialized:
-            return {}
+            raise VaultNotInitializedError("get_statistics")
 
         index_stats = self._index.get_statistics()
         storage_stats = self._storage.get_storage_stats()
@@ -672,6 +785,10 @@ def create_vault(
 
     Returns:
         Initialized MemoryVault
+
+    Raises:
+        VaultInitializationError: If vault initialization fails
+        GenesisVerificationError: If genesis verification fails
     """
     config = VaultConfig(
         vault_path=path,
@@ -681,7 +798,6 @@ def create_vault(
     )
 
     vault = MemoryVault(config)
-    if not vault.initialize():
-        raise RuntimeError("Failed to initialize vault")
+    vault.initialize()
 
     return vault
