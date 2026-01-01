@@ -52,8 +52,16 @@ from .detector import (
 )
 from .siem_connector import (
     SIEMConnector,
+    SIEMConfig,
     SIEMEvent,
     SIEMProvider,
+    EventSeverity,
+    SIEMAdapter,
+    SplunkAdapter,
+    ElasticAdapter,
+    SentinelAdapter,
+    SyslogAdapter,
+    MockSIEMAdapter,
     create_siem_connector,
 )
 from .patterns import (
@@ -97,8 +105,16 @@ __all__ = [
     "create_attack_detector",
     # SIEM
     "SIEMConnector",
+    "SIEMConfig",
     "SIEMEvent",
     "SIEMProvider",
+    "EventSeverity",
+    "SIEMAdapter",
+    "SplunkAdapter",
+    "ElasticAdapter",
+    "SentinelAdapter",
+    "SyslogAdapter",
+    "MockSIEMAdapter",
     "create_siem_connector",
     # Patterns
     "AttackPattern",
