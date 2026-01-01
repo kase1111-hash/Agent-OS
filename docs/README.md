@@ -6,8 +6,10 @@ Welcome to the Agent-OS documentation. This guide will help you navigate the com
 
 **New to Agent-OS?** Start here:
 1. [README.md](../README.md) - Project overview and vision
-2. [FAQ.md](./FAQ.md) - Frequently asked questions (all levels)
-3. [examples/basic-homestead-setup.md](../examples/basic-homestead-setup.md) - Step-by-step setup guide
+2. [START_HERE.md](../START_HERE.md) - Windows quick start guide (beginner-friendly)
+3. [FAQ.md](./FAQ.md) - Frequently asked questions (all levels)
+4. [RUNNING_AND_COMPILING.md](./RUNNING_AND_COMPILING.md) - Detailed installation and running guide
+5. [examples/basic-homestead-setup.md](../examples/basic-homestead-setup.md) - Step-by-step setup guide
 
 ## Core Documents
 
@@ -157,11 +159,18 @@ Welcome to the Agent-OS documentation. This guide will help you navigate the com
 
 ## Status & Versions
 
-**Current Phase:** Phase 0 complete, Phase 1 starting Q1 2026
-**Project Status:** Pre-alpha development
+**Current Phase:** Phase 0 complete, Phase 1 in progress (Q1 2026)
+**Project Status:** Pre-alpha development (~90% implementation complete)
 **License:** CC0 1.0 Universal (Public Domain)
+**Codebase:** ~64,000 lines of Python across 244 files
 
 See [ROADMAP.md](../ROADMAP.md) for detailed development timeline.
+
+## Recent Updates
+
+- **January 2026**: Added custom exception classes for improved error handling
+- **December 2025**: Added Windows build scripts (`build.bat`, `start.bat`)
+- **December 2025**: Added beginner-friendly quick start guide (`START_HERE.md`)
 
 ---
 
@@ -169,8 +178,9 @@ See [ROADMAP.md](../ROADMAP.md) for detailed development timeline.
 
 | I want to... | Go to... |
 |--------------|----------|
+| **Get started on Windows** | [START_HERE.md](../START_HERE.md) |
+| **Get started quickly** | [RUNNING_AND_COMPILING.md](./RUNNING_AND_COMPILING.md) |
 | **Understand the philosophy** | [lni-manifesto.md](./lni-manifesto.md) |
-| **Get started quickly** | [examples/basic-homestead-setup.md](../examples/basic-homestead-setup.md) |
 | **Read technical specs** | [technical/architecture.md](./technical/architecture.md) |
 | **Report a security issue** | [governance/security.md](./governance/security.md#reporting-vulnerabilities) |
 | **Contribute code** | [CONTRIBUTING.md](../CONTRIBUTING.md) |
@@ -178,6 +188,8 @@ See [ROADMAP.md](../ROADMAP.md) for detailed development timeline.
 | **Understand agent roles** | [CONSTITUTION.md](../CONSTITUTION.md) |
 | **Learn about security** | [governance/security.md](./governance/security.md) |
 | **See the roadmap** | [ROADMAP.md](../ROADMAP.md) |
+| **Run tests** | [RUNNING_AND_COMPILING.md](./RUNNING_AND_COMPILING.md#testing) |
+| **Deploy with Docker** | [RUNNING_AND_COMPILING.md](./RUNNING_AND_COMPILING.md#running-with-docker-compose) |
 
 ---
 

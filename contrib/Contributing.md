@@ -38,17 +38,114 @@ PR Title Format: [AMENDMENT: SECTION #] Proposed change to: Brief subject
 
 Getting Started
 
-Clone the Repository:
+1. **Clone the Repository:**
+   ```bash
+   git clone https://github.com/kase1111-hash/Agent-OS.git
+   cd Agent-OS
+   ```
 
-bash   git clone [Your GitHub URL]
+2. **Install Dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   pip install -e ".[dev]"  # Development tools
+   ```
 
-Review the Constitution: Read the Constitution and the Addendum thoroughly to understand the governing law.
-Open an Issue: Before writing significant code, open an issue to outline your proposal. This saves effort and ensures alignment with the community vision.
-Fork and Branch: Fork the repository and create a new branch for your contribution:
+3. **Review the Constitution:**
+   Read [CONSTITUTION.md](../CONSTITUTION.md) and the Addendum thoroughly to understand the governing law.
 
-bash   git checkout -b feature/my-new-agent
+4. **Open an Issue:**
+   Before writing significant code, open an issue to outline your proposal. This saves effort and ensures alignment with the community vision.
 
-Submit PR: Ensure your code is well-commented and includes unit tests that prove constitutional compliance.
+5. **Fork and Branch:**
+   Fork the repository and create a new branch for your contribution:
+   ```bash
+   git checkout -b feature/my-new-agent
+   ```
 
+6. **Run Tests:**
+   Ensure all tests pass before submitting:
+   ```bash
+   pytest tests/
+   ```
+
+7. **Code Quality:**
+   Format your code and run type checks:
+   ```bash
+   black src/ tests/
+   isort src/ tests/
+   mypy src/
+   ```
+
+8. **Submit PR:**
+   Ensure your code is well-commented and includes unit tests that prove constitutional compliance.
+
+---
+
+## Development Environment
+
+### Required Tools
+
+| Tool | Purpose | Installation |
+|------|---------|--------------|
+| Python 3.10+ | Runtime | [python.org](https://python.org) |
+| pip | Package manager | Included with Python |
+| pytest | Testing | `pip install pytest` |
+| black | Formatting | `pip install black` |
+| mypy | Type checking | `pip install mypy` |
+
+### Running the Application
+
+```bash
+python -m uvicorn src.web.app:get_app --factory --host 0.0.0.0 --port 8080 --reload
+```
+
+### Running Tests
+
+```bash
+# All tests
+pytest tests/
+
+# With coverage
+pytest --cov=src tests/
+
+# Specific test file
+pytest tests/test_kernel.py -v
+```
+
+---
+
+## Project Structure
+
+```
+Agent-OS/
+├── src/                    # Source code
+│   ├── agents/             # Agent implementations
+│   ├── core/               # Constitutional kernel
+│   ├── kernel/             # Conversational kernel
+│   ├── memory/             # Memory vault
+│   ├── messaging/          # Message bus
+│   ├── boundary/           # Security daemon
+│   └── web/                # Web interface
+├── tests/                  # Test suite
+├── docs/                   # Documentation
+├── agents/                 # Agent constitutions
+└── examples/               # Usage examples
+```
+
+---
+
+## Resources
+
+- [README.md](../README.md) - Project overview
+- [docs/README.md](../docs/README.md) - Documentation index
+- [ROADMAP.md](../ROADMAP.md) - Development timeline
+- [CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md) - Community standards
+
+---
 
 Thank you for helping us build the future of governed AI!
+
+---
+
+*Last Updated: January 2026*
+*License: CC0 1.0 Universal (Public Domain)*

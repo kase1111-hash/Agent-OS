@@ -57,8 +57,201 @@ While many LLM OS explorations focus on performance, tool integration, or cloud-
 - **Local homestead model**: A private, air-gapped, resilient digital residence—prioritizing privacy and self-sufficiency over capability.
 
 We dedicate this work to the public domain (CC0) in the spirit of open, principled evolution of the LLM OS idea.
-This approach:
 
-NatLangChain is an open-source project by kase1111-hash.
-The name "NatLangChain" is not a registered trademark.
-All rights to the code are governed by the LICENSE file.
+---
+
+## Quick Start
+
+### Windows Users
+1. Install [Python 3.10+](https://www.python.org/downloads/) and [Ollama](https://ollama.com/download)
+2. Double-click `build.bat` to set up the environment
+3. Double-click `start.bat` to run Agent-OS
+4. Open http://localhost:8080 in your browser
+
+See [START_HERE.md](./START_HERE.md) for detailed Windows instructions.
+
+### Linux/macOS Users
+```bash
+# Clone and install
+git clone https://github.com/kase1111-hash/Agent-OS.git
+cd Agent-OS
+pip install -r requirements.txt
+
+# Pull an Ollama model
+ollama pull mistral
+
+# Run the application
+python -m uvicorn src.web.app:get_app --factory --host 0.0.0.0 --port 8080
+```
+
+### Docker Deployment
+```bash
+cp .env.example .env
+docker compose up -d
+```
+
+Visit http://localhost:8080 to access the web interface.
+
+---
+
+## Project Structure
+
+```
+Agent-OS/
+├── src/                    # Source code (~64,000 lines Python)
+│   ├── agents/             # 6 core agents + LLM integrations
+│   ├── core/               # Constitutional kernel
+│   ├── kernel/             # Conversational kernel engine
+│   ├── memory/             # Encrypted memory vault
+│   ├── messaging/          # Inter-agent communication bus
+│   ├── boundary/           # Security enforcement daemon
+│   ├── contracts/          # Learning contracts & consent
+│   ├── ceremony/           # 8-phase bring-home ceremony
+│   ├── web/                # FastAPI web interface
+│   ├── mobile/             # Mobile backend API
+│   ├── voice/              # Voice interface (STT/TTS)
+│   ├── multimodal/         # Vision, audio, video support
+│   ├── federation/         # Multi-node federation
+│   ├── tools/              # Tool integration framework
+│   ├── installer/          # Cross-platform installer
+│   ├── sdk/                # Agent development SDK
+│   └── observability/      # Monitoring & metrics
+├── agents/                 # Agent constitutional definitions
+├── docs/                   # Comprehensive documentation
+├── examples/               # Practical usage examples
+├── tests/                  # Test suite (31 modules)
+├── benchmarks/             # Performance benchmarks
+└── deploy/                 # Deployment configurations
+```
+
+---
+
+## Core Agents
+
+| Agent | Role | Description |
+|-------|------|-------------|
+| **Whisper** | Orchestrator | Intent classification and request routing |
+| **Smith** | Guardian | Security validation and constitutional enforcement |
+| **Seshat** | Archivist | Memory management and RAG retrieval |
+| **Sage** | Elder | Complex reasoning and synthesis |
+| **Quill** | Refiner | Document formatting and writing assistance |
+| **Muse** | Creative | Creative content and idea generation |
+
+---
+
+## Key Features
+
+- **Constitutional Governance**: Human-readable rules govern all AI behavior
+- **Local-First**: All computation stays on your hardware
+- **Memory Consent**: No data persistence without explicit permission
+- **Multi-Agent Architecture**: Specialized agents with clear authority boundaries
+- **Encrypted Memory Vault**: Secure, consent-based data storage
+- **Voice Interface**: Speech-to-text and text-to-speech integration
+- **Web Interface**: Modern FastAPI-based UI with WebSocket support
+- **Mobile Backend**: API support for iOS/Android applications
+- **Federation**: Multi-node deployment with post-quantum cryptography
+- **Agent SDK**: Framework for building custom agents
+
+---
+
+## Requirements
+
+### Minimum
+- Python 3.10+
+- 8GB RAM
+- 500GB storage
+
+### Recommended
+- 16GB+ RAM
+- GPU with 16GB+ VRAM (for local LLM inference)
+- SSD storage
+
+### Dependencies
+Core dependencies include FastAPI, Pydantic, PyYAML, Redis, and PyTorch (for image generation).
+
+See [requirements.txt](./requirements.txt) for the complete list.
+
+---
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [docs/README.md](./docs/README.md) | Complete documentation index |
+| [CONSTITUTION.md](./CONSTITUTION.md) | Supreme governing law |
+| [ROADMAP.md](./ROADMAP.md) | Development timeline (2025-2028) |
+| [docs/FAQ.md](./docs/FAQ.md) | Frequently asked questions |
+| [docs/technical/architecture.md](./docs/technical/architecture.md) | System architecture details |
+| [CONTRIBUTING.md](./CONTRIBUTING.md) | How to contribute |
+
+---
+
+## Development
+
+### Running Tests
+```bash
+pytest tests/
+```
+
+### Running Benchmarks
+```bash
+pytest benchmarks/
+```
+
+### Code Formatting
+```bash
+black src/ tests/
+isort src/ tests/
+```
+
+### Type Checking
+```bash
+mypy src/
+```
+
+---
+
+## Endpoints
+
+| Endpoint | URL | Description |
+|----------|-----|-------------|
+| Main App | http://localhost:8080 | Web interface |
+| API Docs | http://localhost:8080/docs | Swagger documentation |
+| Health Check | http://localhost:8080/health | System status |
+| Prometheus | http://localhost:9090 | Metrics (Docker) |
+| Grafana | http://localhost:3000 | Dashboards (Docker) |
+
+---
+
+## Current Status
+
+**Phase**: 0 Complete, Phase 1 starting Q1 2026
+**Version**: 1.0 (December 2025)
+**Implementation**: ~90% complete
+
+See [ROADMAP.md](./ROADMAP.md) for detailed development timeline.
+
+---
+
+## Contributing
+
+We welcome contributions! Please see:
+- [CONTRIBUTING.md](./CONTRIBUTING.md) - Contribution guidelines
+- [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) - Community standards
+- [contrib/Contributing.md](./contrib/Contributing.md) - Detailed process
+
+---
+
+## License
+
+This project is released under **CC0 1.0 Universal (Public Domain Dedication)**.
+
+You are free to use, modify, and distribute this work without restriction.
+
+---
+
+## Links
+
+- **Repository**: https://github.com/kase1111-hash/Agent-OS
+- **Issues**: https://github.com/kase1111-hash/Agent-OS/issues
+- **Documentation**: [docs/README.md](./docs/README.md)
