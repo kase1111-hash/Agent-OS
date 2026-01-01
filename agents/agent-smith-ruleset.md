@@ -93,4 +93,109 @@ Refusal: Outcome is uncertain. Cannot proceed without explicit Human Steward ins
 
 V. Critical State Management
 Halt & Safe-State: Upon detection of an S3 (Instruction Integrity Failure) or a major constitutional conflict, Smith SHALL force the system into Safe Mode (Smith and Whisper active only; read-only access).
-Non-Override: No agent, update, or task prompt may bypass or disable Smith’s oversight. Modification of Smith’s rule set requires the Amendment Process (Section X) and direct Human Steward approval.
+Non-Override: No agent, update, or task prompt may bypass or disable Smith's oversight. Modification of Smith's rule set requires the Amendment Process (Section X) and direct Human Steward approval.
+
+VI. Attack Detection & Auto-Remediation System
+
+Smith is equipped with an advanced attack detection and auto-remediation system that provides proactive security monitoring and response capabilities.
+
+### Architecture Overview
+
+```
+┌─────────────────┐     ┌─────────────────┐
+│ Boundary Daemon │────▶│  Attack         │
+│ Event Stream    │     │  Detector       │
+└─────────────────┘     └────────┬────────┘
+                                 │
+┌─────────────────┐              │
+│ SIEM Feed       │──────────────┤
+│ (External)      │              │
+└─────────────────┘              ▼
+                        ┌────────────────┐
+                        │ Attack         │
+                        │ Analyzer       │
+                        └────────┬───────┘
+                                 │
+                                 ▼
+                        ┌────────────────┐
+                        │ Remediation    │
+                        │ Engine         │
+                        └────────┬───────┘
+                                 │
+                                 ▼
+                        ┌────────────────┐
+                        │ Recommendation │
+                        │ System         │
+                        └────────┬───────┘
+                                 │
+                                 ▼
+                        ┌────────────────┐
+                        │ Human Review   │
+                        │ (PR/Approval)  │
+                        └────────────────┘
+```
+
+### Core Capabilities
+
+| Capability | Description |
+|------------|-------------|
+| Event Ingestion | Watch boundary daemon events and SIEM feeds (Splunk, Elastic, Sentinel, Syslog) |
+| Attack Detection | Real-time pattern matching and classification of security events |
+| LLM Analysis | Deep attack analysis using Sage agent with MITRE ATT&CK mapping |
+| Vulnerability Identification | Trace attacks to vulnerable code paths |
+| Patch Generation | Generate targeted patches to immunize against detected attacks |
+| Isolated Testing | Test patches in sandboxed environments before deployment |
+| PR Automation | Auto-create pull requests for security fixes with Git integration |
+| Multi-Channel Alerting | Notify via Slack, Email, PagerDuty, Teams, Webhooks |
+
+### Attack Severity Levels
+
+| Level | Response | Actions |
+|-------|----------|---------|
+| LOW | Log & Monitor | Record event, continue monitoring |
+| MEDIUM | Alert | Notify security team, create recommendation |
+| HIGH | Active Response | Generate patch, create draft PR |
+| CRITICAL | Immediate Action | Auto-lockdown recommendation, urgent alerts |
+| CATASTROPHIC | Emergency | Force Safe Mode, block all external access |
+
+### Human Oversight Requirement
+
+All generated patches and fixes are submitted as **recommendations** for Human Steward review:
+- Patches are never auto-applied without explicit approval
+- Pull requests are created in draft mode by default
+- Critical severity triggers immediate human notification
+- All recommendations include full attack context and confidence scores
+
+### Configuration
+
+The attack detection system is configured via YAML with environment variable support:
+
+```yaml
+attack_detection:
+  enabled: true
+  severity_threshold: low
+
+  siem:
+    enabled: true
+    sources:
+      - provider: splunk
+        host: ${SPLUNK_HOST}
+        token: ${SPLUNK_TOKEN}
+
+  notifications:
+    channels:
+      - type: slack
+        webhook_url: ${SLACK_WEBHOOK}
+        min_severity: high
+      - type: pagerduty
+        routing_key: ${PAGERDUTY_KEY}
+        min_severity: critical
+
+  git:
+    auto_create_pr: true
+    draft_mode: true
+    reviewers:
+      - security-team
+```
+
+See `src/agents/smith/attack_detection/` for complete implementation.
