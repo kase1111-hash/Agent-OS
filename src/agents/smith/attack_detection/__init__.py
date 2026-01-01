@@ -95,6 +95,24 @@ from .integration import (
     setup_attack_detection_pipeline,
     create_attack_alert_handler,
 )
+from .storage import (
+    AttackStorage,
+    SQLiteStorage,
+    MemoryStorage,
+    StorageBackend,
+    StoredAttack,
+    StoredRecommendation,
+    StoredPatch,
+    StoredVulnerability,
+    StoredSIEMEvent,
+    create_storage,
+    create_sqlite_storage,
+    create_memory_storage,
+)
+from .storage_integration import (
+    StorageIntegration,
+    create_storage_integration,
+)
 
 __all__ = [
     # Detector
@@ -142,4 +160,20 @@ __all__ = [
     "AttackDetectionPipeline",
     "setup_attack_detection_pipeline",
     "create_attack_alert_handler",
+    # Storage
+    "AttackStorage",
+    "SQLiteStorage",
+    "MemoryStorage",
+    "StorageBackend",
+    "StoredAttack",
+    "StoredRecommendation",
+    "StoredPatch",
+    "StoredVulnerability",
+    "StoredSIEMEvent",
+    "create_storage",
+    "create_sqlite_storage",
+    "create_memory_storage",
+    # Storage Integration
+    "StorageIntegration",
+    "create_storage_integration",
 ]
