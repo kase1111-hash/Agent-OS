@@ -12,8 +12,9 @@ from typing import Any, Dict, Optional
 
 from .config import WebConfig, get_config
 
-# API version
-API_VERSION = "1.0.0"
+# API version - must match src.__version__
+from src import __version__ as _pkg_version
+API_VERSION = _pkg_version
 
 # OpenAPI Tags with descriptions for documentation
 OPENAPI_TAGS = [
@@ -372,7 +373,7 @@ Real-time streaming is available via WebSocket:
         """Health check endpoint."""
         return {
             "status": "healthy",
-            "version": "1.0.0",
+            "version": API_VERSION,
             "components": {
                 "api": "up",
                 "websocket": "up",
