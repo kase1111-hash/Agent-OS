@@ -362,6 +362,15 @@ def get_image_store() -> ImageStore:
 # Model Registry
 # =============================================================================
 
+# Mapping from short model IDs to full Hugging Face model paths
+MODEL_HF_PATHS: Dict[str, str] = {
+    "stable-diffusion-v1-5": "runwayml/stable-diffusion-v1-5",
+    "stable-diffusion-xl-base-1.0": "stabilityai/stable-diffusion-xl-base-1.0",
+    "stable-diffusion-xl-turbo": "stabilityai/sdxl-turbo",
+    "flux-1-schnell": "black-forest-labs/FLUX.1-schnell",
+    "playground-v2.5": "playgroundai/playground-v2.5-1024px-aesthetic",
+}
+
 # Available image generation models (can be expanded)
 AVAILABLE_MODELS: List[ImageModelInfo] = [
     ImageModelInfo(
@@ -597,10 +606,11 @@ class ImageGenerator:
         import torch
         from diffusers import DPMSolverMultistepScheduler, StableDiffusionPipeline
 
-        # Load pipeline
+        # Load pipeline - resolve short model ID to full HuggingFace path
         device = "cuda" if torch.cuda.is_available() else "cpu"
+        model_path = MODEL_HF_PATHS.get(job.model, job.model)
         pipe = StableDiffusionPipeline.from_pretrained(
-            job.model,
+            model_path,
             torch_dtype=torch.float16 if device == "cuda" else torch.float32,
         )
         pipe = pipe.to(device)
