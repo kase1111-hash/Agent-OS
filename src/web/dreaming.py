@@ -49,7 +49,11 @@ class DreamingService:
     - Updates throttled to every 5 seconds
     - Non-blocking operations
     - Simple state machine (no complex tracking)
+    - Auto-returns to idle after completion
     """
+
+    # How long to show "Completed" before returning to idle
+    IDLE_DELAY = 3.0
 
     def __init__(self, throttle_interval: float = THROTTLE_INTERVAL):
         self._status = DreamingStatus()
@@ -58,6 +62,7 @@ class DreamingService:
         self._last_update_time: float = 0
         self._pending_message: Optional[str] = None
         self._pending_phase: Optional[str] = None
+        self._completed_at: Optional[float] = None  # Track when completed
 
     def _can_update(self) -> bool:
         """Check if enough time has passed for an update."""
@@ -125,9 +130,11 @@ class DreamingService:
                 phase="completed",
                 operation=operation
             )
+            self._completed_at = time.monotonic()
         else:
             self._pending_message = f"Completed: {operation}"
             self._pending_phase = "completed"
+            self._completed_at = time.monotonic()
 
     def idle(self) -> None:
         """Mark system as idle."""
@@ -150,6 +157,15 @@ class DreamingService:
                     self._status.operation
                 )
 
+            # Auto-return to idle after completion delay
+            if (self._status.phase == "completed" and
+                self._completed_at is not None and
+                (time.monotonic() - self._completed_at) >= self.IDLE_DELAY):
+                self._status.message = "Idle"
+                self._status.phase = "idle"
+                self._status.operation = None
+                self._completed_at = None
+
             return {
                 "message": self._status.message,
                 "phase": self._status.phase,
@@ -166,6 +182,7 @@ class DreamingService:
             self._last_update_time = 0
             self._pending_message = None
             self._pending_phase = None
+            self._completed_at = None
 
 
 # Global singleton instance
