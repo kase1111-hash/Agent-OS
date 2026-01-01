@@ -285,8 +285,8 @@ class LedgerClient:
                 )
                 result = self._aggregation_engine.aggregate(query)
                 return result.total_value
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Aggregation engine query failed, using fallback: {e}")
 
         # Fallback to local tracking
         return self._total_value
@@ -302,8 +302,8 @@ class LedgerClient:
                     entry_counts_by_type=stats.entry_counts_by_type,
                     latest_sequence=stats.latest_sequence,
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Store stats query failed, using fallback: {e}")
 
         # Fallback
         return LedgerStats(
@@ -343,8 +343,8 @@ class LedgerClient:
         if self._store:
             try:
                 self._store.shutdown()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Error during ledger store shutdown: {e}")
 
         self._initialized = False
         logger.info("Ledger client shutdown")

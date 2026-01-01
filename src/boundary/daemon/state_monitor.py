@@ -281,6 +281,7 @@ class StateMonitor:
                     meminfo = f.read()
                     # Just check it's readable
             except (FileNotFoundError, PermissionError):
+                # Expected on non-Linux systems or containerized environments
                 pass
 
             # In a real implementation, this would check:
@@ -418,8 +419,9 @@ class StateMonitor:
                             state="ESTABLISHED",
                         )
                     )
-            except Exception:
-                pass
+            except Exception as e:
+                # Network check fallback failed; no connectivity or blocked
+                logger.debug(f"Network connectivity check failed: {e}")
 
         return connections
 

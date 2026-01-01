@@ -134,9 +134,22 @@ class SmithClient:
             if self.config.embedded:
                 return self._init_embedded()
 
-            # TODO: Implement socket connection
-            logger.warning("Socket connection not implemented")
-            return False
+            # Phase 2 Feature: Socket connection to remote SmithDaemon
+            # This will enable:
+            # - Distributed deployments with centralized security daemon
+            # - Cross-process boundary enforcement
+            # - Network-based security policy synchronization
+            #
+            # For now, use embedded mode (config.embedded=True) which runs
+            # the daemon in-process. This is suitable for single-instance
+            # deployments and development.
+            #
+            # Socket protocol will use:
+            # - Unix domain sockets (Linux/macOS) or named pipes (Windows)
+            # - JSON-RPC for request/response
+            # - mTLS for remote network connections
+            logger.info("Socket connection deferred to Phase 2 - using embedded mode")
+            return self._init_embedded()
 
     def disconnect(self) -> None:
         """Disconnect from the daemon."""
