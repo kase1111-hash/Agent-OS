@@ -502,6 +502,32 @@ async def get_version() -> Dict[str, str]:
     }
 
 
+@router.get("/dreaming")
+async def get_dreaming_status() -> Dict[str, Any]:
+    """
+    Get the current "dreaming" status.
+
+    Shows what the system is currently working on internally.
+    Updates are throttled to every 5 seconds for performance.
+
+    Returns:
+        Current dreaming status with message, phase, and timing info
+    """
+    try:
+        from src.web.dreaming import get_dreaming
+
+        return get_dreaming().get_status()
+    except ImportError:
+        return {
+            "message": "Idle",
+            "phase": "idle",
+            "operation": None,
+            "updated_at": datetime.utcnow().isoformat(),
+            "operations_count": 0,
+            "throttle_interval": 5.0,
+        }
+
+
 @router.get("/metrics")
 async def get_metrics() -> Dict[str, Any]:
     """Get system metrics."""

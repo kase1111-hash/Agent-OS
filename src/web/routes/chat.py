@@ -575,6 +575,15 @@ class ConnectionManager:
         Runs the synchronous Ollama client in a thread pool to avoid blocking.
         Checks boundary permissions before making network calls.
         """
+        # Update dreaming status
+        try:
+            from src.web.dreaming import get_dreaming
+
+            dreaming = get_dreaming()
+            dreaming.start("Processing chat request")
+        except ImportError:
+            dreaming = None
+
         # Check boundary permission for network access to Ollama
         if not self.boundary.check_network_access("chat:ollama", OLLAMA_ENDPOINT):
             logger.warning("Boundary daemon denied network access to Ollama")
@@ -602,6 +611,11 @@ class ConnectionManager:
 
         # Run Ollama in thread pool (since httpx client is synchronous)
         loop = asyncio.get_event_loop()
+
+        # Update dreaming status to running
+        if dreaming:
+            dreaming.running("Generating response")
+
         with concurrent.futures.ThreadPoolExecutor() as executor:
             try:
                 result = await loop.run_in_executor(
@@ -609,9 +623,14 @@ class ConnectionManager:
                     self._call_ollama,
                     messages,
                 )
+                # Mark as complete
+                if dreaming:
+                    dreaming.complete("Chat response generated")
                 return result
             except Exception as e:
                 logger.error(f"Ollama error: {e}")
+                if dreaming:
+                    dreaming.complete("Chat request failed")
                 model = get_model_manager().get_current_model()
                 return (
                     f"I'm sorry, I encountered an error connecting to Ollama: {str(e)}\n\n"

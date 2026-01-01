@@ -74,6 +74,9 @@ class AgentOS {
             this.connectWebSocket();
             this.loadInitialData();
         });
+
+        // Start dreaming status polling (every 5 seconds)
+        this.startDreamingPoll();
         this.setupClickOutside();
         this.interceptConsole();
         this.interceptFetch();
@@ -2296,6 +2299,70 @@ class AgentOS {
 
     hideModal() {
         document.getElementById('modal').classList.remove('active');
+    }
+
+    // =========================================================================
+    // Dreaming Status
+    // =========================================================================
+
+    startDreamingPoll() {
+        // Initial fetch
+        this.fetchDreamingStatus();
+
+        // Poll every 5 seconds (matches backend throttle)
+        this.dreamingInterval = setInterval(() => {
+            this.fetchDreamingStatus();
+        }, 5000);
+    }
+
+    async fetchDreamingStatus() {
+        try {
+            const response = await fetch('/api/system/dreaming');
+            if (response.ok) {
+                const status = await response.json();
+                this.updateDreamingDisplay(status);
+            }
+        } catch (error) {
+            // Silent fail - dreaming is not critical
+            if (this.settings.verbose_logging) {
+                console.debug('Dreaming status fetch failed:', error.message);
+            }
+        }
+    }
+
+    updateDreamingDisplay(status) {
+        const container = document.getElementById('dreaming-status');
+        const dot = container?.querySelector('.dreaming-dot');
+        const text = container?.querySelector('.dreaming-text');
+
+        if (!container || !dot || !text) return;
+
+        // Update text
+        text.textContent = status.message || 'Idle';
+
+        // Update phase class for styling
+        container.className = 'dreaming-indicator';
+        if (status.phase) {
+            container.classList.add(`dreaming-${status.phase}`);
+        }
+
+        // Add pulse animation when active
+        if (status.phase === 'starting' || status.phase === 'running') {
+            dot.classList.add('dreaming-pulse');
+        } else {
+            dot.classList.remove('dreaming-pulse');
+        }
+
+        // Update tooltip with more detail
+        const tooltip = `${status.message} (${status.operations_count} operations)`;
+        container.setAttribute('data-tooltip', tooltip);
+    }
+
+    stopDreamingPoll() {
+        if (this.dreamingInterval) {
+            clearInterval(this.dreamingInterval);
+            this.dreamingInterval = null;
+        }
     }
 
     // Utilities
