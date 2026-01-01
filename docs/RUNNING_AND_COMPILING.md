@@ -322,3 +322,39 @@ docker compose build --no-cache
 # Check Docker logs
 docker compose logs
 ```
+
+---
+
+## Windows Quick Start
+
+For Windows users, we provide convenient batch scripts:
+
+### First-Time Setup
+
+1. Install [Python 3.10+](https://www.python.org/downloads/) (check "Add Python to PATH")
+2. Install [Ollama](https://ollama.com/download)
+3. Double-click `build.bat`
+
+### Running
+
+1. Double-click `start.bat`
+2. Open http://localhost:8080 in your browser
+
+See [START_HERE.md](../START_HERE.md) for detailed Windows instructions.
+
+---
+
+## Version Information
+
+| Component | Version |
+|-----------|---------|
+| Agent-OS | 1.0 |
+| Python | 3.10+ |
+| FastAPI | 0.115+ |
+| Pydantic | 2.10+ |
+| Docker | 20.10+ (optional) |
+
+---
+
+*Last Updated: January 2026*
+*License: CC0 1.0 Universal (Public Domain)*

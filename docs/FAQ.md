@@ -195,12 +195,72 @@ Branham, K. (2025). Agent OS: A Constitutional Operating System for Local AI. CC
 
 To normalize the idea that intelligence infrastructure can be locally owned, constitutionally governed, and human-centered — just like personal computers replaced mainframes.
 
-Final Note
+## 🔧 Installation & Setup
 
-If you understand Agent OS at one level today, that’s enough.
+### How do I install Agent-OS on Windows?
+
+The easiest way is to:
+1. Install Python 3.10+ and Ollama
+2. Double-click `build.bat` to set up the environment
+3. Double-click `start.bat` to run
+
+See [START_HERE.md](../START_HERE.md) for step-by-step instructions.
+
+### How do I install Agent-OS on Linux/macOS?
+
+```bash
+git clone https://github.com/kase1111-hash/Agent-OS.git
+cd Agent-OS
+pip install -r requirements.txt
+ollama pull mistral
+python -m uvicorn src.web.app:get_app --factory --host 0.0.0.0 --port 8080
+```
+
+See [RUNNING_AND_COMPILING.md](./RUNNING_AND_COMPILING.md) for detailed instructions.
+
+### What models does Agent-OS support?
+
+Agent-OS integrates with:
+- **Ollama** - Primary LLM backend (recommended)
+- **Llama.cpp** - Alternative local inference
+- Any model available through Ollama (Mistral, Llama, Gemma, etc.)
+
+### What are the hardware requirements?
+
+**Minimum:**
+- Python 3.10+
+- 8GB RAM
+- 500GB storage
+
+**Recommended:**
+- 16GB+ RAM
+- GPU with 16GB+ VRAM
+- SSD storage
+
+### How do I run tests?
+
+```bash
+pytest tests/
+```
+
+For coverage:
+```bash
+pytest --cov=src tests/
+```
+
+---
+
+## Final Note
+
+If you understand Agent OS at one level today, that's enough.
 
 The system is designed so governance grows with understanding — from children learning safely, to families preserving memory, to professionals building serious systems.
 
 Agent OS is not about smarter machines.
 
-It’s about keeping humans in charge of intelligence itself.
+It's about keeping humans in charge of intelligence itself.
+
+---
+
+*Last Updated: January 2026*
+*License: CC0 1.0 Universal (Public Domain)*
