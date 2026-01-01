@@ -375,6 +375,237 @@ attack_detection:
     base_branch: main
 ```
 
+## External Security Tools Integration (Optional) {#external-tools}
+
+Agent OS supports optional integration with external security infrastructure for enhanced protection. These tools are **not required** for Agent OS to function, but provide additional security layers for enterprise and high-security deployments.
+
+### Boundary Daemon (Optional)
+
+[Boundary Daemon](https://github.com/kase1111-hash/boundary-daemon-) is an external policy decision and audit layer that can augment Agent Smith's internal security capabilities.
+
+#### Overview
+
+Boundary Daemon serves as the **Trust Policy & Audit Layer** for Agent OS environments, providing:
+
+- **Environment Sensing**: Monitors network, hardware, and process states
+- **Six Boundary Modes**: OPEN, RESTRICTED, TRUSTED, AIRGAP, COLDROOM, LOCKDOWN
+- **Recall Gating**: Controls memory access based on trust levels
+- **Execution Gating**: Restricts tools, I/O, and model access
+- **Tripwire Response**: Automatic lockdown on security violations
+- **Audit Signaling**: Tamper-evident, hash-chained event logs
+
+#### Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Fail-Closed Design** | Ambiguous states default to DENY |
+| **Cryptographic Logging** | SHA-256 hash-chained, Ed25519-signed immutable logs |
+| **Memory Classification** | Six levels from PUBLIC to CROWN_JEWEL |
+| **AI/Agent Security** | 50+ jailbreak patterns, RAG poisoning detection |
+| **Process Sandboxing** | Namespace isolation, seccomp-BPF, cgroups v2 |
+| **Threat Detection** | YARA/Sigma rules, MITRE ATT&CK mapping |
+
+#### Boundary Modes
+
+| Mode | Network | Memory Classes | Use Case |
+|------|---------|----------------|----------|
+| OPEN | Online | 0-1 | Casual use |
+| RESTRICTED | Online | 0-2 | Research |
+| TRUSTED | VPN only | 0-3 | Serious work |
+| AIRGAP | Offline | 0-4 | High-value IP |
+| COLDROOM | Offline | 0-5 | Crown jewels |
+| LOCKDOWN | Blocked | None | Emergency |
+
+#### Integration with Agent Smith
+
+Agent Smith can receive events from Boundary Daemon for enhanced monitoring:
+
+```yaml
+attack_detection:
+  detector:
+    enable_boundary_events: true
+
+  boundary_daemon:
+    enabled: true
+    socket_path: /var/run/boundary-daemon/smith.sock
+    event_types:
+      - tripwire_triggered
+      - mode_transition
+      - policy_violation
+      - audit_event
+    auto_lockdown_on_critical: true
+```
+
+When Boundary Daemon detects a security event, it signals Agent Smith which can:
+1. Log the event for analysis
+2. Trigger additional internal checks
+3. Recommend or initiate lockdown procedures
+4. Generate security recommendations
+
+#### Installation (Optional)
+
+```bash
+# Clone Boundary Daemon
+git clone https://github.com/kase1111-hash/boundary-daemon-.git
+cd boundary-daemon-
+
+# Install and configure
+./install.sh
+
+# Start the daemon
+sudo systemctl start boundary-daemon
+```
+
+### Boundary SIEM (Optional)
+
+[Boundary SIEM](https://github.com/kase1111-hash/Boundary-SIEM) is a high-performance security information and event management platform that can serve as the central security hub for Agent OS deployments.
+
+#### Overview
+
+Boundary SIEM provides enterprise-grade security monitoring capabilities:
+
+- **Event Processing**: CEF, JSON HTTP, and RFC 5424 syslog ingestion
+- **Storage & Query**: ClickHouse-based analytics with tiered retention
+- **103 Detection Rules**: Blockchain-specific and general security rules
+- **Correlation Engine**: Time windows and sequence detection
+- **MITRE ATT&CK**: Standardized threat classification
+
+#### Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Ring Buffer Queue** | 100K events with backpressure handling |
+| **Tiered Retention** | Hot (7d), warm (30d), cold (365d), S3 archive |
+| **Multi-Auth** | OAuth 2.0, SAML 2.0, OIDC, LDAP with MFA |
+| **RBAC** | 7 roles, 16 permissions |
+| **Audit Logging** | SHA-256 hash-chained tamper-evident logs |
+| **Compliance** | SOC 2 Type II, ISO 27001, NIST CSF, PCI DSS, GDPR |
+
+#### Integration with Agent Smith
+
+Agent Smith includes a native Boundary SIEM adapter for seamless integration:
+
+```yaml
+attack_detection:
+  siem:
+    sources:
+      - name: boundary-siem
+        provider: boundary_siem
+        endpoint: ${BOUNDARY_SIEM_URL}
+        api_key: ${BOUNDARY_SIEM_API_KEY}
+        poll_interval: 30
+        extra_params:
+          # Query Agent OS-related events
+          query_filter: "source:agent-os OR source:boundary-daemon"
+          severity_min: medium
+```
+
+#### Event Flow
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│ Boundary Daemon │────▶│  Boundary SIEM  │────▶│  Agent Smith    │
+│ (Policy Layer)  │     │  (Analytics)    │     │  (Response)     │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+         │                       │                       │
+         │  Tripwire Events      │  Correlated Alerts   │  Remediation
+         │  Audit Logs           │  Detection Rules     │  Recommendations
+         │  Mode Changes         │  Threat Intel        │  Auto-Patches
+         ▼                       ▼                       ▼
+```
+
+#### API Integration
+
+Boundary SIEM provides multiple integration points:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/events` | GET/POST | Event management |
+| `/api/v1/alerts` | GET | Alert retrieval |
+| `/api/v1/search` | POST | Search queries |
+| `/graphql` | POST | Flexible queries |
+| `/ws/alerts` | WebSocket | Real-time streaming |
+
+#### Installation (Optional)
+
+```bash
+# Clone Boundary SIEM
+git clone https://github.com/kase1111-hash/Boundary-SIEM.git
+cd Boundary-SIEM
+
+# Start with Docker Compose
+docker-compose up -d
+
+# Configure Agent OS integration
+cat >> configs/config.yaml << EOF
+integrations:
+  agent_os:
+    enabled: true
+    event_sources:
+      - boundary-daemon
+      - smith-agent
+EOF
+```
+
+### Combined Deployment Architecture
+
+For maximum security, deploy all three components together:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        Agent OS Deployment                          │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌───────────┐  │
+│  │   Whisper   │  │    Sage     │  │   Seshat    │  │   Muse    │  │
+│  │ Orchestrator│  │  Reasoner   │  │  Archivist  │  │ Creative  │  │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └─────┬─────┘  │
+│         │                │                │               │         │
+│         └────────────────┼────────────────┼───────────────┘         │
+│                          │                │                         │
+│                          ▼                ▼                         │
+│                   ┌─────────────────────────────┐                   │
+│                   │        Agent Smith          │                   │
+│                   │    (Security Guardian)      │                   │
+│                   │  ┌───────────────────────┐  │                   │
+│                   │  │   Attack Detection    │  │                   │
+│                   │  │   • Pattern Matching  │  │                   │
+│                   │  │   • LLM Analysis      │  │                   │
+│                   │  │   • SIEM Integration  │  │                   │
+│                   │  └───────────────────────┘  │                   │
+│                   └──────────┬──────────────────┘                   │
+│                              │                                       │
+└──────────────────────────────┼───────────────────────────────────────┘
+                               │
+        ┌──────────────────────┼──────────────────────┐
+        │                      │                      │
+        ▼                      ▼                      ▼
+┌───────────────┐    ┌─────────────────┐    ┌────────────────────┐
+│ SmithDaemon   │    │ Boundary Daemon │    │   Boundary SIEM    │
+│ (Internal)    │◀──▶│ (External/Opt)  │───▶│   (External/Opt)   │
+│               │    │                 │    │                    │
+│ • Local       │    │ • System-level  │    │ • Centralized      │
+│   Enforcement │    │   Policies      │    │   Analytics        │
+│ • Tripwires   │    │ • Sandboxing    │    │ • Correlation      │
+│ • State       │    │ • Audit Logs    │    │ • Compliance       │
+└───────────────┘    └─────────────────┘    └────────────────────┘
+```
+
+### Configuration Best Practices
+
+1. **Start with internal SmithDaemon** - Agent OS works fully without external tools
+2. **Add Boundary Daemon for system-level enforcement** - Process sandboxing, network controls
+3. **Add Boundary SIEM for centralized analytics** - Correlation, compliance, long-term storage
+4. **Configure event forwarding** - Send Smith events to SIEM for analysis
+5. **Enable bidirectional alerts** - SIEM findings trigger Smith responses
+
+### Security Considerations
+
+- **Optional, not required**: Agent OS is fully functional without external tools
+- **Defense in depth**: Each layer adds additional protection
+- **Fail-safe**: If external tools are unavailable, Agent OS continues with internal protections
+- **No cloud dependency**: All tools can run locally for air-gap deployments
+
 ### Security API Endpoints
 
 The attack detection system exposes RESTful API endpoints:
