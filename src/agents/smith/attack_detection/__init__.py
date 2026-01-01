@@ -123,6 +123,24 @@ from .llm_analyzer import (
     AnalysisConfidence,
     create_llm_analyzer,
 )
+from .git_integration import (
+    GitIntegration,
+    GitProvider,
+    LocalGitProvider,
+    MockGitProvider,
+    PatchApplicator,
+    BranchInfo,
+    CommitInfo,
+    PullRequestInfo,
+    PatchApplication,
+    PRStatus,
+    GitOperationError,
+    PRCreationError,
+    create_git_integration,
+    create_local_git_provider,
+    create_mock_git_provider,
+    create_patch_applicator,
+)
 
 __all__ = [
     # Detector
@@ -195,4 +213,21 @@ __all__ = [
     "CodeVulnerability",
     "AnalysisConfidence",
     "create_llm_analyzer",
+    # Git Integration
+    "GitIntegration",
+    "GitProvider",
+    "LocalGitProvider",
+    "MockGitProvider",
+    "PatchApplicator",
+    "BranchInfo",
+    "CommitInfo",
+    "PullRequestInfo",
+    "PatchApplication",
+    "PRStatus",
+    "GitOperationError",
+    "PRCreationError",
+    "create_git_integration",
+    "create_local_git_provider",
+    "create_mock_git_provider",
+    "create_patch_applicator",
 ]

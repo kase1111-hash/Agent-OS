@@ -30,6 +30,11 @@ from .remediation import (
     RemediationEngine,
     PatchType,
 )
+from .git_integration import (
+    GitIntegration,
+    PullRequestInfo,
+    PRStatus,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -150,6 +155,11 @@ class FixRecommendation:
     related_recommendations: List[str] = field(default_factory=list)
     updated_at: datetime = field(default_factory=datetime.now)
 
+    # Git integration
+    pr_number: Optional[int] = None
+    pr_url: Optional[str] = None
+    pr_branch: Optional[str] = None
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
         return {
@@ -180,6 +190,9 @@ class FixRecommendation:
             "labels": self.labels,
             "related_recommendations": self.related_recommendations,
             "updated_at": self.updated_at.isoformat(),
+            "pr_number": self.pr_number,
+            "pr_url": self.pr_url,
+            "pr_branch": self.pr_branch,
         }
 
     def get_full_diff(self) -> str:
@@ -324,17 +337,26 @@ class RecommendationSystem:
     def __init__(
         self,
         remediation_engine: Optional[RemediationEngine] = None,
+        git_integration: Optional[GitIntegration] = None,
         on_recommendation: Optional[Callable[[FixRecommendation], None]] = None,
+        auto_create_pr: bool = False,
+        pr_draft_mode: bool = True,
     ):
         """
         Initialize recommendation system.
 
         Args:
             remediation_engine: Engine for generating patches
+            git_integration: Git integration for auto-creating PRs
             on_recommendation: Callback when recommendation created
+            auto_create_pr: Automatically create PRs when recommendations are approved
+            pr_draft_mode: Create PRs as drafts (requires manual publish)
         """
         self.remediation_engine = remediation_engine
+        self.git_integration = git_integration
         self.on_recommendation = on_recommendation
+        self.auto_create_pr = auto_create_pr
+        self.pr_draft_mode = pr_draft_mode
 
         self._recommendations: Dict[str, FixRecommendation] = {}
         self._by_attack: Dict[str, str] = {}  # attack_id -> recommendation_id
@@ -687,6 +709,116 @@ class RecommendationSystem:
             logger.warning(f"Partial implementation of {rec_id}")
             return False, "; ".join(messages)
 
+    async def create_pull_request(
+        self,
+        rec_id: str,
+        draft: Optional[bool] = None,
+        additional_reviewers: Optional[List[str]] = None,
+    ) -> Tuple[bool, Optional[PullRequestInfo]]:
+        """
+        Create a pull request for a recommendation.
+
+        Args:
+            rec_id: Recommendation ID
+            draft: Whether to create as draft (overrides pr_draft_mode)
+            additional_reviewers: Additional reviewers to add
+
+        Returns:
+            Tuple of (success, PullRequestInfo or None)
+        """
+        rec = self._recommendations.get(rec_id)
+        if not rec:
+            logger.error(f"Recommendation not found: {rec_id}")
+            return False, None
+
+        if not self.git_integration:
+            logger.error("Git integration not configured")
+            return False, None
+
+        if rec.status not in [
+            RecommendationStatus.APPROVED,
+            RecommendationStatus.PARTIALLY_APPROVED,
+        ]:
+            logger.warning(
+                f"Recommendation {rec_id} is not approved (status: {rec.status.name})"
+            )
+            return False, None
+
+        try:
+            # Collect all patch content and files
+            affected_files = []
+            combined_patch = []
+            for patch in rec.patches:
+                for file_info in patch.files:
+                    affected_files.append(file_info.file_path)
+                    # Create unified diff content
+                    combined_patch.append(
+                        f"# Patch: {patch.patch_id}\n"
+                        f"# File: {file_info.file_path}\n"
+                        f"{patch.get_full_diff()}"
+                    )
+
+            # Get first patch file for primary application
+            primary_file = affected_files[0] if affected_files else "unknown"
+            primary_patch = rec.patches[0] if rec.patches else None
+
+            if not primary_patch:
+                logger.error("No patches available in recommendation")
+                return False, None
+
+            # Create the PR
+            use_draft = draft if draft is not None else self.pr_draft_mode
+
+            pr_info, commit_info = await self.git_integration.create_fix_pr_from_recommendation(
+                attack_id=rec.attack_id,
+                attack_type=rec.attack_type.name,
+                severity=rec.attack_severity.name,
+                description=rec.description,
+                patch_content="\n".join(combined_patch),
+                file_path=primary_file,
+                recommendation_id=rec.recommendation_id,
+                analysis_summary=rec.vulnerability_summary,
+                draft=use_draft,
+            )
+
+            # Update recommendation with PR info
+            rec.pr_number = pr_info.number
+            rec.pr_url = pr_info.url
+            rec.pr_branch = pr_info.branch
+            rec.updated_at = datetime.now()
+
+            logger.info(
+                f"Created PR #{pr_info.number} for recommendation {rec_id}: {pr_info.url}"
+            )
+
+            return True, pr_info
+
+        except Exception as e:
+            logger.error(f"Failed to create PR for {rec_id}: {e}")
+            return False, None
+
+    async def get_pr_status(
+        self,
+        rec_id: str,
+    ) -> Optional[PRStatus]:
+        """
+        Get the current status of a recommendation's pull request.
+
+        Args:
+            rec_id: Recommendation ID
+
+        Returns:
+            PRStatus or None if no PR exists
+        """
+        rec = self._recommendations.get(rec_id)
+        if not rec or not rec.pr_number:
+            return None
+
+        if not self.git_integration:
+            return None
+
+        return await self.git_integration.get_pr_status(rec.attack_id)
+
     def export_recommendation(
         self,
         rec_id: str,
@@ -881,19 +1013,28 @@ class RecommendationSystem:
 
 def create_recommendation_system(
     remediation_engine: Optional[RemediationEngine] = None,
+    git_integration: Optional[GitIntegration] = None,
     on_recommendation: Optional[Callable[[FixRecommendation], None]] = None,
+    auto_create_pr: bool = False,
+    pr_draft_mode: bool = True,
 ) -> RecommendationSystem:
     """
     Factory function to create a recommendation system.
 
     Args:
         remediation_engine: Engine for generating patches
+        git_integration: Git integration for auto-creating PRs
         on_recommendation: Callback when recommendation created
+        auto_create_pr: Automatically create PRs when recommendations are approved
+        pr_draft_mode: Create PRs as drafts (requires manual publish)
 
     Returns:
         Configured RecommendationSystem
     """
     return RecommendationSystem(
         remediation_engine=remediation_engine,
+        git_integration=git_integration,
         on_recommendation=on_recommendation,
+        auto_create_pr=auto_create_pr,
+        pr_draft_mode=pr_draft_mode,
     )
