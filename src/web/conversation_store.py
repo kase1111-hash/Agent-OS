@@ -348,7 +348,7 @@ class ConversationStore:
 
         with self._lock:
             cursor = self._conn.cursor()
-            cursor.execute(f"UPDATE conversations SET {', '.join(updates)} WHERE id = ?", params)
+            cursor.execute(f"UPDATE conversations SET {', '.join(updates)} WHERE id = ?", params)  # nosec B608 - column names are hardcoded
             self._conn.commit()
             return cursor.rowcount > 0
 

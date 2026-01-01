@@ -305,8 +305,8 @@ class SplunkAdapter(SIEMAdapter):
             )
 
             if response.status_code == 200:
-                # Parse session key from XML response
-                import xml.etree.ElementTree as ET
+                # Parse session key from XML response (using defusedxml to prevent XXE attacks)
+                import defusedxml.ElementTree as ET
                 root = ET.fromstring(response.text)
                 session_key = root.find(".//sessionKey")
                 if session_key is not None:
@@ -424,7 +424,8 @@ class SplunkAdapter(SIEMAdapter):
 
             # Generate event ID
             event_hash = hashlib.md5(
-                f"{time_str}{result.get('host', '')}{result.get('message', '')}".encode()
+                f"{time_str}{result.get('host', '')}{result.get('message', '')}".encode(),
+                usedforsecurity=False
             ).hexdigest()[:16]
 
             return SIEMEvent(
@@ -739,7 +740,7 @@ class ElasticAdapter(SIEMAdapter):
                 mitre_tactics.append(threat["tactic"]["name"])
 
             return SIEMEvent(
-                event_id=f"elastic_{hit.get('_id', hashlib.md5(str(source).encode()).hexdigest()[:16])}",
+                event_id=f"elastic_{hit.get('_id', hashlib.md5(str(source).encode(), usedforsecurity=False).hexdigest()[:16])}",
                 timestamp=timestamp,
                 source=event_source,
                 event_type=source.get("event", {}).get("action", "security_event"),
@@ -957,7 +958,8 @@ class SentinelAdapter(SIEMAdapter):
 
             # Generate event ID
             event_hash = hashlib.md5(
-                f"{time_str}{row.get('AlertName', '')}".encode()
+                f"{time_str}{row.get('AlertName', '')}".encode(),
+                usedforsecurity=False
             ).hexdigest()[:16]
 
             return SIEMEvent(
@@ -1181,7 +1183,7 @@ class SyslogAdapter(SIEMAdapter):
                 except ValueError:
                     timestamp = datetime.now()
 
-                event_hash = hashlib.md5(message.encode()).hexdigest()[:16]
+                event_hash = hashlib.md5(message.encode(), usedforsecurity=False).hexdigest()[:16]
 
                 return SIEMEvent(
                     event_id=f"syslog_{event_hash}",
@@ -1217,7 +1219,7 @@ class SyslogAdapter(SIEMAdapter):
                     }
                     severity = severity_map.get(syslog_severity, EventSeverity.UNKNOWN)
 
-                    event_hash = hashlib.md5(message.encode()).hexdigest()[:16]
+                    event_hash = hashlib.md5(message.encode(), usedforsecurity=False).hexdigest()[:16]
 
                     return SIEMEvent(
                         event_id=f"syslog_{event_hash}",
@@ -1456,7 +1458,7 @@ class BoundarySIEMAdapter(SIEMAdapter):
                 indicators.append(f"hash:{hash_val}")
 
             return SIEMEvent(
-                event_id=f"boundary_siem_{result.get('id', hashlib.md5(str(result).encode()).hexdigest()[:16])}",
+                event_id=f"boundary_siem_{result.get('id', hashlib.md5(str(result).encode(), usedforsecurity=False).hexdigest()[:16])}",
                 timestamp=timestamp,
                 source=result.get("source", result.get("host", "boundary-siem")),
                 event_type=result.get("event_type", result.get("rule_name", "security_event")),

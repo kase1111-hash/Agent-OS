@@ -19,6 +19,41 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 
+def _safe_tar_extract(tar: tarfile.TarFile, path: Path) -> None:
+    """
+    Safely extract tar archive, filtering out dangerous members.
+
+    Prevents path traversal attacks by rejecting:
+    - Absolute paths
+    - Paths containing '..'
+    - Symbolic links pointing outside extraction directory
+    """
+    for member in tar.getmembers():
+        # Check for path traversal attempts
+        member_path = Path(member.name)
+
+        # Reject absolute paths
+        if member_path.is_absolute():
+            logger.warning(f"Skipping absolute path in tar: {member.name}")
+            continue
+
+        # Reject paths with '..'
+        if ".." in member_path.parts:
+            logger.warning(f"Skipping path traversal attempt in tar: {member.name}")
+            continue
+
+        # For symlinks, ensure target is within extraction directory
+        if member.issym() or member.islnk():
+            # Resolve the link target
+            link_target = Path(member.linkname)
+            if link_target.is_absolute() or ".." in link_target.parts:
+                logger.warning(f"Skipping dangerous symlink in tar: {member.name} -> {member.linkname}")
+                continue
+
+        # Safe to extract
+        tar.extract(member, path)
+
+
 class BackupError(Exception):
     """Error during backup or restore operations."""
 
@@ -329,7 +364,7 @@ class BackupManager:
 
             try:
                 with tarfile.open(archive_path, "r:gz") as tar:
-                    tar.extractall(staging_dir)
+                    _safe_tar_extract(tar, staging_dir)
                 source_dir = staging_dir / backup_id
             except Exception as e:
                 shutil.rmtree(staging_dir)

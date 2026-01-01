@@ -559,7 +559,7 @@ class RateLimiter:
 
         # Last resort: use a hash of headers
         headers_str = str(sorted(request.headers.items()))
-        return f"anon:{hashlib.md5(headers_str.encode()).hexdigest()[:16]}"
+        return f"anon:{hashlib.md5(headers_str.encode(), usedforsecurity=False).hexdigest()[:16]}"
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):

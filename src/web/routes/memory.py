@@ -324,7 +324,7 @@ class MemoryStore:
                 return self._row_to_entry(row)
 
             params.append(entry_id)
-            cursor.execute(f"UPDATE memories SET {', '.join(updates)} WHERE id = ?", params)
+            cursor.execute(f"UPDATE memories SET {', '.join(updates)} WHERE id = ?", params)  # nosec B608 - column names are hardcoded
             self._connection.commit()
 
             # Fetch updated entry

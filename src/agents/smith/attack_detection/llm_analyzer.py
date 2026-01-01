@@ -448,7 +448,7 @@ class LLMAnalyzer:
         import time
         start_time = time.time()
 
-        analysis_id = f"LLM-{hashlib.md5(f'{attack_id}{datetime.now().isoformat()}'.encode()).hexdigest()[:12]}"
+        analysis_id = f"LLM-{hashlib.md5(f'{attack_id}{datetime.now().isoformat()}'.encode(), usedforsecurity=False).hexdigest()[:12]}"
 
         result = LLMAnalysisResult(
             analysis_id=analysis_id,
@@ -661,7 +661,7 @@ class LLMAnalyzer:
         for pattern_name, pattern_data in patterns.items():
             regex = pattern_data.get("regex")
             if regex and re.search(regex, code_snippet, re.IGNORECASE):
-                vuln_id = f"VULN-{hashlib.md5(f'{file_path}{pattern_name}'.encode()).hexdigest()[:8]}"
+                vuln_id = f"VULN-{hashlib.md5(f'{file_path}{pattern_name}'.encode(), usedforsecurity=False).hexdigest()[:8]}"
                 vulnerabilities.append(CodeVulnerability(
                     vulnerability_id=vuln_id,
                     file_path=file_path,
@@ -774,7 +774,7 @@ class LLMAnalyzer:
 
         for pattern, vuln_type, severity, cwe_id in vuln_patterns:
             if re.search(pattern, conclusion, re.IGNORECASE):
-                vuln_id = f"VULN-{hashlib.md5(f'{file_path}{vuln_type}'.encode()).hexdigest()[:8]}"
+                vuln_id = f"VULN-{hashlib.md5(f'{file_path}{vuln_type}'.encode(), usedforsecurity=False).hexdigest()[:8]}"
                 vulnerabilities.append(CodeVulnerability(
                     vulnerability_id=vuln_id,
                     file_path=file_path,
