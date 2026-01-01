@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from .analyzer import VulnerabilityReport, VulnerabilityFinding, RiskLevel
 from .detector import AttackEvent, AttackType, AttackSeverity
