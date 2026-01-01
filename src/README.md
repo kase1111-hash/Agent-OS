@@ -36,7 +36,20 @@ src/
 │   │   ├── pre_validator.py
 │   │   ├── post_monitor.py
 │   │   ├── refusal_engine.py
-│   │   └── emergency.py   # Emergency controls
+│   │   ├── emergency.py   # Emergency controls
+│   │   └── attack_detection/  # Attack detection & auto-remediation
+│   │       ├── detector.py       # Attack event detection
+│   │       ├── siem_connector.py # SIEM integration (Splunk, Elastic, Sentinel)
+│   │       ├── patterns.py       # Attack pattern library
+│   │       ├── analyzer.py       # Vulnerability analysis
+│   │       ├── llm_analyzer.py   # LLM-powered attack analysis
+│   │       ├── remediation.py    # Patch generation engine
+│   │       ├── recommendation.py # Fix recommendation system
+│   │       ├── storage.py        # SQLite/memory storage backends
+│   │       ├── git_integration.py # PR automation for fixes
+│   │       ├── notifications.py  # Multi-channel alerting
+│   │       ├── config.py         # YAML configuration system
+│   │       └── integration.py    # Pipeline orchestration
 │   ├── seshat/            # Memory agent
 │   │   ├── agent.py       # SeshatAgent (~710 lines)
 │   │   ├── embeddings.py  # Embedding engine
@@ -183,7 +196,7 @@ src/
 | Agent | Role | Status |
 |-------|------|--------|
 | Whisper | Orchestrator | ✅ |
-| Smith | Guardian (S1-S12) | ✅ |
+| Smith | Guardian (S1-S12) + Attack Detection | ✅ |
 | Seshat | Memory/RAG | ✅ |
 | Sage | Reasoning | ✅ |
 | Quill | Writing | ✅ |
@@ -209,6 +222,7 @@ src/
 | Tool Integration | ✅ |
 | Agent SDK | ✅ |
 | Cross-Platform Installer | ✅ |
+| Attack Detection & Remediation | ✅ |
 
 ## Running Tests
 
