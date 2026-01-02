@@ -35,6 +35,7 @@ from .correlator import (
     CorrelationResult,
     CorrelationRule,
     ThreatCluster,
+    ThreatLevel,
     create_threat_correlator,
 )
 
@@ -56,6 +57,7 @@ from .baseline import (
 from .boundary_connector import (
     BoundaryDaemonConnector,
     BoundaryEvent,
+    BoundaryMode,
     PolicyDecision,
     TripwireAlert,
     create_boundary_connector,
@@ -79,6 +81,7 @@ __all__ = [
     "CorrelationResult",
     "CorrelationRule",
     "ThreatCluster",
+    "ThreatLevel",
     "create_threat_correlator",
     # Synthesizer
     "PatternSynthesizer",
@@ -94,6 +97,7 @@ __all__ = [
     # Boundary Connector
     "BoundaryDaemonConnector",
     "BoundaryEvent",
+    "BoundaryMode",
     "PolicyDecision",
     "TripwireAlert",
     "create_boundary_connector",
