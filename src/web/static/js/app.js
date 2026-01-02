@@ -860,15 +860,23 @@ class AgentOS {
     // Constitution
     async loadConstitution() {
         try {
-            const [sections, rules] = await Promise.all([
-                fetch('/api/constitution/sections').then(r => r.json()),
-                fetch('/api/constitution/rules').then(r => r.json())
+            const [sectionsResponse, rulesResponse] = await Promise.all([
+                fetch('/api/constitution/sections'),
+                fetch('/api/constitution/rules')
             ]);
+
+            if (!sectionsResponse.ok || !rulesResponse.ok) {
+                throw new Error('Failed to fetch constitution data');
+            }
+
+            const sections = await sectionsResponse.json();
+            const rules = await rulesResponse.json();
 
             this.renderSections(sections);
             this.renderRules(rules);
         } catch (error) {
             console.error('Failed to load constitution:', error);
+            this.showError('Failed to load constitution: ' + error.message);
         }
     }
 
@@ -976,11 +984,24 @@ class AgentOS {
     }
 
     async confirmAddRule() {
-        const content = document.getElementById('rule-content').value.trim();
-        const ruleType = document.getElementById('rule-type').value;
-        const authority = document.getElementById('rule-authority').value;
-        const keywordsInput = document.getElementById('rule-keywords').value;
-        const agentScope = document.getElementById('rule-agent-scope').value;
+        const contentEl = document.getElementById('rule-content');
+        const ruleTypeEl = document.getElementById('rule-type');
+        const authorityEl = document.getElementById('rule-authority');
+        const keywordsEl = document.getElementById('rule-keywords');
+        const agentScopeEl = document.getElementById('rule-agent-scope');
+
+        // Validate form elements exist
+        if (!contentEl || !ruleTypeEl || !authorityEl || !keywordsEl || !agentScopeEl) {
+            this.showError('Form elements not found. Please close and reopen the modal.');
+            console.error('Missing form elements:', { contentEl, ruleTypeEl, authorityEl, keywordsEl, agentScopeEl });
+            return;
+        }
+
+        const content = contentEl.value.trim();
+        const ruleType = ruleTypeEl.value;
+        const authority = authorityEl.value;
+        const keywordsInput = keywordsEl.value;
+        const agentScope = agentScopeEl.value;
 
         if (!content) {
             this.showError('Rule content is required');
@@ -1003,13 +1024,21 @@ class AgentOS {
             });
 
             if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.detail || 'Failed to create rule');
+                let errorMessage = 'Failed to create rule';
+                try {
+                    const error = await response.json();
+                    errorMessage = error.detail || errorMessage;
+                } catch (parseError) {
+                    errorMessage = `Server error: ${response.status} ${response.statusText}`;
+                }
+                throw new Error(errorMessage);
             }
 
             this.hideModal();
-            this.loadConstitution();
+            this.showSuccess('Rule created successfully');
+            await this.loadConstitution();
         } catch (error) {
+            console.error('Failed to add rule:', error);
             this.showError(error.message || 'Failed to add rule');
         }
     }
@@ -1050,9 +1079,18 @@ class AgentOS {
     }
 
     async confirmEditRule(ruleId) {
-        const content = document.getElementById('edit-rule-content').value.trim();
-        const ruleType = document.getElementById('edit-rule-type').value;
-        const keywordsInput = document.getElementById('edit-rule-keywords').value;
+        const contentEl = document.getElementById('edit-rule-content');
+        const ruleTypeEl = document.getElementById('edit-rule-type');
+        const keywordsEl = document.getElementById('edit-rule-keywords');
+
+        if (!contentEl || !ruleTypeEl || !keywordsEl) {
+            this.showError('Form elements not found. Please close and reopen the modal.');
+            return;
+        }
+
+        const content = contentEl.value.trim();
+        const ruleType = ruleTypeEl.value;
+        const keywordsInput = keywordsEl.value;
 
         if (!content) {
             this.showError('Rule content is required');
@@ -1073,13 +1111,21 @@ class AgentOS {
             });
 
             if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.detail || 'Failed to update rule');
+                let errorMessage = 'Failed to update rule';
+                try {
+                    const error = await response.json();
+                    errorMessage = error.detail || errorMessage;
+                } catch (parseError) {
+                    errorMessage = `Server error: ${response.status} ${response.statusText}`;
+                }
+                throw new Error(errorMessage);
             }
 
             this.hideModal();
-            this.loadConstitution();
+            this.showSuccess('Rule updated successfully');
+            await this.loadConstitution();
         } catch (error) {
+            console.error('Failed to update rule:', error);
             this.showError(error.message || 'Failed to update rule');
         }
     }
@@ -1095,12 +1141,20 @@ class AgentOS {
             });
 
             if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.detail || 'Failed to delete rule');
+                let errorMessage = 'Failed to delete rule';
+                try {
+                    const error = await response.json();
+                    errorMessage = error.detail || errorMessage;
+                } catch (parseError) {
+                    errorMessage = `Server error: ${response.status} ${response.statusText}`;
+                }
+                throw new Error(errorMessage);
             }
 
-            this.loadConstitution();
+            this.showSuccess('Rule deleted successfully');
+            await this.loadConstitution();
         } catch (error) {
+            console.error('Failed to delete rule:', error);
             this.showError(error.message || 'Failed to delete rule');
         }
     }
@@ -2373,6 +2427,11 @@ class AgentOS {
     }
 
     showError(message) {
+        // Simple alert for now - could be replaced with toast notification
+        alert('Error: ' + message);
+    }
+
+    showSuccess(message) {
         // Simple alert for now - could be replaced with toast notification
         alert(message);
     }
