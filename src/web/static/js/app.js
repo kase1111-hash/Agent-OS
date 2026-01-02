@@ -753,15 +753,31 @@ class AgentOS {
     // Agents
     async loadAgents() {
         try {
-            const [agents, stats] = await Promise.all([
-                fetch('/api/agents/').then(r => r.json()),
-                fetch('/api/agents/stats/overview').then(r => r.json())
+            const [agentsResponse, statsResponse] = await Promise.all([
+                fetch('/api/agents/'),
+                fetch('/api/agents/stats/overview')
             ]);
+
+            if (!agentsResponse.ok) {
+                throw new Error(`Failed to fetch agents: ${agentsResponse.status}`);
+            }
+            if (!statsResponse.ok) {
+                throw new Error(`Failed to fetch stats: ${statsResponse.status}`);
+            }
+
+            const agents = await agentsResponse.json();
+            const stats = await statsResponse.json();
 
             this.renderAgentsStats(stats);
             this.renderAgentsList(agents);
         } catch (error) {
             console.error('Failed to load agents:', error);
+            this.showError('Failed to load agents: ' + error.message);
+            // Show empty state on error
+            const container = document.getElementById('agents-list');
+            if (container) {
+                container.innerHTML = '<div class="empty-state">Failed to load agents. Please try refreshing.</div>';
+            }
         }
     }
 
@@ -789,6 +805,17 @@ class AgentOS {
 
     renderAgentsList(agents) {
         const container = document.getElementById('agents-list');
+
+        if (!agents || agents.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <p>No agents registered yet.</p>
+                    <p class="empty-state-hint">Default agents (Smith, Whisper, Seshat, etc.) should load automatically. Try refreshing the page.</p>
+                </div>
+            `;
+            return;
+        }
+
         container.innerHTML = agents.map(agent => `
             <div class="agent-card">
                 <div class="agent-header">

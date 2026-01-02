@@ -1455,6 +1455,11 @@ input::placeholder, textarea::placeholder {
     margin-bottom: 0.5rem;
 }
 
+.empty-state-hint {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
 /* Template preview in modal */
 .template-preview {
     background: rgba(0, 0, 0, 0.2);

@@ -410,6 +410,7 @@ async def list_agents(
     """
     store = get_store()
     agents = store.get_all()
+    logger.info(f"Listing agents: found {len(agents)} agents, using_real={store._use_real_agents}")
 
     if status:
         agents = [a for a in agents if a.status == status]
