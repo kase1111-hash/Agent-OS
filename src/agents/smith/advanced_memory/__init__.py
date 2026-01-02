@@ -27,6 +27,7 @@ from .store import (
     IntelligenceEntry,
     IntelligenceType,
     RetentionTier,
+    RetentionPolicy,
     create_intelligence_store,
 )
 
@@ -34,6 +35,7 @@ from .correlator import (
     ThreatCorrelator,
     CorrelationResult,
     CorrelationRule,
+    CorrelationType,
     ThreatCluster,
     ThreatLevel,
     create_threat_correlator,
@@ -41,6 +43,7 @@ from .correlator import (
 
 from .synthesizer import (
     PatternSynthesizer,
+    PatternType,
     SynthesizedPattern,
     TrendAnalysis,
     IntelligenceSummary,
@@ -75,16 +78,19 @@ __all__ = [
     "IntelligenceEntry",
     "IntelligenceType",
     "RetentionTier",
+    "RetentionPolicy",
     "create_intelligence_store",
     # Correlator
     "ThreatCorrelator",
     "CorrelationResult",
     "CorrelationRule",
+    "CorrelationType",
     "ThreatCluster",
     "ThreatLevel",
     "create_threat_correlator",
     # Synthesizer
     "PatternSynthesizer",
+    "PatternType",
     "SynthesizedPattern",
     "TrendAnalysis",
     "IntelligenceSummary",
