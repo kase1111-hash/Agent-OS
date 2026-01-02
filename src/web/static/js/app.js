@@ -1768,20 +1768,39 @@ class AgentOS {
         let attempts = 0;
 
         while (attempts < maxAttempts) {
-            const response = await fetch(`/api/images/generate/${jobId}`);
-            const job = await response.json();
+            try {
+                const response = await fetch(`/api/images/generate/${jobId}`);
 
-            if (job.status === 'completed') {
-                progressFill.style.width = '100%';
-                progressText.textContent = 'Complete!';
-                return job;
-            } else if (job.status === 'failed') {
-                throw new Error(job.error || 'Generation failed');
-            } else if (job.status === 'processing') {
-                // Estimate progress based on attempts
-                const estimatedProgress = Math.min((attempts / 30) * 100, 90);
-                progressFill.style.width = `${estimatedProgress}%`;
-                progressText.textContent = 'Processing...';
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.detail || `Server error: ${response.status}`);
+                }
+
+                const job = await response.json();
+
+                if (job.status === 'completed') {
+                    progressFill.style.width = '100%';
+                    progressText.textContent = 'Complete!';
+                    return job;
+                } else if (job.status === 'failed') {
+                    throw new Error(job.error || 'Generation failed');
+                } else if (job.status === 'processing') {
+                    // Estimate progress based on attempts (start at 10% when processing begins)
+                    const estimatedProgress = Math.min(10 + (attempts / 30) * 80, 90);
+                    progressFill.style.width = `${estimatedProgress}%`;
+                    progressText.textContent = 'Processing...';
+                } else if (job.status === 'pending') {
+                    // Job is queued but not yet started
+                    progressFill.style.width = '5%';
+                    progressText.textContent = 'Queued, waiting to start...';
+                }
+            } catch (error) {
+                // If it's a known error (like 'failed' or server error), re-throw
+                if (error.message && !error.message.includes('fetch')) {
+                    throw error;
+                }
+                // Network error - log and continue polling
+                console.warn('Polling error, retrying...', error);
             }
 
             await new Promise(resolve => setTimeout(resolve, 1000));
