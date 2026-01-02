@@ -576,17 +576,22 @@ class ConnectionManager:
         Checks boundary permissions before making network calls.
         """
         # Update dreaming status
+        dreaming = None
         try:
             from src.web.dreaming import get_dreaming
 
             dreaming = get_dreaming()
             dreaming.start("Processing chat request")
-        except ImportError:
+        except Exception as e:
+            # Log but continue - dreaming is not critical
+            logger.debug(f"Dreaming service unavailable: {e}")
             dreaming = None
 
         # Check boundary permission for network access to Ollama
         if not self.boundary.check_network_access("chat:ollama", OLLAMA_ENDPOINT):
             logger.warning("Boundary daemon denied network access to Ollama")
+            if dreaming:
+                dreaming.complete("Boundary denied access")
             return (
                 "I'm unable to respond right now. Network access to the AI backend "
                 "has been restricted by the security boundary.",
@@ -594,30 +599,30 @@ class ConnectionManager:
             )
 
         # Build conversation history for context
-        history = self.get_conversation(conversation_id)
+        try:
+            history = self.get_conversation(conversation_id)
 
-        # Convert history to Ollama message format
-        messages = []
-        for msg in history[-10:]:  # Keep last 10 messages for context
-            messages.append(
-                {
-                    "role": msg.role.value,
-                    "content": msg.content,
-                }
-            )
+            # Convert history to Ollama message format
+            messages = []
+            for msg in history[-10:]:  # Keep last 10 messages for context
+                messages.append(
+                    {
+                        "role": msg.role.value,
+                        "content": msg.content,
+                    }
+                )
 
-        # Add the current message
-        messages.append({"role": "user", "content": message})
+            # Add the current message
+            messages.append({"role": "user", "content": message})
 
-        # Run Ollama in thread pool (since httpx client is synchronous)
-        loop = asyncio.get_event_loop()
+            # Run Ollama in thread pool (since httpx client is synchronous)
+            loop = asyncio.get_event_loop()
 
-        # Update dreaming status to running
-        if dreaming:
-            dreaming.running("Generating response")
+            # Update dreaming status to running
+            if dreaming:
+                dreaming.running("Generating response")
 
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            try:
+            with concurrent.futures.ThreadPoolExecutor() as executor:
                 result = await loop.run_in_executor(
                     executor,
                     self._call_ollama,
@@ -627,17 +632,18 @@ class ConnectionManager:
                 if dreaming:
                     dreaming.complete("Chat response generated")
                 return result
-            except Exception as e:
-                logger.error(f"Ollama error: {e}")
-                if dreaming:
-                    dreaming.complete("Chat request failed")
-                model = get_model_manager().get_current_model()
-                return (
-                    f"I'm sorry, I encountered an error connecting to Ollama: {str(e)}\n\n"
-                    "Please make sure Ollama is running (`ollama serve`) and you have a model pulled "
-                    f"(`ollama pull {model}`).",
-                    {"model": model, "error": str(e)},
-                )
+
+        except Exception as e:
+            logger.error(f"Ollama error: {e}")
+            if dreaming:
+                dreaming.complete("Chat request failed")
+            model = get_model_manager().get_current_model()
+            return (
+                f"I'm sorry, I encountered an error connecting to Ollama: {str(e)}\n\n"
+                "Please make sure Ollama is running (`ollama serve`) and you have a model pulled "
+                f"(`ollama pull {model}`).",
+                {"model": model, "error": str(e)},
+            )
 
     def _call_ollama(self, messages: List[Dict[str, str]]) -> Tuple[str, Dict[str, Any]]:
         """
