@@ -753,15 +753,31 @@ class AgentOS {
     // Agents
     async loadAgents() {
         try {
-            const [agents, stats] = await Promise.all([
-                fetch('/api/agents/').then(r => r.json()),
-                fetch('/api/agents/stats/overview').then(r => r.json())
+            const [agentsResponse, statsResponse] = await Promise.all([
+                fetch('/api/agents/'),
+                fetch('/api/agents/stats/overview')
             ]);
+
+            if (!agentsResponse.ok) {
+                throw new Error(`Failed to fetch agents: ${agentsResponse.status}`);
+            }
+            if (!statsResponse.ok) {
+                throw new Error(`Failed to fetch stats: ${statsResponse.status}`);
+            }
+
+            const agents = await agentsResponse.json();
+            const stats = await statsResponse.json();
 
             this.renderAgentsStats(stats);
             this.renderAgentsList(agents);
         } catch (error) {
             console.error('Failed to load agents:', error);
+            this.showError('Failed to load agents: ' + error.message);
+            // Show empty state on error
+            const container = document.getElementById('agents-list');
+            if (container) {
+                container.innerHTML = '<div class="empty-state">Failed to load agents. Please try refreshing.</div>';
+            }
         }
     }
 
@@ -789,6 +805,17 @@ class AgentOS {
 
     renderAgentsList(agents) {
         const container = document.getElementById('agents-list');
+
+        if (!agents || agents.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <p>No agents registered yet.</p>
+                    <p class="empty-state-hint">Default agents (Smith, Whisper, Seshat, etc.) should load automatically. Try refreshing the page.</p>
+                </div>
+            `;
+            return;
+        }
+
         container.innerHTML = agents.map(agent => `
             <div class="agent-card">
                 <div class="agent-header">
@@ -1822,20 +1849,39 @@ class AgentOS {
         let attempts = 0;
 
         while (attempts < maxAttempts) {
-            const response = await fetch(`/api/images/generate/${jobId}`);
-            const job = await response.json();
+            try {
+                const response = await fetch(`/api/images/generate/${jobId}`);
 
-            if (job.status === 'completed') {
-                progressFill.style.width = '100%';
-                progressText.textContent = 'Complete!';
-                return job;
-            } else if (job.status === 'failed') {
-                throw new Error(job.error || 'Generation failed');
-            } else if (job.status === 'processing') {
-                // Estimate progress based on attempts
-                const estimatedProgress = Math.min((attempts / 30) * 100, 90);
-                progressFill.style.width = `${estimatedProgress}%`;
-                progressText.textContent = 'Processing...';
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.detail || `Server error: ${response.status}`);
+                }
+
+                const job = await response.json();
+
+                if (job.status === 'completed') {
+                    progressFill.style.width = '100%';
+                    progressText.textContent = 'Complete!';
+                    return job;
+                } else if (job.status === 'failed') {
+                    throw new Error(job.error || 'Generation failed');
+                } else if (job.status === 'processing') {
+                    // Estimate progress based on attempts (start at 10% when processing begins)
+                    const estimatedProgress = Math.min(10 + (attempts / 30) * 80, 90);
+                    progressFill.style.width = `${estimatedProgress}%`;
+                    progressText.textContent = 'Processing...';
+                } else if (job.status === 'pending') {
+                    // Job is queued but not yet started
+                    progressFill.style.width = '5%';
+                    progressText.textContent = 'Queued, waiting to start...';
+                }
+            } catch (error) {
+                // If it's a known error (like 'failed' or server error), re-throw
+                if (error.message && !error.message.includes('fetch')) {
+                    throw error;
+                }
+                // Network error - log and continue polling
+                console.warn('Polling error, retrying...', error);
             }
 
             await new Promise(resolve => setTimeout(resolve, 1000));
