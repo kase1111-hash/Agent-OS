@@ -63,6 +63,28 @@ try:
 except ImportError:
     ATTACK_DETECTION_AVAILABLE = False
 
+# Advanced memory imports (optional feature)
+try:
+    from .advanced_memory import (
+        AdvancedMemoryManager,
+        MemoryConfig,
+        IntelligenceEntry,
+        IntelligenceType,
+        ThreatCluster,
+        ThreatLevel,
+        SynthesizedPattern,
+        AnomalyScore,
+        IntelligenceSummary,
+        BoundaryEvent,
+        PolicyDecision,
+        TripwireAlert,
+        BoundaryMode,
+        create_advanced_memory,
+    )
+    ADVANCED_MEMORY_AVAILABLE = True
+except ImportError:
+    ADVANCED_MEMORY_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -83,6 +105,13 @@ class SmithMetrics:
     attacks_mitigated: int = 0
     recommendations_generated: int = 0
     auto_lockdowns_triggered: int = 0
+
+    # Advanced memory metrics
+    memory_events_stored: int = 0
+    memory_correlations: int = 0
+    memory_patterns_detected: int = 0
+    memory_anomalies: int = 0
+    memory_threat_clusters: int = 0
 
 
 class SmithAgent(BaseAgent):
@@ -134,8 +163,17 @@ class SmithAgent(BaseAgent):
         self._recommendation_system: Optional[Any] = None  # RecommendationSystem
         self._attack_detection_enabled: bool = False
 
+        # Advanced memory components (optional, initialized if enabled)
+        self._advanced_memory: Optional[Any] = None  # AdvancedMemoryManager
+        self._advanced_memory_enabled: bool = False
+
         # Callbacks for attack events
         self._on_attack_callbacks: List[Callable[[Any], None]] = []
+
+        # Callbacks for memory events (threat clusters, anomalies, patterns)
+        self._on_threat_callbacks: List[Callable[[Any], None]] = []
+        self._on_anomaly_callbacks: List[Callable[[Any], None]] = []
+        self._on_pattern_callbacks: List[Callable[[Any], None]] = []
 
         # Smith-specific metrics
         self._smith_metrics = SmithMetrics()
@@ -155,6 +193,8 @@ class SmithAgent(BaseAgent):
                 - incident_log_path: Path to incident log
                 - attack_detection_enabled: Enable attack detection system
                 - attack_detection_config: Attack detector configuration
+                - advanced_memory_enabled: Enable advanced memory system
+                - advanced_memory_config: Advanced memory configuration
 
         Returns:
             True if initialization successful
@@ -194,6 +234,11 @@ class SmithAgent(BaseAgent):
             attack_detection_enabled = config.get("attack_detection_enabled", False)
             if attack_detection_enabled and ATTACK_DETECTION_AVAILABLE:
                 self._initialize_attack_detection(config.get("attack_detection_config", {}))
+
+            # Initialize advanced memory if enabled
+            advanced_memory_enabled = config.get("advanced_memory_enabled", False)
+            if advanced_memory_enabled and ADVANCED_MEMORY_AVAILABLE:
+                self._initialize_advanced_memory(config.get("advanced_memory_config", {}))
 
             self._state = AgentState.READY
             logger.info("Smith (Guardian) initialized successfully")
@@ -259,6 +304,129 @@ class SmithAgent(BaseAgent):
         except Exception as e:
             logger.error(f"Failed to initialize attack detection: {e}")
             self._attack_detection_enabled = False
+
+    def _initialize_advanced_memory(self, config: Dict[str, Any]) -> None:
+        """
+        Initialize the advanced memory subsystem.
+
+        Integrates with Boundary-SIEM and Boundary-Daemon for comprehensive
+        security intelligence gathering, correlation, and synthesis.
+
+        Args:
+            config: Advanced memory configuration including:
+                - storage_path: Path for persistent storage
+                - boundary_endpoint: Boundary-Daemon API endpoint
+                - boundary_api_key: Boundary-Daemon API key
+                - hot_retention_days: Days to keep in hot storage (default: 7)
+                - warm_retention_days: Days to keep in warm storage (default: 30)
+                - cold_retention_days: Days to keep in cold storage (default: 365)
+                - correlation_enabled: Enable threat correlation (default: True)
+                - synthesis_enabled: Enable pattern synthesis (default: True)
+                - baseline_enabled: Enable behavioral baseline (default: True)
+        """
+        if not ADVANCED_MEMORY_AVAILABLE:
+            logger.warning("Advanced memory module not available")
+            return
+
+        try:
+            # Build memory config
+            memory_config = MemoryConfig(
+                storage_path=config.get("storage_path"),
+                boundary_endpoint=config.get("boundary_endpoint"),
+                boundary_api_key=config.get("boundary_api_key"),
+                hot_retention_days=config.get("hot_retention_days", 7),
+                warm_retention_days=config.get("warm_retention_days", 30),
+                cold_retention_days=config.get("cold_retention_days", 365),
+                correlation_enabled=config.get("correlation_enabled", True),
+                synthesis_enabled=config.get("synthesis_enabled", True),
+                baseline_enabled=config.get("baseline_enabled", True),
+                on_high_threat=self._on_high_threat_cluster,
+                on_anomaly=self._on_memory_anomaly,
+                on_pattern=self._on_memory_pattern,
+            )
+
+            # Create and initialize memory manager
+            self._advanced_memory = create_advanced_memory(
+                config=memory_config,
+                auto_start=True,
+            )
+            self._advanced_memory_enabled = True
+
+            logger.info("Advanced memory system initialized and started")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize advanced memory: {e}")
+            self._advanced_memory_enabled = False
+
+    def _on_high_threat_cluster(self, cluster: Any) -> None:
+        """Handle high-threat cluster detection from memory."""
+        if not ADVANCED_MEMORY_AVAILABLE:
+            return
+
+        self._smith_metrics.memory_threat_clusters += 1
+        logger.warning(
+            f"High threat cluster detected: {cluster.cluster_id} - "
+            f"{cluster.threat_level.name}"
+        )
+
+        # Notify external callbacks
+        for callback in self._on_threat_callbacks:
+            try:
+                callback(cluster)
+            except Exception as e:
+                logger.error(f"Threat callback error: {e}")
+
+        # Consider triggering safe mode for critical threats
+        if cluster.threat_level.value >= 4:  # CRITICAL or higher
+            self._smith_metrics.safe_mode_triggers += 1
+            self.trigger_safe_mode(
+                f"Critical threat cluster: {cluster.cluster_id}"
+            )
+
+    def _on_memory_anomaly(self, score: Any) -> None:
+        """Handle anomaly detection from memory baseline."""
+        if not ADVANCED_MEMORY_AVAILABLE:
+            return
+
+        self._smith_metrics.memory_anomalies += 1
+        logger.warning(
+            f"Behavioral anomaly detected: {score.score_id} - "
+            f"score {score.overall_score:.2f}"
+        )
+
+        # Log as security incident
+        if self._emergency and score.overall_score > 0.5:
+            self._emergency.log_incident(
+                severity=IncidentSeverity.MEDIUM if score.overall_score < 0.7 else IncidentSeverity.HIGH,
+                category="behavioral_anomaly",
+                description=score.description,
+                triggered_by="advanced_memory",
+            )
+
+        # Notify external callbacks
+        for callback in self._on_anomaly_callbacks:
+            try:
+                callback(score)
+            except Exception as e:
+                logger.error(f"Anomaly callback error: {e}")
+
+    def _on_memory_pattern(self, pattern: Any) -> None:
+        """Handle pattern detection from memory synthesizer."""
+        if not ADVANCED_MEMORY_AVAILABLE:
+            return
+
+        self._smith_metrics.memory_patterns_detected += 1
+        logger.info(
+            f"Pattern detected: {pattern.pattern_id} - "
+            f"{pattern.pattern_type.name} (severity {pattern.severity})"
+        )
+
+        # Notify external callbacks
+        for callback in self._on_pattern_callbacks:
+            try:
+                callback(pattern)
+            except Exception as e:
+                logger.error(f"Pattern callback error: {e}")
 
     def validate_request(self, request: FlowRequest) -> RequestValidationResult:
         """
@@ -577,6 +745,14 @@ class SmithAgent(BaseAgent):
                 logger.info("Attack detector stopped")
             except Exception as e:
                 logger.warning(f"Error stopping attack detector: {e}")
+
+        # Stop advanced memory if running
+        if self._advanced_memory and self._advanced_memory_enabled:
+            try:
+                self._advanced_memory.stop()
+                logger.info("Advanced memory stopped")
+            except Exception as e:
+                logger.warning(f"Error stopping advanced memory: {e}")
 
         # Log shutdown
         if self._emergency:
@@ -1030,6 +1206,193 @@ class SmithAgent(BaseAgent):
         self._smith_metrics.avg_validation_time_ms = sum(self._validation_times) / len(
             self._validation_times
         )
+
+    # =========================================================================
+    # Advanced Memory Methods
+    # =========================================================================
+
+    def ingest_siem_event(self, event_data: Dict[str, Any]) -> Optional[str]:
+        """
+        Ingest a security event from Boundary-SIEM.
+
+        Args:
+            event_data: SIEM event data dictionary
+
+        Returns:
+            Entry ID if successful, None otherwise
+        """
+        if not self._advanced_memory_enabled or not self._advanced_memory:
+            logger.warning("Advanced memory not enabled, SIEM event not ingested")
+            return None
+
+        try:
+            entry_id = self._advanced_memory.ingest_siem_event(event_data)
+            self._smith_metrics.memory_events_stored += 1
+            return entry_id
+        except Exception as e:
+            logger.error(f"Error ingesting SIEM event: {e}")
+            return None
+
+    def ingest_boundary_event(self, event_data: Dict[str, Any]) -> Optional[str]:
+        """
+        Ingest an event from Boundary-Daemon.
+
+        Args:
+            event_data: Boundary-Daemon event data
+
+        Returns:
+            Entry ID if successful, None otherwise
+        """
+        if not self._advanced_memory_enabled or not self._advanced_memory:
+            return None
+
+        if not ADVANCED_MEMORY_AVAILABLE:
+            return None
+
+        try:
+            event = BoundaryEvent(
+                event_id=event_data.get("id", ""),
+                timestamp=datetime.fromisoformat(
+                    event_data.get("timestamp", datetime.now().isoformat())
+                ),
+                event_type=event_data.get("type", "unknown"),
+                source="boundary-daemon",
+                current_mode=BoundaryMode[event_data.get("mode", "OPEN")],
+                target_resource=event_data.get("target", ""),
+                action_requested=event_data.get("action", ""),
+                details=event_data.get("details", {}),
+            )
+            entry_id = self._advanced_memory.ingest_boundary_event(event)
+            self._smith_metrics.memory_events_stored += 1
+            return entry_id
+        except Exception as e:
+            logger.error(f"Error ingesting boundary event: {e}")
+            return None
+
+    def get_intelligence_summary(
+        self,
+        period: str = "last_24h",
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Generate an executive intelligence summary.
+
+        Args:
+            period: Time period ("last_24h", "last_7d", "last_30d")
+
+        Returns:
+            Summary dictionary or None if not available
+        """
+        if not self._advanced_memory_enabled or not self._advanced_memory:
+            return None
+
+        try:
+            summary = self._advanced_memory.generate_summary(period=period)
+            return summary.to_dict() if summary else None
+        except Exception as e:
+            logger.error(f"Error generating intelligence summary: {e}")
+            return None
+
+    def get_threat_clusters(
+        self,
+        min_level: str = "LOW",
+    ) -> List[Dict[str, Any]]:
+        """
+        Get active threat clusters.
+
+        Args:
+            min_level: Minimum threat level ("LOW", "MEDIUM", "HIGH", "CRITICAL")
+
+        Returns:
+            List of threat cluster dictionaries
+        """
+        if not self._advanced_memory_enabled or not self._advanced_memory:
+            return []
+
+        if not ADVANCED_MEMORY_AVAILABLE:
+            return []
+
+        try:
+            level = ThreatLevel[min_level]
+            clusters = self._advanced_memory.get_threat_clusters(min_threat_level=level)
+            return [c.to_dict() for c in clusters]
+        except Exception as e:
+            logger.error(f"Error getting threat clusters: {e}")
+            return []
+
+    def get_detected_patterns(
+        self,
+        min_severity: int = 1,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get detected security patterns.
+
+        Args:
+            min_severity: Minimum pattern severity (1-5)
+
+        Returns:
+            List of pattern dictionaries
+        """
+        if not self._advanced_memory_enabled or not self._advanced_memory:
+            return []
+
+        try:
+            patterns = self._advanced_memory.get_patterns(min_severity=min_severity)
+            return [p.to_dict() for p in patterns]
+        except Exception as e:
+            logger.error(f"Error getting patterns: {e}")
+            return []
+
+    def get_anomaly_score(self) -> Optional[Dict[str, Any]]:
+        """
+        Get current behavioral anomaly score.
+
+        Returns:
+            Anomaly score dictionary or None
+        """
+        if not self._advanced_memory_enabled or not self._advanced_memory:
+            return None
+
+        try:
+            score = self._advanced_memory.get_anomaly_score()
+            return score.to_dict() if score else None
+        except Exception as e:
+            logger.error(f"Error getting anomaly score: {e}")
+            return None
+
+    def get_memory_status(self) -> Dict[str, Any]:
+        """
+        Get advanced memory system status.
+
+        Returns:
+            Status dictionary
+        """
+        status = {
+            "enabled": self._advanced_memory_enabled,
+            "available": ADVANCED_MEMORY_AVAILABLE,
+        }
+
+        if self._advanced_memory and self._advanced_memory_enabled:
+            try:
+                mem_status = self._advanced_memory.get_status()
+                status["memory"] = mem_status.to_dict()
+                status["stats"] = self._advanced_memory.get_stats()
+            except Exception as e:
+                logger.error(f"Error getting memory status: {e}")
+                status["error"] = str(e)
+
+        return status
+
+    def register_threat_callback(self, callback: Callable[[Any], None]) -> None:
+        """Register a callback for threat cluster events."""
+        self._on_threat_callbacks.append(callback)
+
+    def register_anomaly_callback(self, callback: Callable[[Any], None]) -> None:
+        """Register a callback for anomaly events."""
+        self._on_anomaly_callbacks.append(callback)
+
+    def register_pattern_callback(self, callback: Callable[[Any], None]) -> None:
+        """Register a callback for pattern events."""
+        self._on_pattern_callbacks.append(callback)
 
     def get_metrics(self) -> AgentMetrics:
         """Get agent metrics."""
