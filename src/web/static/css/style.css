@@ -350,6 +350,42 @@ body::before {
     align-items: center;
 }
 
+/* View Explainer - Help text for tabs */
+.view-explainer {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--border-radius);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.view-explainer p {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+.view-explainer p + p {
+    margin-top: 0.5rem;
+}
+
+.view-explainer strong {
+    color: var(--primary-light);
+    font-weight: 600;
+}
+
+.view-explainer em {
+    color: var(--text-color);
+    font-style: normal;
+    background: rgba(74, 158, 255, 0.15);
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+}
+
 /* ===== BUTTONS ===== */
 .btn {
     padding: 0.65rem 1.25rem;

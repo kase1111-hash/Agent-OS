@@ -190,6 +190,10 @@
                     <h2>Constitutional Rules</h2>
                     <button id="add-rule-btn" class="btn btn-primary" data-tooltip="Create a new constitutional rule">Add Rule</button>
                 </div>
+                <div class="view-explainer">
+                    <p><strong>What is this?</strong> The Constitution defines the governing rules that control what AI agents can and cannot do.</p>
+                    <p><strong>How to use:</strong> Browse rules by section in the sidebar. Click <em>Add Rule</em> to create new rules with a type (Prohibition, Permission, Mandate, or Escalation) and authority level (Supreme rules are immutable). Click any rule to edit or delete it.</p>
+                </div>
                 <div class="constitution-container">
                     <div class="rules-sidebar">
                         <h3>Sections</h3>
@@ -209,6 +213,10 @@
                         <input type="text" id="memory-search" placeholder="Search memories..." class="search-input" data-tooltip="Filter memories by content or tags">
                         <button id="add-memory-btn" class="btn btn-primary" data-tooltip="Store a new memory entry">Add Memory</button>
                     </div>
+                </div>
+                <div class="view-explainer">
+                    <p><strong>What is this?</strong> Memory stores information the system remembers. Long-term storage requires your explicit consent.</p>
+                    <p><strong>How to use:</strong> Search memories using the search box. Click <em>Add Memory</em> to store new entries (select type: Ephemeral, Working, Long Term, or Semantic). You must check the consent box for persistent storage. Click any memory to view details or delete it.</p>
                 </div>
                 <div class="stats-grid" id="memory-stats"></div>
                 <div id="memory-list" class="memory-list"></div>
@@ -313,6 +321,10 @@
                     <div class="view-actions">
                         <button id="create-contract-btn" class="btn btn-primary" data-tooltip="Create a new learning consent contract">New Contract</button>
                     </div>
+                </div>
+                <div class="view-explainer">
+                    <p><strong>What is this?</strong> Contracts define what domains the AI can learn from and how deeply (observation only, episodic memory, pattern learning, or prohibited).</p>
+                    <p><strong>How to use:</strong> Use <em>Quick Templates</em> in the sidebar to create common contracts (Coding Assistant, Personal Journal, etc.). Click <em>New Contract</em> for custom agreements. Filter by status using the tabs. Click <em>Revoke</em> to immediately terminate any active contract.</p>
                 </div>
                 <div class="contracts-container">
                     <!-- Templates Panel -->
