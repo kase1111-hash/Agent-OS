@@ -145,3 +145,67 @@ One day, AI systems will not be programmed.
 They will be governed.
 
 Agent-OS is an early step toward that future.
+
+---
+
+## What Can You Actually Do With Agent-OS?
+
+Beyond the philosophy, here are concrete problems Agent-OS solves in daily use:
+
+### 🏠 Personal & Family Use
+
+**Private Voice Assistant**
+Unlike Alexa or Siri, your conversations never leave your home. Ask questions, set reminders, get help—all processed locally with zero cloud dependency.
+
+**Family Knowledge Base**
+Store recipes, medical notes, financial records, or family history. Seshat (Memory Agent) keeps everything searchable with consent-based access. Family members can federate their instances to share specific knowledge domains.
+
+**Learning Companion**
+Studying a new subject? Sage (Reasoning Agent) explains concepts at your level while Seshat tracks your progress and adapts to what you've already learned.
+
+**Creative Projects**
+Brainstorm with Muse (Creative Agent), draft with Quill (Writing Agent), and generate images locally—no API keys, no usage limits, no corporate terms of service.
+
+### 🔒 Privacy & Security
+
+**Audit Everything**
+Every AI decision is logged. See exactly what the system decided, why, and what data it accessed. Essential for understanding AI behavior and catching problems early.
+
+**Security Monitoring**
+Smith (Guardian Agent) monitors for threats in real-time. When it detects attack patterns, it can analyze the threat and even generate patches automatically.
+
+**Consent-Based Memory**
+The system asks before remembering anything long-term. Learning Contracts let you specify exactly what domains the AI can learn from and how deeply.
+
+### 🏢 Professional Use
+
+**Document Drafting with Guardrails**
+Quill writes documents within constitutional tone limits you define. Need formal only? No profanity? Specific terminology? Set it in the constitution.
+
+**Compliance-Ready AI**
+The immutable audit log provides a complete trail of AI decisions—useful for regulated industries or anyone who needs to explain what their AI did and why.
+
+**Local LLM Infrastructure**
+Run Ollama, Llama.cpp, or other local models. No API costs, no rate limits, no data leaving your network. Scale to your hardware.
+
+### 🌐 Federation & Collaboration
+
+**Family Network**
+Connect Agent-OS instances across household members. Share specific knowledge domains (recipes, home maintenance) while keeping others private (personal journals, finances).
+
+**Post-Quantum Security**
+Federation uses ML-DSA and ML-KEM cryptography—future-proofed against quantum computing attacks on today's encryption.
+
+---
+
+## The Key Insight
+
+Most AI tools ask: *"How can AI do more things?"*
+
+Agent-OS asks: *"How do humans keep control while AI does useful things?"*
+
+This isn't about limiting AI capability. It's about ensuring that as AI becomes more capable, humans remain sovereign over their own digital infrastructure.
+
+**You own the hardware. You own the data. You own the rules.**
+
+That's the Agent-OS promise.
