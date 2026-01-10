@@ -126,6 +126,50 @@ Agent-OS/
 
 ---
 
+## What Problems Does Agent-OS Solve?
+
+Agent-OS isn't just another AI chat interface. It addresses fundamental challenges in how we interact with and govern AI systems.
+
+### 🛡️ The Control Problem
+**Problem:** Most AI systems are black boxes where you hope the AI behaves correctly.
+**Solution:** Constitutional governance with natural language rules that humans can read, modify, and audit. Every AI decision is logged and inspectable.
+
+### 🔒 The Privacy Problem
+**Problem:** Cloud AI services collect your data, train on your conversations, and share with third parties.
+**Solution:** 100% local operation. No telemetry, no cloud dependency. Your data never leaves your hardware. AES-256-GCM encryption for anything stored.
+
+### 🎯 The Authority Problem
+**Problem:** AI assistants operate with unclear boundaries—what can they access? What can they do?
+**Solution:** Six specialized agents with explicit, non-overlapping roles. Smith (Guardian) validates every action against constitutional rules before execution.
+
+### 💾 The Memory Consent Problem
+**Problem:** AI systems remember everything without asking, creating privacy and liability risks.
+**Solution:** Consent-based memory with learning contracts. Nothing is stored without explicit permission. You can inspect and delete any data anytime.
+
+### 🔗 The Integration Problem
+**Problem:** AI assistants can't coordinate complex tasks across multiple domains.
+**Solution:** Multi-agent orchestration where Whisper routes requests to specialized agents (reasoning, writing, creativity, memory) who collaborate through a secure message bus.
+
+### 🏠 The Ownership Problem
+**Problem:** Your AI assistant belongs to a corporation, not you.
+**Solution:** Local-first, family-owned infrastructure. Run it on a home server, federate with family members, own your AI outright.
+
+---
+
+## Daily Use Cases
+
+| Use Case | How It Works |
+|----------|--------------|
+| **Private assistant** | Voice-activated, runs locally—unlike Alexa/Siri, your conversations stay private |
+| **Family knowledge base** | Shared memories across federated nodes with consent-based access |
+| **Document drafting** | Quill agent writes with constitutional tone limits you define |
+| **Learning companion** | Sage explains concepts while Seshat remembers your progress |
+| **Creative projects** | Muse brainstorms ideas, local image generation creates visuals |
+| **Security monitoring** | Smith detects threats and can auto-generate patches |
+| **Audit trail** | Every AI decision logged—useful for compliance and understanding |
+
+---
+
 ## Core Agents
 
 | Agent | Role | Description |

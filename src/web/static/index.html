@@ -14,13 +14,13 @@
                 <h1>Agent OS</h1>
             </div>
             <div class="nav-links">
-                <button class="nav-link active" data-view="chat" data-tooltip="Converse with AI agents" data-tooltip-position="bottom">Chat</button>
-                <button class="nav-link" data-view="images" data-tooltip="Generate images with AI" data-tooltip-position="bottom">Images</button>
-                <button class="nav-link" data-view="agents" data-tooltip="Monitor and manage agents" data-tooltip-position="bottom">Agents</button>
-                <button class="nav-link" data-view="constitution" data-tooltip="View and edit system rules" data-tooltip-position="bottom">Constitution</button>
-                <button class="nav-link" data-view="memory" data-tooltip="Browse and manage memories" data-tooltip-position="bottom">Memory</button>
-                <button class="nav-link" data-view="contracts" data-tooltip="Manage learning consent contracts" data-tooltip-position="bottom">Contracts</button>
-                <button class="nav-link" data-view="system" data-tooltip="System status and settings" data-tooltip-position="bottom">System</button>
+                <button class="nav-link active" data-view="chat" data-tooltip="Private conversations with AI — all local, no cloud" data-tooltip-position="bottom">Chat</button>
+                <button class="nav-link" data-view="images" data-tooltip="Generate images locally — no API costs or limits" data-tooltip-position="bottom">Images</button>
+                <button class="nav-link" data-view="agents" data-tooltip="Monitor the 6 specialized agents and their boundaries" data-tooltip-position="bottom">Agents</button>
+                <button class="nav-link" data-view="constitution" data-tooltip="Human-readable rules that govern all AI behavior" data-tooltip-position="bottom">Constitution</button>
+                <button class="nav-link" data-view="memory" data-tooltip="Your data: inspect, search, or delete anytime" data-tooltip-position="bottom">Memory</button>
+                <button class="nav-link" data-view="contracts" data-tooltip="Control what the AI can learn and remember" data-tooltip-position="bottom">Contracts</button>
+                <button class="nav-link" data-view="system" data-tooltip="Local LLM settings — your hardware, your rules" data-tooltip-position="bottom">System</button>
             </div>
             <div class="nav-status">
                 <span id="dreaming-status" class="dreaming-indicator" data-tooltip="Internal system activity" data-tooltip-position="bottom">
@@ -84,7 +84,38 @@
                         <div id="chat-messages" class="chat-messages">
                             <div class="welcome-message">
                                 <h2>Welcome to Agent OS</h2>
-                                <p>Start a conversation with your AI assistant.</p>
+                                <p>Start a conversation with your AI assistant. Everything runs locally on your hardware.</p>
+                                <div class="welcome-features">
+                                    <div class="welcome-feature">
+                                        <span class="feature-icon">🔒</span>
+                                        <div class="feature-text">
+                                            <strong>Private by Default</strong>
+                                            <span>No data leaves your machine. No cloud. No telemetry.</span>
+                                        </div>
+                                    </div>
+                                    <div class="welcome-feature">
+                                        <span class="feature-icon">🧠</span>
+                                        <div class="feature-text">
+                                            <strong>Multi-Agent System</strong>
+                                            <span>Specialized agents collaborate: reasoning, writing, creativity, memory.</span>
+                                        </div>
+                                    </div>
+                                    <div class="welcome-feature">
+                                        <span class="feature-icon">📜</span>
+                                        <div class="feature-text">
+                                            <strong>Constitutional Governance</strong>
+                                            <span>Human-readable rules control what AI can and cannot do.</span>
+                                        </div>
+                                    </div>
+                                    <div class="welcome-feature">
+                                        <span class="feature-icon">💾</span>
+                                        <div class="feature-text">
+                                            <strong>Consent-Based Memory</strong>
+                                            <span>Nothing stored without your permission. Inspect or delete anytime.</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p class="welcome-tip">Try asking: "What can you help me with?" or "Explain how the constitution works"</p>
                             </div>
                         </div>
                         <div class="chat-input-container">
@@ -102,6 +133,10 @@
                     <div class="view-actions">
                         <button id="refresh-images-btn" class="btn btn-secondary" data-tooltip="Refresh gallery">Refresh</button>
                     </div>
+                </div>
+                <div class="view-explainer">
+                    <p><strong>Why local image generation?</strong> No API costs, no usage limits, no content policy restrictions from third parties. Your prompts and images stay on your hardware.</p>
+                    <p><strong>How to use:</strong> Enter a prompt describing your image. Adjust model, size, and steps for quality/speed tradeoffs. Generated images are stored locally in your gallery.</p>
                 </div>
                 <div class="images-container">
                     <!-- Generation Panel -->
@@ -180,6 +215,10 @@
                     <h2>Agent Monitoring</h2>
                     <button id="refresh-agents-btn" class="btn btn-secondary" data-tooltip="Reload agent status">Refresh</button>
                 </div>
+                <div class="view-explainer">
+                    <p><strong>Why multiple agents?</strong> Instead of one AI doing everything, Agent-OS uses specialized agents: Whisper (routing), Smith (security), Seshat (memory), Sage (reasoning), Quill (writing), and Muse (creativity). This separation prevents any single agent from having unchecked power.</p>
+                    <p><strong>How to use:</strong> Monitor agent health and activity. Each agent has explicit authority boundaries defined in the Constitution. Smith validates all actions before execution.</p>
+                </div>
                 <div class="stats-grid" id="agents-stats"></div>
                 <div class="agents-grid" id="agents-list"></div>
             </section>
@@ -227,6 +266,10 @@
                 <div class="view-header">
                     <h2>System Status & Settings</h2>
                     <button id="refresh-system-btn" class="btn btn-secondary" data-tooltip="Reload system information">Refresh</button>
+                </div>
+                <div class="view-explainer">
+                    <p><strong>What is this?</strong> System health, LLM provider configuration, and application settings. All processing happens locally via Ollama or Llama.cpp.</p>
+                    <p><strong>Local LLM benefits:</strong> No API costs, no rate limits, no data leaving your network. Change the model anytime. Your hardware, your rules.</p>
                 </div>
                 <div class="system-container">
                     <div class="system-panel">
