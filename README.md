@@ -1,5 +1,8 @@
 # Agent-OS
-Agent OS: A Constitutional Operating System for Local AI
+
+**Natural Language Operating System (NLOS) for AI Agents**
+
+A constitutional AI OS that uses language-native runtime and prose-based operating system principles. Agent-OS is an agent orchestration platform enabling multi-agent coordination through natural language as runtime—the operating system for AI agents that puts human sovereignty first.
 
 **Public Declaration of Prior Art & Creative Commons Release**
 
@@ -25,26 +28,26 @@ A complete specification that anyone may implement, modify, or distribute
 No person or entity may claim exclusive ownership, patent rights, or proprietary control over these core concepts.
 This is my contribution to the digital commons, inspired by the spirit of Linux, the principles of open source, and the belief that families should own and govern their own intelligence infrastructure.
 
-Core Innovation: Natural Language Operating System Kernel
-The Paradigm Shift
+Core Innovation: Natural Language Operating System (NLOS) Kernel
+The Paradigm Shift: Language-First Computing
 Traditional operating systems use compiled code (C, Assembly) as their kernel. This requires specialized knowledge to modify and makes governance inaccessible to ordinary users.
-Agent OS uses natural language itself as the kernel, enabling:
+Agent OS uses natural language itself as the kernel—an LLM-native OS architecture that enables language-first computing:
 
 Human-readable governance documents (constitutions)
 Modification without programming expertise
 Direct interpretation by large language models
 Auditable, inspectable, and understandable system behavior
 
-Key Architectural Principles
+Key Architectural Principles: Constitutional Governance OS
 
-Constitutional Supremacy: A natural language constitution governs all agent behavior
-Role-Based Agents: Specialized AI agents with explicit authority boundaries
-Human Stewardship: Ultimate authority always resides with humans
-Local-First Operation: Computation and data remain under user control
-Memory Consent: No persistent storage without explicit permission
-Orchestrated Flow: Central routing prevents unauthorized agent communication
+Constitutional Supremacy: A natural language constitution governs all agent behavior—constitutional AI design at its core
+Role-Based Agents: Specialized AI agents with explicit authority boundaries for multi-agent operating system coordination
+Human Stewardship: Ultimate authority always resides with humans—digital sovereignty for families
+Local-First Operation: Computation and data remain under user control—self-hosted AI and owned AI infrastructure
+Memory Consent: No persistent storage without explicit permission—data ownership guaranteed
+Orchestrated Flow: Central routing prevents unauthorized agent communication—agent orchestration framework
 Security as Doctrine: Refusal is a valid and required system response
-Amendable Governance: Systems evolve through documented, auditable processes
+Amendable Governance: Systems evolve through documented, auditable processes—intent preservation
 
 ## Inspiration & Differentiation
 
@@ -128,7 +131,7 @@ Agent-OS/
 
 ## What Problems Does Agent-OS Solve?
 
-Agent-OS isn't just another AI chat interface. It addresses fundamental challenges in how we interact with and govern AI systems.
+Agent-OS isn't just another AI chat interface. It's a complete agent coordination OS that addresses fundamental challenges in how we interact with and govern AI systems. If you've ever asked "how to coordinate multiple AI agents" or "what is a natural language OS"—this is the answer.
 
 ### 🛡️ The Control Problem
 **Problem:** Most AI systems are black boxes where you hope the AI behaves correctly.
@@ -152,7 +155,7 @@ Agent-OS isn't just another AI chat interface. It addresses fundamental challeng
 
 ### 🏠 The Ownership Problem
 **Problem:** Your AI assistant belongs to a corporation, not you.
-**Solution:** Local-first, family-owned infrastructure. Run it on a home server, federate with family members, own your AI outright.
+**Solution:** Local-first, family-owned infrastructure with true digital sovereignty. Run it on a family AI server, federate with family members, own your private AI systems outright. This is self-hosted AI that respects data ownership.
 
 ---
 
@@ -185,10 +188,10 @@ Agent-OS isn't just another AI chat interface. It addresses fundamental challeng
 
 ## Key Features
 
-- **Constitutional Governance**: Human-readable rules govern all AI behavior
-- **Local-First**: All computation stays on your hardware
-- **Memory Consent**: No data persistence without explicit permission
-- **Multi-Agent Architecture**: Specialized agents with clear authority boundaries
+- **Constitutional Governance**: Human-readable rules govern all AI behavior—prose-first development for AI systems
+- **Local-First**: All computation stays on your hardware—true owned AI infrastructure
+- **Memory Consent**: No data persistence without explicit permission—cognitive work value respected
+- **Multi-Agent Architecture**: Specialized agents with clear authority boundaries—human-AI collaboration at its best
 - **Encrypted Memory Vault**: Secure, consent-based data storage
 - **Attack Detection & Auto-Remediation**: Real-time threat detection with LLM-powered analysis and automatic patch generation
 - **SIEM Integration**: Connect to Splunk, Elasticsearch, Microsoft Sentinel, and Syslog
@@ -303,3 +306,45 @@ You are free to use, modify, and distribute this work without restriction.
 - **Repository**: https://github.com/kase1111-hash/Agent-OS
 - **Issues**: https://github.com/kase1111-hash/Agent-OS/issues
 - **Documentation**: [docs/README.md](./docs/README.md)
+
+---
+
+## Connected Repositories
+
+Agent-OS is part of a broader ecosystem of projects exploring the authenticity economy, human cognitive labor, and intent preservation.
+
+### Agent-OS Ecosystem
+
+Core modules that extend the natural language operating system:
+
+| Repository | Description |
+|------------|-------------|
+| [synth-mind](https://github.com/kase1111-hash/synth-mind) | NLOS-based agent with six interconnected psychological modules for emergent continuity, empathy, and AI personality persistence |
+| [boundary-daemon-](https://github.com/kase1111-hash/boundary-daemon-) | Mandatory trust enforcement layer defining cognition boundaries—AI trust enforcement and cognitive firewall |
+| [memory-vault](https://github.com/kase1111-hash/memory-vault) | Secure, offline-capable, owner-sovereign storage for cognitive artifacts—private AI knowledge base |
+| [value-ledger](https://github.com/kase1111-hash/value-ledger) | Economic accounting layer for cognitive work tracking ideas, effort, and novelty |
+| [learning-contracts](https://github.com/kase1111-hash/learning-contracts) | Safety protocols for AI learning and data management—controlled AI learning boundaries |
+| [Boundary-SIEM](https://github.com/kase1111-hash/Boundary-SIEM) | Security Information and Event Management for AI systems—agent security monitoring |
+
+### NatLangChain Ecosystem
+
+Related projects exploring natural language blockchain and intent-native protocols:
+
+| Repository | Description |
+|------------|-------------|
+| [NatLangChain](https://github.com/kase1111-hash/NatLangChain) | Prose-first, intent-native blockchain protocol for recording human intent in natural language—semantic blockchain |
+| [IntentLog](https://github.com/kase1111-hash/IntentLog) | Git for human reasoning—tracks "why" changes happen via prose commits and semantic version control |
+| [RRA-Module](https://github.com/kase1111-hash/RRA-Module) | Revenant Repo Agent: Converts abandoned GitHub repositories into autonomous AI agents for licensing |
+| [mediator-node](https://github.com/kase1111-hash/mediator-node) | LLM mediation layer for matching, negotiation, and closure proposals—AI negotiation node |
+| [ILR-module](https://github.com/kase1111-hash/ILR-module) | IP & Licensing Reconciliation: Dispute resolution for intellectual property conflicts |
+| [Finite-Intent-Executor](https://github.com/kase1111-hash/Finite-Intent-Executor) | Posthumous execution of predefined intent via Solidity smart contract—digital will executor |
+
+### Game Development
+
+Creative projects:
+
+| Repository | Description |
+|------------|-------------|
+| [Shredsquatch](https://github.com/kase1111-hash/Shredsquatch) | 3D first-person snowboarding infinite runner (SkiFree homage) |
+| [Midnight-pulse](https://github.com/kase1111-hash/Midnight-pulse) | Procedurally generated night drive—synthwave driving game |
+| [Long-Home](https://github.com/kase1111-hash/Long-Home) | Atmospheric narrative indie game built with Godot |
