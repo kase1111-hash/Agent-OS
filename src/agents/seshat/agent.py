@@ -12,8 +12,7 @@ Capabilities:
 """
 
 import logging
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
 from src.messaging.models import FlowRequest, FlowResponse, MessageStatus
 
@@ -25,14 +24,10 @@ from ..interface import (
     RequestValidationResult,
 )
 from .consent_integration import (
-    ConsentAwareConfig,
     ConsentAwareRetrievalPipeline,
-    ConsentBridge,
-    SeshatConsentScope,
 )
 from .embeddings import (
     EmbeddingEngine,
-    MockEmbeddingModel,
     create_embedding_engine,
 )
 from .retrieval import (
@@ -44,7 +39,6 @@ from .retrieval import (
     RetrievalResult,
 )
 from .vectorstore import (
-    InMemoryVectorStore,
     VectorBackend,
     VectorStoreBase,
     create_vector_store,

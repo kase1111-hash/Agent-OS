@@ -316,7 +316,7 @@ def setup_attack_detection_pipeline(
 
 
 def create_attack_alert_handler(
-    notify_channels: Optional[List[str]] = None,
+    _notify_channels: Optional[List[str]] = None,
     log_to_file: Optional[str] = None,
     trigger_lockdown_severity: int = 5,
 ) -> Callable[[Any], None]:

@@ -16,7 +16,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Optional, Union
+from typing import Any, Dict, Iterator, List, Optional
 from urllib.parse import urljoin
 
 logger = logging.getLogger(__name__)
@@ -287,7 +287,7 @@ class LlamaCppClient:
     def __enter__(self):
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, _exc_type, _exc_val, _exc_tb):
         self.close()
 
     @property

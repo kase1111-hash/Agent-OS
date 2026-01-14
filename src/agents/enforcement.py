@@ -6,16 +6,16 @@ Provides middleware for validating requests against constitutional rules.
 """
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 from src.core.constitution import (
     ConstitutionalKernel,
     EnforcementResult,
     RequestContext,
 )
-from src.core.models import Rule, RuleType, ValidationResult
+from src.core.models import Rule
 from src.messaging.models import (
     CheckStatus,
     ConstitutionalCheck,

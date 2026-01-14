@@ -7,8 +7,7 @@ Preserves authorial intent while improving clarity and presentation.
 
 import logging
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
 from src.messaging.models import FlowRequest, FlowResponse, MessageStatus
 
@@ -20,7 +19,6 @@ from ..interface import (
     RequestValidationResult,
 )
 from .formatting import (
-    DocumentTemplate,
     FormattingEngine,
     OutputFormat,
     RefinementEngine,

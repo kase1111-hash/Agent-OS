@@ -82,7 +82,7 @@ while True:
                 messages=[
                     {
                         "role": "user",
-                        "content": f"Describe the user's posture and activity in this image briefly, focusing on behavioral indicators like pacing (thinking), stillness (focus), leaning back (contemplation), or frustration. Do not identify the person or store details.",
+                        "content": "Describe the user's posture and activity in this image briefly, focusing on behavioral indicators like pacing (thinking), stillness (focus), leaning back (contemplation), or frustration. Do not identify the person or store details.",
                         "images": [temp_img.name]
                     }
                 ]

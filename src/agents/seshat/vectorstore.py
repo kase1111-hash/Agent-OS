@@ -11,11 +11,9 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional
 
 import numpy as np
-
-from .embeddings import EmbeddingEngine, EmbeddingResult
 
 logger = logging.getLogger(__name__)
 

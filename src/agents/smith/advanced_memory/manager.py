@@ -14,17 +14,15 @@ Features:
 
 import logging
 import threading
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, Callable, Dict, List, Optional
 
 from .store import (
     SecurityIntelligenceStore,
     IntelligenceEntry,
     IntelligenceType,
     RetentionPolicy,
-    RetentionTier,
     create_intelligence_store,
 )
 from .correlator import (
@@ -49,8 +47,6 @@ from .baseline import (
 from .boundary_connector import (
     BoundaryDaemonConnector,
     BoundaryEvent,
-    PolicyDecision,
-    TripwireAlert,
     BoundaryMode,
     create_boundary_connector,
 )
@@ -245,15 +241,14 @@ class AdvancedMemoryManager:
                     )
                     logger.info("Behavioral baseline initialized")
 
-                # Initialize boundary connector
-                if self.config.boundary_endpoint or True:  # Always init for local use
-                    self._boundary = create_boundary_connector(
-                        store=self._store,
-                        endpoint=self.config.boundary_endpoint,
-                        api_key=self.config.boundary_api_key,
-                        auto_start=False,
-                    )
-                    logger.info("Boundary-Daemon connector initialized")
+                # Initialize boundary connector (always init for local use)
+                self._boundary = create_boundary_connector(
+                    store=self._store,
+                    endpoint=self.config.boundary_endpoint,
+                    api_key=self.config.boundary_api_key,
+                    auto_start=False,
+                )
+                logger.info("Boundary-Daemon connector initialized")
 
                 self._initialized = True
                 logger.info("Advanced Memory Manager initialized successfully")

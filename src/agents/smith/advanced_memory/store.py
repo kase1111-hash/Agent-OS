@@ -12,7 +12,6 @@ Features:
 - Automatic tier migration based on age
 """
 
-import hashlib
 import json
 import logging
 import sqlite3
@@ -22,7 +21,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum, auto
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
@@ -493,9 +492,9 @@ class SecurityIntelligenceStore:
         for indicator in entry.indicators:
             # Parse indicator type (e.g., "ip:1.2.3.4" -> type="ip", value="1.2.3.4")
             if ":" in indicator:
-                ind_type, ind_value = indicator.split(":", 1)
+                ind_type, _ind_value = indicator.split(":", 1)
             else:
-                ind_type, ind_value = "unknown", indicator
+                ind_type, _ind_value = "unknown", indicator
 
             self._db.execute(
                 """

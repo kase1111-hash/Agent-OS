@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Cookie, HTTPException, Request, Response
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

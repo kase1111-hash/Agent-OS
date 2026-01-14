@@ -12,13 +12,12 @@ Features:
 - Configurable correlation rules
 """
 
-import hashlib
 import logging
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum, auto
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set
 
 from .store import IntelligenceEntry, IntelligenceType, SecurityIntelligenceStore
 

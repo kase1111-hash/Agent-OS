@@ -10,10 +10,9 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
-from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set
 
-from src.core.models import Rule, ValidationResult
+from src.core.models import Rule
 from src.messaging.models import (
     FlowRequest,
     FlowResponse,

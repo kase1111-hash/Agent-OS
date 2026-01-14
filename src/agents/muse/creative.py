@@ -10,7 +10,7 @@ import random
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable
+from typing import Callable
 
 
 class CreativeStyle(Enum):
@@ -426,7 +426,6 @@ class CreativeEngine:
         """Generate content for a specific style."""
         # Build generation prompt
         style_guidance = self.STYLE_PROMPTS.get(style, "")
-        template_info = self.CONTENT_TEMPLATES.get(content_type, {})
 
         full_prompt = f"""
 Creative Prompt: {prompt}

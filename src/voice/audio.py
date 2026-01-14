@@ -452,7 +452,7 @@ class PyAudioCapture(AudioCapture):
 
         logger.info("PyAudio capture stopped")
 
-    def _audio_callback(self, in_data, frame_count, time_info, status):
+    def _audio_callback(self, in_data, frame_count, _time_info, status):
         """PyAudio stream callback."""
         import pyaudio
 

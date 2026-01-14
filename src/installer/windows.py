@@ -25,7 +25,6 @@ from .base import (
     Installer,
     InstallerError,
     InstallerPhase,
-    copy_directory,
     create_directory,
     run_command,
 )

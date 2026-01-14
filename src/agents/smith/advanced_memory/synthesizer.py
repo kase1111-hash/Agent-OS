@@ -21,8 +21,8 @@ from datetime import datetime, timedelta
 from enum import Enum, auto
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
-from .store import IntelligenceEntry, IntelligenceType, SecurityIntelligenceStore
-from .correlator import ThreatCluster, ThreatCorrelator, ThreatLevel
+from .store import IntelligenceEntry, SecurityIntelligenceStore
+from .correlator import ThreatCorrelator, ThreatLevel
 
 logger = logging.getLogger(__name__)
 
