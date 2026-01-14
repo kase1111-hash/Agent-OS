@@ -9,9 +9,7 @@ problems without making decisions for humans.
 """
 
 import logging
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
 from src.messaging.models import FlowRequest, FlowResponse, MessageStatus
 
@@ -23,9 +21,7 @@ from ..interface import (
     RequestValidationResult,
 )
 from .reasoning import (
-    ConfidenceLevel,
     ReasoningChain,
-    ReasoningConfig,
     ReasoningEngine,
     ReasoningType,
     create_reasoning_engine,
@@ -33,7 +29,7 @@ from .reasoning import (
 
 # Optional Ollama integration
 try:
-    from ..ollama import OllamaClient, OllamaMessage, create_ollama_client
+    from ..ollama import OllamaClient, create_ollama_client
 
     OLLAMA_AVAILABLE = True
 except ImportError:
@@ -408,9 +404,9 @@ class SageAgent(BaseAgent):
         criteria: Optional[List[str]] = None,
     ) -> ReasoningChain:
         """Evaluate trade-offs between options."""
-        context = f"Options to evaluate:\n" + "\n".join([f"- {o}" for o in options])
+        context = "Options to evaluate:\n" + "\n".join([f"- {o}" for o in options])
         if criteria:
-            context += f"\n\nCriteria:\n" + "\n".join([f"- {c}" for c in criteria])
+            context += "\n\nCriteria:\n" + "\n".join([f"- {c}" for c in criteria])
         return self.reason(query, ReasoningType.EVALUATION, context=context)
 
     def compare(
@@ -423,7 +419,7 @@ class SageAgent(BaseAgent):
         query = f"Compare and contrast: {item_a} vs {item_b}"
         context = None
         if aspects:
-            context = f"Aspects to compare:\n" + "\n".join([f"- {a}" for a in aspects])
+            context = "Aspects to compare:\n" + "\n".join([f"- {a}" for a in aspects])
         return self.reason(query, ReasoningType.COMPARISON, context=context)
 
     def get_statistics(self) -> Dict[str, Any]:

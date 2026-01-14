@@ -9,8 +9,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
-from enum import Enum, auto
+from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
@@ -120,7 +119,8 @@ class RefinementResult:
             return self.refined
 
         # Sort changes by location (reverse for safe replacement)
-        sorted_changes = sorted(self.changes, key=lambda c: c.location, reverse=True)
+        # TODO: Use sorted_changes for annotation placement
+        _sorted_changes = sorted(self.changes, key=lambda c: c.location, reverse=True)
 
         annotated = self.refined
         # Note: This is a simplified version - full implementation would
@@ -594,7 +594,7 @@ class RefinementEngine:
                                 original=original,
                                 refined=replacement,
                                 location=match.start(),
-                                reason=f"Common spelling/grammar fix",
+                                reason="Common spelling/grammar fix",
                             )
                         )
 

@@ -252,7 +252,7 @@ class EmergencyControls:
     def restore_normal(
         self,
         authorized_by: str,
-        verification_code: Optional[str] = None,
+        _verification_code: Optional[str] = None,
     ) -> bool:
         """
         Restore system to normal operation.

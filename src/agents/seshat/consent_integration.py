@@ -6,7 +6,7 @@ Provides consent-aware memory operations.
 """
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
@@ -15,9 +15,7 @@ from typing import Any, Callable, Dict, List, Optional
 from ...memory.consent import (
     ConsentManager,
     ConsentOperation,
-    ConsentPolicy,
     ConsentStatus,
-    ConsentType,
 )
 from ...memory.index import ConsentRecord, VaultIndex
 from .retrieval import (

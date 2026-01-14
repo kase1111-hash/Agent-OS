@@ -8,10 +8,8 @@ Supports multiple embedding models with caching.
 import hashlib
 import logging
 import threading
-from dataclasses import dataclass, field
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 

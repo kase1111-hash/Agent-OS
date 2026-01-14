@@ -10,10 +10,9 @@ This ensures the LLM has access to the constitutional rules in its context.
 """
 
 import logging
-import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -209,7 +208,7 @@ class ConstitutionLoader:
                 header_text = line_lower.lstrip("#").strip()
                 in_relevant_section = any(section in header_text for section in relevant_sections)
                 if in_relevant_section:
-                    current_section = header_text
+                    _current_section = header_text  # noqa: F841
                     extracted.append(line)
                 continue
 

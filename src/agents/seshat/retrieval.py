@@ -15,12 +15,9 @@ from datetime import datetime
 from enum import Enum, auto
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-import numpy as np
-
-from .embeddings import EmbeddingEngine, EmbeddingResult
+from .embeddings import EmbeddingEngine
 from .vectorstore import (
     SearchQuery,
-    SearchResult,
     VectorDocument,
     VectorStoreBase,
 )

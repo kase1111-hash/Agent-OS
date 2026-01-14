@@ -24,10 +24,7 @@ from .consent import (
 )
 from .deletion import DeletionManager, DeletionResult, DeletionScope, TTLEnforcer
 from .exceptions import (
-    BlobNotFoundError,
-    ConsentDeniedError,
     GenesisVerificationError,
-    StorageError,
     VaultInitializationError,
     VaultNotInitializedError,
 )

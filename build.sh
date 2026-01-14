@@ -26,10 +26,10 @@ fi
 
 # Check Python version is 3.10+
 PYTHON_VERSION=$($PYTHON_CMD -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-MAJOR=$(echo $PYTHON_VERSION | cut -d. -f1)
-MINOR=$(echo $PYTHON_VERSION | cut -d. -f2)
+MAJOR=$(echo "$PYTHON_VERSION" | cut -d. -f1)
+MINOR=$(echo "$PYTHON_VERSION" | cut -d. -f2)
 
-if [ "$MAJOR" -lt 3 ] || ([ "$MAJOR" -eq 3 ] && [ "$MINOR" -lt 10 ]); then
+if [ "$MAJOR" -lt 3 ] || { [ "$MAJOR" -eq 3 ] && [ "$MINOR" -lt 10 ]; }; then
     echo "ERROR: Python 3.10 or newer is required."
     echo "Current version: $PYTHON_VERSION"
     exit 1

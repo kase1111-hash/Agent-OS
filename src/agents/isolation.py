@@ -11,7 +11,6 @@ Ensures agents run in controlled, sandboxed environments.
 
 import json
 import logging
-import multiprocessing
 import os
 import re
 import signal
@@ -19,11 +18,11 @@ import subprocess
 import sys
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum, auto
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 

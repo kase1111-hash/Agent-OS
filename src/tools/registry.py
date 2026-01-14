@@ -257,7 +257,7 @@ class ToolRegistry:
         self,
         tool_id: str,
         reason: str,
-        disabled_by: Optional[str] = None,
+        _disabled_by: Optional[str] = None,
     ) -> bool:
         """
         Disable a tool temporarily.

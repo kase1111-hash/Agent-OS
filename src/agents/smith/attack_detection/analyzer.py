@@ -11,7 +11,6 @@ This module uses static analysis and attack signature correlation
 to pinpoint the exact code that needs to be patched.
 """
 
-import ast
 import hashlib
 import json
 import logging

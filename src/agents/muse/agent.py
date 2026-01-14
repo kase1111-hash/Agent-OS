@@ -9,9 +9,7 @@ All outputs are marked as drafts requiring human approval.
 """
 
 import logging
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
 from src.messaging.models import FlowRequest, FlowResponse, MessageStatus
 
@@ -27,7 +25,6 @@ from .creative import (
     CreativeConstraints,
     CreativeEngine,
     CreativeMode,
-    CreativeOption,
     CreativeResult,
     CreativeStyle,
     create_creative_engine,
@@ -320,7 +317,6 @@ class MuseAgent(BaseAgent):
             self._generation_history.append(result)
 
             # Format response
-            primary = result.get_primary()
             output = self._format_response(result)
 
             return request.create_response(

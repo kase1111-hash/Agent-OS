@@ -13,7 +13,7 @@ import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Type
+from typing import Callable, Dict, List, Optional, Type
 
 from .config import AgentConfig, ConfigLoader
 from .interface import AgentCapabilities, AgentInterface, AgentState

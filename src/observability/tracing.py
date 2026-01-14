@@ -184,7 +184,7 @@ class Span:
     def __enter__(self) -> "Span":
         return self
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+    def __exit__(self, _exc_type: Any, exc_val: Any, _exc_tb: Any) -> None:
         if exc_val is not None:
             self.record_exception(exc_val)
         elif self.status == SpanStatus.UNSET:
