@@ -352,8 +352,8 @@ class ConnectionManager:
             connection = self.connections.pop(connection_id)
             try:
                 await connection.websocket.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Error closing websocket {connection_id}: {e}")
             logger.info(f"WebSocket connection closed: {connection_id}")
 
     async def send_message(
