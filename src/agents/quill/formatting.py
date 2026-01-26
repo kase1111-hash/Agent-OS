@@ -119,12 +119,15 @@ class RefinementResult:
             return self.refined
 
         # Sort changes by location (reverse for safe replacement)
-        # TODO: Use sorted_changes for annotation placement
-        _sorted_changes = sorted(self.changes, key=lambda c: c.location, reverse=True)
+        sorted_changes = sorted(self.changes, key=lambda c: c.location, reverse=True)
 
         annotated = self.refined
-        # Note: This is a simplified version - full implementation would
-        # track positions more carefully
+        # Insert annotations at change locations (reverse order to preserve positions)
+        for change in sorted_changes:
+            annotation = f"[{change.change_type.value}]"
+            # Find the refined text at this location and add annotation
+            if 0 <= change.location < len(annotated):
+                annotated = annotated[:change.location] + annotation + annotated[change.location:]
         return annotated
 
 
