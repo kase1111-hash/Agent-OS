@@ -60,7 +60,7 @@ class EnforcementResult:
     reason: Optional[str] = None
     suggestions: List[str] = field(default_factory=list)
     escalate_to_human: bool = False
-    timestamp: datetime = field(default_factory=datetime.now)
+    timestamp: datetime = field(default_factory=lambda: datetime.now())
 
 
 class ConstitutionFileHandler(FileSystemEventHandler):
@@ -71,6 +71,7 @@ class ConstitutionFileHandler(FileSystemEventHandler):
         self.monitored_paths = paths
         self._debounce_time = 1.0  # seconds
         self._last_reload: Dict[Path, float] = {}
+        self._lock = threading.Lock()  # Thread-safe debounce tracking
 
     def on_modified(self, event: FileModifiedEvent) -> None:
         if event.is_directory:
@@ -78,11 +79,17 @@ class ConstitutionFileHandler(FileSystemEventHandler):
 
         path = Path(event.src_path)
         if path in self.monitored_paths:
-            # Debounce rapid changes
-            now = time.time()
-            last = self._last_reload.get(path, 0)
-            if now - last > self._debounce_time:
-                self._last_reload[path] = now
+            # Thread-safe debounce with lock
+            with self._lock:
+                now = time.time()
+                last = self._last_reload.get(path, 0)
+                if now - last > self._debounce_time:
+                    self._last_reload[path] = now
+                    should_reload = True
+                else:
+                    should_reload = False
+
+            if should_reload:
                 logger.info(f"Constitution file changed: {path}")
                 self.kernel._reload_constitution(path)
 
@@ -344,8 +351,13 @@ class ConstitutionalKernel:
         self._observer.start()
         logger.info(f"Started watching {len(monitored_paths)} constitution files")
 
-    def _reload_constitution(self, path: Path) -> None:
-        """Reload a single constitution file."""
+    def _reload_constitution(self, path: Path) -> bool:
+        """
+        Reload a single constitution file.
+
+        Returns:
+            True if reload was successful, False otherwise
+        """
         with self._lock:
             try:
                 # Check if file actually changed
@@ -353,7 +365,7 @@ class ConstitutionalKernel:
                 new_hash = hashlib.sha256(content.encode()).hexdigest()
 
                 if new_hash == self._file_hashes.get(path):
-                    return  # No actual change
+                    return True  # No actual change needed
 
                 # Reload the constitution
                 constitution = self._parser.parse_content(content, path)
@@ -362,7 +374,7 @@ class ConstitutionalKernel:
                 validation = self._validator.validate(constitution)
                 if not validation.is_valid:
                     logger.error(f"Reloaded constitution is invalid: {validation.errors}")
-                    return
+                    return False
 
                 # Check against supreme constitution if not supreme itself
                 if constitution.metadata.authority_level < AuthorityLevel.SUPREME:
@@ -375,7 +387,7 @@ class ConstitutionalKernel:
                             logger.error(
                                 f"Constitution violates supreme: {supreme_validation.errors}"
                             )
-                            return
+                            return False
 
                 # Update registry
                 self._registry.register(constitution)
@@ -405,14 +417,19 @@ class ConstitutionalKernel:
                         f"Constitution reloaded but {len(callback_errors)} callback(s) failed"
                     )
 
+                return True
+
             except FileNotFoundError:
                 logger.error(f"Constitution file no longer exists: {path}")
+                return False
             except PermissionError:
                 logger.error(f"Permission denied reloading constitution: {path}")
+                return False
             except Exception as e:
                 logger.error(
                     f"Failed to reload constitution {path}: {type(e).__name__}: {e}"
                 )
+                return False
 
     def _rule_applies(self, rule: Rule, context: RequestContext) -> bool:
         """Check if a rule applies to the given context."""
@@ -442,6 +459,7 @@ class ConstitutionalKernel:
     def _rule_violated(self, rule: Rule, context: RequestContext) -> bool:
         """Check if a rule is violated by the context."""
         content_lower = context.content.lower()
+        intent_lower = context.intent.lower()
 
         if rule.rule_type == RuleType.PROHIBITION:
             # Check if request attempts prohibited action
@@ -451,9 +469,41 @@ class ConstitutionalKernel:
                     return True
 
         elif rule.rule_type == RuleType.MANDATE:
-            # Mandate violations are harder to detect without more context
-            # For now, we check if required elements are missing
-            pass
+            # Mandate rules require certain actions/elements to be present
+            # Check if the mandate keywords are present in the request
+            mandate_keywords = rule.keywords
+            if not mandate_keywords:
+                return False
+
+            # For mandate rules, check if required elements are referenced
+            # A mandate is violated if the context relates to the mandate topic
+            # but doesn't include the required elements
+            topic_match = any(
+                kw in content_lower or kw in intent_lower for kw in mandate_keywords
+            )
+
+            if topic_match:
+                # Check for mandate indicator words that suggest compliance
+                compliance_indicators = {
+                    "review", "validate", "verify", "check", "confirm",
+                    "ensure", "approved", "authorization", "consent"
+                }
+                has_compliance = any(
+                    indicator in content_lower for indicator in compliance_indicators
+                )
+
+                # If the topic matches but no compliance indicators, it may be a violation
+                # Check metadata for explicit mandate compliance
+                mandate_compliance = context.metadata.get("mandate_compliance", {})
+                rule_id = rule.id if hasattr(rule, "id") else None
+
+                if rule_id and rule_id in mandate_compliance:
+                    # Explicit compliance recorded
+                    return not mandate_compliance[rule_id]
+
+                # If no explicit compliance and no indicators, flag as potential violation
+                if not has_compliance:
+                    return True
 
         return False
 

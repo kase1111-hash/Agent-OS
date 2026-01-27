@@ -10,10 +10,54 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from ..models import NOT_FOUND_RESPONSE, AgentControlResponse, AgentsOverviewResponse
+
+
+def require_admin_auth(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+) -> str:
+    """
+    Dependency to require admin authentication for protected endpoints.
+
+    Returns the user_id if authenticated and authorized.
+    Raises HTTPException if not authenticated or not admin.
+    """
+    from ..auth import UserRole, get_user_store
+
+    # Get token from cookie or Authorization header
+    token = session_token
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+
+    if not token:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required for admin operations"
+        )
+
+    store = get_user_store()
+    user = store.validate_session(token)
+
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Session expired or invalid"
+        )
+
+    # Check for admin role
+    if user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=403,
+            detail="Admin privileges required for this operation"
+        )
+
+    return user.user_id
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -467,10 +511,11 @@ async def get_agent_metrics(agent_name: str) -> AgentMetrics:
 @router.post("/{agent_name}/start", response_model=AgentControlResponse)
 async def start_agent(
     agent_name: str,
-    request: Optional[StartAgentRequest] = None,
+    start_request: Optional[StartAgentRequest] = None,
+    admin_user: str = Depends(require_admin_auth),
 ) -> AgentControlResponse:
     """
-    Start an agent.
+    Start an agent (requires admin authentication).
 
     Activates a stopped or idle agent so it can process requests.
 
@@ -478,6 +523,8 @@ async def start_agent(
         AgentControlResponse with status 'started' or 'already_active'
 
     Raises:
+        401: Not authenticated
+        403: Not admin
         404: Agent not found
     """
     store = get_store()
@@ -503,9 +550,12 @@ async def start_agent(
 
 
 @router.post("/{agent_name}/stop", response_model=AgentControlResponse)
-async def stop_agent(agent_name: str) -> AgentControlResponse:
+async def stop_agent(
+    agent_name: str,
+    admin_user: str = Depends(require_admin_auth),
+) -> AgentControlResponse:
     """
-    Stop an agent.
+    Stop an agent (requires admin authentication).
 
     Deactivates an agent so it will no longer process requests.
 
@@ -513,6 +563,8 @@ async def stop_agent(agent_name: str) -> AgentControlResponse:
         AgentControlResponse with status 'stopped' or 'already_stopped'
 
     Raises:
+        401: Not authenticated
+        403: Not admin
         404: Agent not found
     """
     store = get_store()
@@ -538,9 +590,12 @@ async def stop_agent(agent_name: str) -> AgentControlResponse:
 
 
 @router.post("/{agent_name}/restart", response_model=AgentControlResponse)
-async def restart_agent(agent_name: str) -> AgentControlResponse:
+async def restart_agent(
+    agent_name: str,
+    admin_user: str = Depends(require_admin_auth),
+) -> AgentControlResponse:
     """
-    Restart an agent.
+    Restart an agent (requires admin authentication).
 
     Stops and immediately restarts an agent. Useful for applying configuration changes.
 
@@ -548,6 +603,8 @@ async def restart_agent(agent_name: str) -> AgentControlResponse:
         AgentControlResponse with status 'restarted'
 
     Raises:
+        401: Not authenticated
+        403: Not admin
         404: Agent not found
     """
     store = get_store()
@@ -574,8 +631,9 @@ async def get_agent_logs(
     agent_name: str,
     level: Optional[str] = None,
     limit: int = Query(default=100, le=1000),
+    admin_user: str = Depends(require_admin_auth),
 ) -> List[AgentLogEntry]:
-    """Get logs for an agent."""
+    """Get logs for an agent (requires admin authentication)."""
     store = get_store()
     agent = store.get(agent_name)
 
@@ -589,8 +647,9 @@ async def get_agent_logs(
 async def get_all_logs(
     level: Optional[str] = None,
     limit: int = Query(default=100, le=1000),
+    admin_user: str = Depends(require_admin_auth),
 ) -> List[AgentLogEntry]:
-    """Get logs from all agents."""
+    """Get logs from all agents (requires admin authentication)."""
     store = get_store()
     return store.get_logs(level=level, limit=limit)
 

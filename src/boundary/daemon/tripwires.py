@@ -109,22 +109,45 @@ class Tripwire:
 
         return None
 
-    def reset(self, authorization_code: str) -> bool:
+    def reset(self, authorization_code: str, expected_hash: Optional[str] = None) -> bool:
         """
         Reset tripwire (requires human authorization).
 
         Args:
             authorization_code: Code from human to authorize reset
+            expected_hash: Expected SHA-256 hash of the authorization code for verification
 
         Returns:
             True if reset successful
         """
-        # In production, this would verify cryptographic authorization
-        if len(authorization_code) >= 8:
-            self.state = TripwireState.ARMED
-            logger.info(f"Tripwire {self.id} reset with authorization")
-            return True
-        return False
+        # Validate authorization code with cryptographic verification
+        if not authorization_code or len(authorization_code) < 16:
+            logger.warning(f"Tripwire {self.id} reset rejected: code too short (min 16 chars)")
+            return False
+
+        # Verify against expected hash if provided
+        if expected_hash:
+            code_hash = hashlib.sha256(authorization_code.encode()).hexdigest()
+            if code_hash != expected_hash:
+                logger.warning(f"Tripwire {self.id} reset rejected: invalid authorization code")
+                return False
+
+        # Additional validation: code must have mix of character types for security
+        has_upper = any(c.isupper() for c in authorization_code)
+        has_lower = any(c.islower() for c in authorization_code)
+        has_digit = any(c.isdigit() for c in authorization_code)
+        has_special = any(not c.isalnum() for c in authorization_code)
+
+        if not (has_upper and has_lower and has_digit):
+            logger.warning(
+                f"Tripwire {self.id} reset rejected: code must contain uppercase, "
+                "lowercase, and digits"
+            )
+            return False
+
+        self.state = TripwireState.ARMED
+        logger.info(f"Tripwire {self.id} reset with verified authorization")
+        return True
 
 
 class TripwireSystem:

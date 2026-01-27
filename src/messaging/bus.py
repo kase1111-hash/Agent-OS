@@ -284,15 +284,46 @@ class InMemoryMessageBus(MessageBus):
         try:
             result = subscription.handler(message)
 
-            # Handle async handlers
+            # Handle async handlers properly
             if asyncio.iscoroutine(result):
-                # Run in event loop if available, otherwise create one
+                # SECURITY FIX: Properly handle async handlers to ensure errors are captured
                 try:
+                    # Try to get running loop in current thread
                     loop = asyncio.get_running_loop()
-                    asyncio.ensure_future(result)
+                    # Schedule and wait for the coroutine with error handling
+                    future = asyncio.ensure_future(result)
+
+                    # Add error callback to capture async errors
+                    def on_error(f):
+                        try:
+                            f.result()  # This will raise if there was an error
+                        except Exception as e:
+                            logger.error(
+                                f"Async handler error for {subscription.subscriber_name}: {e}"
+                            )
+
+                    future.add_done_callback(on_error)
+
                 except RuntimeError:
-                    # No running loop, create one
-                    asyncio.run(result)
+                    # No running loop - create a new event loop for this thread
+                    # This is safe because we're in a dedicated thread context
+                    try:
+                        new_loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(new_loop)
+                        try:
+                            new_loop.run_until_complete(result)
+                        finally:
+                            new_loop.close()
+                    except Exception as e:
+                        logger.error(
+                            f"Async handler error for {subscription.subscriber_name}: {e}"
+                        )
+                        raise HandlerExecutionError(
+                            message=f"Async handler execution failed: {e}",
+                            channel=subscription.channel,
+                            handler_name=subscription.subscriber_name,
+                            original_error=e,
+                        )
 
         except HandlerExecutionError:
             # Already wrapped, re-raise
@@ -415,7 +446,7 @@ class InMemoryMessageBus(MessageBus):
         channel: str,
         error: str,
     ) -> None:
-        """Add a message to the dead letter queue."""
+        """Add a message to the dead letter queue (thread-safe)."""
         dead_letter = DeadLetterMessage(
             original_message=message,
             failure_reason=error,
@@ -423,11 +454,15 @@ class InMemoryMessageBus(MessageBus):
             last_error=error,
         )
 
-        self._dead_letters.append(dead_letter)
+        # SECURITY FIX: Use lock for thread-safe dead letter queue operations
+        with self._lock:
+            self._dead_letters.append(dead_letter)
 
-        # Trim if over limit
-        if len(self._dead_letters) > self._max_dead_letters:
-            self._dead_letters = self._dead_letters[-self._max_dead_letters :]
+            # Trim if over limit - done atomically within lock
+            if len(self._dead_letters) > self._max_dead_letters:
+                # Remove oldest entries to stay within limit
+                excess = len(self._dead_letters) - self._max_dead_letters
+                self._dead_letters = self._dead_letters[excess:]
 
     def _log_audit(
         self,

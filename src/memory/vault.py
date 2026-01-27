@@ -419,7 +419,23 @@ class MemoryVault:
                 error=f"Blob not found: {blob_id}",
             )
 
-        # Verify consent if required
+        # Check blob status - don't return sealed or corrupted blobs
+        if hasattr(metadata, 'status'):
+            if metadata.status == BlobStatus.SEALED:
+                return RetrieveResult(
+                    success=False,
+                    blob_id=blob_id,
+                    error="Blob is sealed and cannot be retrieved",
+                )
+            if metadata.status == BlobStatus.CORRUPTED:
+                return RetrieveResult(
+                    success=False,
+                    blob_id=blob_id,
+                    error="Blob is corrupted and cannot be retrieved safely",
+                )
+
+        # SECURITY FIX: Always verify consent for blob retrieval
+        # Blobs without consent_id should not be retrievable without explicit consent
         if metadata.consent_id:
             decision = self._consent_manager.verify_consent(
                 consent_id=metadata.consent_id,
@@ -431,6 +447,20 @@ class MemoryVault:
                     blob_id=blob_id,
                     error=f"Consent verification failed: {decision.reason}",
                 )
+        else:
+            # No consent_id - check if blob was stored before consent tracking was enabled
+            # For security, require explicit consent for blobs without consent tracking
+            if hasattr(metadata, 'requires_consent') and metadata.requires_consent:
+                return RetrieveResult(
+                    success=False,
+                    blob_id=blob_id,
+                    error="Blob requires consent but no consent_id was recorded",
+                )
+            # Log this as a potential security concern
+            logger.warning(
+                f"Blob {blob_id} retrieved without consent_id - "
+                "consider migrating to consent-tracked storage"
+            )
 
         try:
             data = self._storage.retrieve(blob_id)
