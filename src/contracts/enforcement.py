@@ -6,6 +6,7 @@ domain checking, and abstraction requirements.
 """
 
 import logging
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum, auto
@@ -138,7 +139,8 @@ class LearningContractsEngine:
         self._on_decision: Optional[Callable[[EnforcementResult], None]] = None
         self._consent_prompt: Optional[Callable[[str, Dict], bool]] = None
 
-        # Statistics
+        # Thread-safe statistics with lock
+        self._stats_lock = threading.Lock()
         self._stats = {
             "total_checks": 0,
             "allowed": 0,
@@ -194,11 +196,13 @@ class LearningContractsEngine:
         Returns:
             EnforcementResult
         """
-        self._stats["total_checks"] += 1
+        # Thread-safe stats update
+        with self._stats_lock:
+            self._stats["total_checks"] += 1
 
         # Create learning request
         request = LearningRequest(
-            request_id=f"LR-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            request_id=f"LR-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
             user_id=user_id,
             domain=domain,
             task=task,
@@ -490,17 +494,19 @@ class LearningContractsEngine:
         self._store.close()
 
     def _record_decision(self, result: EnforcementResult) -> None:
-        """Record a decision for statistics and callbacks."""
-        if result.allowed:
-            if result.requires_abstraction:
-                self._stats["abstracted"] += 1
+        """Record a decision for statistics and callbacks (thread-safe)."""
+        # Thread-safe stats update
+        with self._stats_lock:
+            if result.allowed:
+                if result.requires_abstraction:
+                    self._stats["abstracted"] += 1
+                else:
+                    self._stats["allowed"] += 1
             else:
-                self._stats["allowed"] += 1
-        else:
-            if result.decision == EnforcementDecision.ESCALATE:
-                self._stats["escalated"] += 1
-            else:
-                self._stats["denied"] += 1
+                if result.decision == EnforcementDecision.ESCALATE:
+                    self._stats["escalated"] += 1
+                else:
+                    self._stats["denied"] += 1
 
         if self._on_decision and self.config.audit_all_decisions:
             try:

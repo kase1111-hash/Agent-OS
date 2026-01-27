@@ -427,14 +427,14 @@ class ContractValidator:
     ) -> None:
         """Validate contract expiry."""
         if contract.expires_at:
-            if datetime.now() > contract.expires_at:
+            if datetime.utcnow() > contract.expires_at:
                 result.add_issue(
                     ValidationCode.CONTRACT_EXPIRED,
                     ValidationSeverity.ERROR,
                     "Contract has expired",
                     expires_at=contract.expires_at.isoformat(),
                 )
-            elif (contract.expires_at - datetime.now()).days < 7:
+            elif (contract.expires_at - datetime.utcnow()).days < 7:
                 result.add_issue(
                     ValidationCode.CONTRACT_EXPIRED,
                     ValidationSeverity.INFO,

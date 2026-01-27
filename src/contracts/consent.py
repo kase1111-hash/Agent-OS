@@ -253,7 +253,7 @@ class ConsentPrompt:
 
         if cached:
             decision, timestamp = cached
-            if datetime.now() - timestamp < self.cache_ttl:
+            if datetime.utcnow() - timestamp < self.cache_ttl:
                 # Return cached decision with new request_id
                 return ConsentDecision(
                     request_id=request.request_id,
@@ -294,7 +294,7 @@ class ConsentPrompt:
     ) -> None:
         """Cache a decision."""
         cache_key = f"{request.user_id}:{request.domain}"
-        self._cache[cache_key] = (decision, datetime.now())
+        self._cache[cache_key] = (decision, datetime.utcnow())
 
     def _prompt_callback(self, request: ConsentRequest) -> ConsentDecision:
         """Get consent via callback."""

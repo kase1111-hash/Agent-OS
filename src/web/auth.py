@@ -54,8 +54,8 @@ class User:
     salt: str
     role: UserRole = UserRole.USER
     display_name: Optional[str] = None
-    created_at: datetime = field(default_factory=datetime.now)
-    updated_at: datetime = field(default_factory=datetime.now)
+    created_at: datetime = field(default_factory=datetime.utcnow)
+    updated_at: datetime = field(default_factory=datetime.utcnow)
     last_login: Optional[datetime] = None
     is_active: bool = True
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -85,9 +85,9 @@ class Session:
     session_id: str
     user_id: str
     token: str
-    created_at: datetime = field(default_factory=datetime.now)
+    created_at: datetime = field(default_factory=datetime.utcnow)
     expires_at: Optional[datetime] = None
-    last_activity: datetime = field(default_factory=datetime.now)
+    last_activity: datetime = field(default_factory=datetime.utcnow)
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
     is_active: bool = True
@@ -97,7 +97,7 @@ class Session:
         """Check if session is expired."""
         if not self.expires_at:
             return False
-        return datetime.now() >= self.expires_at
+        return datetime.utcnow() >= self.expires_at
 
     @property
     def is_valid(self) -> bool:
@@ -159,11 +159,11 @@ class RateLimiter:
                 return False, None
 
             lockout_end = self._lockouts[identifier]
-            if datetime.now() >= lockout_end:
+            if datetime.utcnow() >= lockout_end:
                 del self._lockouts[identifier]
                 return False, None
 
-            remaining = int((lockout_end - datetime.now()).total_seconds())
+            remaining = int((lockout_end - datetime.utcnow()).total_seconds())
             return True, remaining
 
     def get_backoff_delay(self, identifier: str) -> int:
@@ -191,7 +191,7 @@ class RateLimiter:
         with self._lock:
             attempt = LoginAttempt(
                 identifier=identifier,
-                attempt_time=datetime.now(),
+                attempt_time=datetime.utcnow(),
                 success=success,
             )
 
@@ -210,7 +210,7 @@ class RateLimiter:
                 # Check if lockout should be applied
                 failures = self._get_recent_failures(identifier)
                 if failures >= self.MAX_ATTEMPTS:
-                    self._lockouts[identifier] = datetime.now() + self.LOCKOUT_DURATION
+                    self._lockouts[identifier] = datetime.utcnow() + self.LOCKOUT_DURATION
                     logger.warning(f"Account locked out: {identifier} (too many failed attempts)")
 
     def _get_recent_failures(self, identifier: str) -> int:
@@ -218,7 +218,7 @@ class RateLimiter:
         if identifier not in self._attempts:
             return 0
 
-        cutoff = datetime.now() - self.ATTEMPT_WINDOW
+        cutoff = datetime.utcnow() - self.ATTEMPT_WINDOW
         return sum(
             1 for a in self._attempts[identifier] if not a.success and a.attempt_time > cutoff
         )
@@ -228,7 +228,7 @@ class RateLimiter:
         if identifier not in self._attempts:
             return
 
-        cutoff = datetime.now() - self.ATTEMPT_WINDOW
+        cutoff = datetime.utcnow() - self.ATTEMPT_WINDOW
         self._attempts[identifier] = [
             a for a in self._attempts[identifier] if a.attempt_time > cutoff
         ]
@@ -591,7 +591,7 @@ class UserStore:
 
         # Generate user ID
         user_id = f"user_{secrets.token_hex(8)}"
-        now = datetime.now()
+        now = datetime.utcnow()
 
         user = User(
             user_id=user_id,
@@ -706,11 +706,11 @@ class UserStore:
                 """
                 UPDATE users SET last_login = ? WHERE user_id = ?
             """,
-                (datetime.now().isoformat(), user.user_id),
+                (datetime.utcnow().isoformat(), user.user_id),
             )
             self._connection.commit()
 
-        user.last_login = datetime.now()
+        user.last_login = datetime.utcnow()
         logger.info(f"Successful login for user: {username}")
         return user, None
 
@@ -774,7 +774,7 @@ class UserStore:
             return False
 
         updates.append("updated_at = ?")
-        params.append(datetime.now().isoformat())
+        params.append(datetime.utcnow().isoformat())
         params.append(user_id)
 
         with self._lock:
@@ -784,7 +784,11 @@ class UserStore:
             return cursor.rowcount > 0
 
     def change_password(self, user_id: str, new_password: str) -> bool:
-        """Change a user's password."""
+        """Change a user's password.
+
+        Also invalidates all existing sessions for security, forcing
+        re-authentication with the new password.
+        """
         is_valid, error_msg = PasswordHasher.validate_password(new_password)
         if not is_valid:
             raise AuthError(error_msg, "INVALID_PASSWORD")
@@ -798,10 +802,20 @@ class UserStore:
                 UPDATE users SET password_hash = ?, salt = ?, updated_at = ?
                 WHERE user_id = ?
             """,
-                (password_hash, salt, datetime.now().isoformat(), user_id),
+                (password_hash, salt, datetime.utcnow().isoformat(), user_id),
             )
             self._connection.commit()
-            return cursor.rowcount > 0
+            success = cursor.rowcount > 0
+
+        # Invalidate all existing sessions for security
+        if success:
+            sessions_invalidated = self.invalidate_all_user_sessions(user_id)
+            logger.info(
+                f"Password changed for user {user_id}, "
+                f"invalidated {sessions_invalidated} sessions"
+            )
+
+        return success
 
     def list_users(self, include_inactive: bool = False) -> List[User]:
         """List all users."""
@@ -867,7 +881,7 @@ class UserStore:
             Created Session
         """
         session_id = f"sess_{secrets.token_hex(16)}"
-        now = datetime.now()
+        now = datetime.utcnow()
         expires_at = now + timedelta(hours=duration_hours)
 
         # Generate cryptographically bound token
@@ -1000,7 +1014,7 @@ class UserStore:
                 """
                 UPDATE sessions SET last_activity = ? WHERE session_id = ?
             """,
-                (datetime.now().isoformat(), session_id),
+                (datetime.utcnow().isoformat(), session_id),
             )
             self._connection.commit()
 
@@ -1067,7 +1081,7 @@ class UserStore:
                 UPDATE sessions SET is_active = 0
                 WHERE is_active = 1 AND expires_at < ?
             """,
-                (datetime.now().isoformat(),),
+                (datetime.utcnow().isoformat(),),
             )
             self._connection.commit()
             return cursor.rowcount

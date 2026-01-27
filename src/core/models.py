@@ -236,10 +236,38 @@ class ConstitutionRegistry:
     """
 
     constitutions: Dict[str, Constitution] = field(default_factory=dict)
+    _supreme_scope: Optional[str] = field(default=None, repr=False)
 
     def register(self, constitution: Constitution) -> None:
-        """Register a constitution in the registry."""
+        """
+        Register a constitution in the registry.
+
+        Warns if overwriting an existing constitution.
+        Raises ValueError if trying to register multiple supreme constitutions.
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+
         key = constitution.metadata.scope
+
+        # Check for duplicate scope (warn but allow overwrite)
+        if key in self.constitutions:
+            existing = self.constitutions[key]
+            logger.warning(
+                f"Overwriting existing constitution for scope '{key}' "
+                f"(version {existing.metadata.version} -> {constitution.metadata.version})"
+            )
+
+        # Enforce single supreme constitution
+        if constitution.metadata.authority_level == AuthorityLevel.SUPREME:
+            if self._supreme_scope is not None and self._supreme_scope != key:
+                raise ValueError(
+                    f"Cannot register multiple supreme constitutions. "
+                    f"Existing supreme: '{self._supreme_scope}', "
+                    f"attempted: '{key}'"
+                )
+            self._supreme_scope = key
+
         self.constitutions[key] = constitution
 
     def get(self, scope: str) -> Optional[Constitution]:
@@ -247,9 +275,18 @@ class ConstitutionRegistry:
         return self.constitutions.get(scope)
 
     def get_supreme(self) -> Optional[Constitution]:
-        """Get the supreme constitution (highest authority)."""
+        """
+        Get the supreme constitution (highest authority).
+
+        Returns the single supreme constitution, or None if not registered.
+        """
+        if self._supreme_scope:
+            return self.constitutions.get(self._supreme_scope)
+
+        # Fallback: search for supreme (for backwards compatibility)
         for const in self.constitutions.values():
             if const.metadata.authority_level == AuthorityLevel.SUPREME:
+                self._supreme_scope = const.metadata.scope
                 return const
         return None
 

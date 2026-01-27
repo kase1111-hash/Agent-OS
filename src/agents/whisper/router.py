@@ -198,9 +198,26 @@ class RoutingEngine:
         # Handle no routes
         if not routes:
             self._fallback_count += 1
-            routes = [AgentRoute(agent_name=self.default_agent, priority=0)]
+
+            # Validate fallback agent is available
+            fallback_agent = self.default_agent
+            if self.available_agents and fallback_agent not in self.available_agents:
+                # Try to find any available agent
+                if self.available_agents:
+                    fallback_agent = next(iter(self.available_agents))
+                    logger.warning(
+                        f"Default agent '{self.default_agent}' not available, "
+                        f"using '{fallback_agent}' instead"
+                    )
+                else:
+                    logger.error(
+                        f"No available agents for fallback - "
+                        f"using '{self.default_agent}' despite availability unknown"
+                    )
+
+            routes = [AgentRoute(agent_name=fallback_agent, priority=0)]
             strategy = RoutingStrategy.FALLBACK
-            reasoning = f"No routes found for {intent.value}, using fallback"
+            reasoning = f"No routes found for {intent.value}, using fallback agent '{fallback_agent}'"
         else:
             strategy = self._determine_strategy(routes, classification)
 
