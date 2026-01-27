@@ -101,6 +101,11 @@ class WhisperAgent(BaseAgent):
         # Whisper-specific metrics
         self._whisper_metrics = WhisperMetrics()
 
+        # Classification cache to prevent double-classification security bypass
+        # Maps request_id to IntentClassification to ensure consistent
+        # classification between validate_request() and process()
+        self._classification_cache: Dict[str, IntentClassification] = {}
+
     def initialize(self, config: Dict[str, Any]) -> bool:
         """
         Initialize Whisper with configuration.
@@ -176,6 +181,18 @@ class WhisperAgent(BaseAgent):
             context=[msg for msg in request.content.context],
         )
 
+        # SECURITY FIX: Cache classification to prevent double-classification bypass
+        # This ensures the same classification is used in both validate_request and process
+        request_id = str(request.request_id)
+        self._classification_cache[request_id] = classification
+
+        # Limit cache size to prevent memory leak
+        if len(self._classification_cache) > 1000:
+            # Remove oldest entries (first 100)
+            keys_to_remove = list(self._classification_cache.keys())[:100]
+            for key in keys_to_remove:
+                self._classification_cache.pop(key, None)
+
         # Pre-validate with Smith
         smith_result = self._smith.pre_validate(request, classification)
 
@@ -198,7 +215,7 @@ class WhisperAgent(BaseAgent):
         Process a request through the orchestration pipeline.
 
         Pipeline:
-        1. Classify intent
+        1. Get cached intent classification (from validate_request)
         2. Route to appropriate agent(s)
         3. Minimize context
         4. Execute flow
@@ -214,11 +231,23 @@ class WhisperAgent(BaseAgent):
         start_time = time.time()
         self._whisper_metrics.requests_processed += 1
 
-        # Step 1: Classify intent
-        classification = self._classifier.classify(
-            request.content.prompt,
-            context=[msg for msg in request.content.context],
-        )
+        # Step 1: Get cached classification to prevent security bypass
+        # SECURITY: Reuse the same classification from validate_request to ensure
+        # what was validated is what gets executed (prevents double-classification attack)
+        request_id = str(request.request_id)
+        classification = self._classification_cache.pop(request_id, None)
+
+        if classification is None:
+            # Fallback: classify if not cached (e.g., direct process call without validate)
+            # Log this as it may indicate a security concern
+            logger.warning(
+                f"No cached classification for request {request_id}, "
+                "performing new classification. This may indicate a security issue."
+            )
+            classification = self._classifier.classify(
+                request.content.prompt,
+                context=[msg for msg in request.content.context],
+            )
 
         # Track intent distribution
         intent_key = classification.primary_intent.value

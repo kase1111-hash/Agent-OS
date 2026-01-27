@@ -725,13 +725,47 @@ def get_manager() -> ConnectionManager:
 # =============================================================================
 
 
+async def _authenticate_websocket(websocket: WebSocket) -> Optional[str]:
+    """
+    Authenticate a WebSocket connection before accepting it.
+
+    Checks for session token in cookies or query parameters.
+
+    Returns:
+        User ID if authenticated, None otherwise
+    """
+    from ..auth import get_user_store
+
+    # Try to get token from cookies
+    token = websocket.cookies.get("session_token")
+
+    # If not in cookies, try query parameters
+    if not token:
+        token = websocket.query_params.get("token")
+
+    if not token:
+        return None
+
+    store = get_user_store()
+    user = store.validate_session(token)
+
+    if not user:
+        return None
+
+    return user.user_id
+
+
 @router.websocket("/ws")
 async def chat_websocket(
     websocket: WebSocket,
     conversation_id: Optional[str] = None,
 ):
     """
-    WebSocket endpoint for real-time chat.
+    WebSocket endpoint for real-time chat (requires authentication).
+
+    Authentication:
+    - Via session_token cookie, OR
+    - Via ?token=<session_token> query parameter
 
     Protocol:
     - Send: {"type": "message", "content": "Hello"}
@@ -739,8 +773,15 @@ async def chat_websocket(
     - Receive: {"type": "stream", "chunk": {...}}  # For streaming
     - Receive: {"type": "error", "message": "..."}
     """
+    # SECURITY FIX: Authenticate before accepting the WebSocket connection
+    user_id = await _authenticate_websocket(websocket)
+    if not user_id:
+        # Reject unauthenticated connections
+        await websocket.close(code=4001, reason="Authentication required")
+        return
+
     manager = get_manager()
-    connection = await manager.connect(websocket)
+    connection = await manager.connect(websocket, user_id=user_id)
 
     # Use provided conversation_id or create new one
     conv_id = conversation_id or str(uuid.uuid4())

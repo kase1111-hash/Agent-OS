@@ -874,7 +874,16 @@ class ContractStore:
             sql += " AND (expires_at IS NULL OR expires_at > ?)"
             params.append(datetime.now().isoformat())
 
-        sql += f" ORDER BY created_at DESC LIMIT {query.limit}"
+        # SECURITY FIX: Use parameterized query for LIMIT to prevent SQL injection
+        # Validate and sanitize limit value
+        try:
+            limit = int(query.limit) if query.limit else 100
+        except (ValueError, TypeError):
+            limit = 100
+        limit = max(1, min(limit, 10000))  # Clamp between 1 and 10000
+
+        sql += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
 
         cursor = self._connection.cursor()
         cursor.execute(sql, params)
@@ -1405,8 +1414,9 @@ def ensure_default_contracts(
     Returns:
         True if defaults were created, False if user already has contracts
     """
+    # BUGFIX: Use correct method name query_contracts instead of query
     query = ContractQuery(user_id=user_id, active_only=True)
-    existing = store.query(query)
+    existing = store.query_contracts(query)
 
     if existing:
         logger.debug(f"User '{user_id}' already has {len(existing)} active contracts")

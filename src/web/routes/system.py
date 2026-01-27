@@ -13,10 +13,54 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from src import __version__ as PKG_VERSION
+
+
+def require_admin_auth(
+    request: Request,
+    session_token: Optional[str] = Cookie(None),
+) -> str:
+    """
+    Dependency to require admin authentication for protected endpoints.
+
+    Returns the user_id if authenticated and authorized.
+    Raises HTTPException if not authenticated or not admin.
+    """
+    from ..auth import UserRole, get_user_store
+
+    # Get token from cookie or Authorization header
+    token = session_token
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+
+    if not token:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required for admin operations"
+        )
+
+    store = get_user_store()
+    user = store.validate_session(token)
+
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Session expired or invalid"
+        )
+
+    # Check for admin role
+    if user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=403,
+            detail="Admin privileges required for this operation"
+        )
+
+    return user.user_id
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -454,9 +498,12 @@ async def get_logs(
 
 
 @router.post("/shutdown")
-async def shutdown_system(confirm: bool = False) -> Dict[str, str]:
+async def shutdown_system(
+    confirm: bool = False,
+    admin_user: str = Depends(require_admin_auth),
+) -> Dict[str, str]:
     """
-    Request system shutdown.
+    Request system shutdown (requires admin authentication).
 
     Requires confirmation.
     """
@@ -475,9 +522,12 @@ async def shutdown_system(confirm: bool = False) -> Dict[str, str]:
 
 
 @router.post("/restart")
-async def restart_system(confirm: bool = False) -> Dict[str, str]:
+async def restart_system(
+    confirm: bool = False,
+    admin_user: str = Depends(require_admin_auth),
+) -> Dict[str, str]:
     """
-    Request system restart.
+    Request system restart (requires admin authentication).
 
     Requires confirmation.
     """

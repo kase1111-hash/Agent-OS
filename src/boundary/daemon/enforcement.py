@@ -284,13 +284,26 @@ class EnforcementLayer:
         Resume from suspended/halted state.
 
         Args:
-            authorization_code: Human authorization
+            authorization_code: Human authorization (min 16 chars with mixed case and digits)
 
         Returns:
             True if resume successful
         """
-        if len(authorization_code) < 8:
-            logger.warning("Resume attempt with invalid authorization")
+        # Validate authorization code with proper security requirements
+        if not authorization_code or len(authorization_code) < 16:
+            logger.warning("Resume attempt with invalid authorization: code too short")
+            return False
+
+        # Require mixed character types for security
+        has_upper = any(c.isupper() for c in authorization_code)
+        has_lower = any(c.islower() for c in authorization_code)
+        has_digit = any(c.isdigit() for c in authorization_code)
+
+        if not (has_upper and has_lower and has_digit):
+            logger.warning(
+                "Resume attempt with invalid authorization: code must contain "
+                "uppercase, lowercase, and digits"
+            )
             return False
 
         with self._lock:

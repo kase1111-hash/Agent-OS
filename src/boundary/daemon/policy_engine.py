@@ -181,10 +181,26 @@ class PolicyEngine:
         with self._lock:
             old_mode = self._mode
 
-            # Certain transitions require authorization
+            # Certain transitions require authorization with proper security
             if self._requires_authorization(old_mode, new_mode):
-                if not authorization or len(authorization) < 8:
-                    logger.warning(f"Unauthorized mode change attempt: {old_mode} -> {new_mode}")
+                # Require minimum 16 character authorization with mixed types
+                if not authorization or len(authorization) < 16:
+                    logger.warning(
+                        f"Unauthorized mode change attempt: {old_mode} -> {new_mode} "
+                        "(code too short, minimum 16 chars required)"
+                    )
+                    return False
+
+                # Require mixed character types for security
+                has_upper = any(c.isupper() for c in authorization)
+                has_lower = any(c.islower() for c in authorization)
+                has_digit = any(c.isdigit() for c in authorization)
+
+                if not (has_upper and has_lower and has_digit):
+                    logger.warning(
+                        f"Unauthorized mode change attempt: {old_mode} -> {new_mode} "
+                        "(code must contain uppercase, lowercase, and digits)"
+                    )
                     return False
 
             self._mode = new_mode

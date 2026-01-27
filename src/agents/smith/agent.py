@@ -441,7 +441,12 @@ class SmithAgent(BaseAgent):
         result = RequestValidationResult(is_valid=True)
         start_time = time.time()
 
-        # Check if system is operational
+        # Check if emergency controls are initialized and system is operational
+        if self._emergency is None:
+            logger.error("Smith emergency controls not initialized")
+            result.add_error("Security system not properly initialized")
+            return result
+
         if not self._emergency.is_operational:
             result.add_error(f"System in {self._emergency.current_mode.name} mode")
             return result
@@ -503,13 +508,14 @@ class SmithAgent(BaseAgent):
             logger.error(f"Validation error: {e}")
             result.add_error(f"Validation failed: {str(e)}")
 
-            # Log critical error
-            self._emergency.log_incident(
-                severity=IncidentSeverity.HIGH,
-                category="validation_error",
-                description=str(e),
-                request_id=str(request.request_id),
-            )
+            # Log critical error if emergency controls are available
+            if self._emergency:
+                self._emergency.log_incident(
+                    severity=IncidentSeverity.HIGH,
+                    category="validation_error",
+                    description=str(e),
+                    request_id=str(request.request_id),
+                )
 
         return result
 
@@ -579,24 +585,26 @@ class SmithAgent(BaseAgent):
         # Handle critical violations
         if result.critical_violations:
             for check in result.critical_violations:
-                self._emergency.log_incident(
-                    severity=IncidentSeverity.CRITICAL,
-                    category=f"post_monitor_{check.check_id.lower()}",
-                    description=check.message,
-                    source_agent=agent_name,
-                    request_id=str(request.request_id),
-                )
+                if self._emergency:
+                    self._emergency.log_incident(
+                        severity=IncidentSeverity.CRITICAL,
+                        category=f"post_monitor_{check.check_id.lower()}",
+                        description=check.message,
+                        source_agent=agent_name,
+                        request_id=str(request.request_id),
+                    )
                 self._track_block(check.check_id)
 
         # Handle regular violations
-        for violation in result.violations:
-            self._emergency.log_incident(
-                severity=IncidentSeverity.HIGH,
-                category="post_monitor_violation",
-                description=violation,
-                source_agent=agent_name,
-                request_id=str(request.request_id),
-            )
+        if self._emergency:
+            for violation in result.violations:
+                self._emergency.log_incident(
+                    severity=IncidentSeverity.HIGH,
+                    category="post_monitor_violation",
+                    description=violation,
+                    source_agent=agent_name,
+                    request_id=str(request.request_id),
+                )
 
         return result
 

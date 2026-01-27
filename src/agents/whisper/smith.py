@@ -172,7 +172,10 @@ class SmithIntegration:
 
         # Memory store requires consent
         if memory_operation == "store":
-            if not request.content.metadata.requires_memory:
+            # Safely check metadata - may be None
+            metadata = request.content.metadata if request.content else None
+            requires_memory = metadata.requires_memory if metadata and hasattr(metadata, 'requires_memory') else False
+            if not requires_memory:
                 violations.append("Memory storage requires explicit consent")
 
         # Memory recall may have constraints
