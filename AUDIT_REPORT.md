@@ -3,7 +3,49 @@
 **Date:** January 27, 2026
 **Auditor:** Claude Code (Opus 4.5)
 **Scope:** Comprehensive correctness and fitness-for-purpose audit
-**Status:** SIGNIFICANT ISSUES IDENTIFIED - NOT PRODUCTION READY
+**Status:** ~~SIGNIFICANT ISSUES IDENTIFIED~~ **CRITICAL ISSUES FIXED**
+
+---
+
+## Fixes Applied (Commit `9ae8a0e`)
+
+The following critical and high-severity issues have been fixed in this commit:
+
+### Security Fixes
+- [x] **Double-classification security bypass** - Intent now cached between validation and execution
+- [x] **Missing admin authentication** - Added auth to agents, system, and constitution endpoints
+- [x] **WebSocket authentication** - Connections now require valid session before accepting
+- [x] **Weak authorization codes** - Now require 16+ characters with mixed case and digits
+- [x] **SQL injection in LIMIT clause** - Now uses parameterized query
+- [x] **Consent bypass on reads** - Now checks blob status and logs warnings for unconsented blobs
+
+### Correctness Fixes
+- [x] **MANDATE rule enforcement** - Implemented actual mandate checking logic
+- [x] **Constitution file watching race** - Added thread-safe locking
+- [x] **Silent reload failures** - Reload now returns success/failure status
+- [x] **Null pointer in Smith** - Added null checks for emergency controls
+- [x] **Null pointer in memory check** - Added null checks for metadata
+- [x] **Async handler race condition** - Proper event loop handling
+- [x] **Dead letter queue race** - Added lock for thread-safe operations
+- [x] **Method name typo** - Fixed `store.query()` to `store.query_contracts()`
+- [x] **Timestamp bug** - Fixed to use lambda for datetime.now()
+
+### Files Modified
+- `src/core/constitution.py`
+- `src/agents/whisper/agent.py`, `src/agents/whisper/smith.py`
+- `src/agents/smith/agent.py`
+- `src/boundary/daemon/tripwires.py`, `enforcement.py`, `policy_engine.py`
+- `src/memory/vault.py`
+- `src/messaging/bus.py`
+- `src/contracts/store.py`
+- `src/web/routes/agents.py`, `system.py`, `chat.py`
+
+### Remaining Issues
+Some MEDIUM and LOW severity issues remain unfixed and should be addressed in future work:
+- Thread safety improvements in contracts enforcement stats
+- Datetime timezone consistency (now vs utcnow)
+- Key zeroing in memory shutdown (needs secure memory implementation)
+- Additional input validation hardening
 
 ---
 
