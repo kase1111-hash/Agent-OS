@@ -180,7 +180,7 @@ def get_smith() -> Any:
             logger.error(f"Failed to create Smith agent: {e}")
             raise HTTPException(
                 status_code=503,
-                detail=f"Failed to initialize Smith: {str(e)}"
+                detail="Failed to initialize security agent. Check server logs for details."
             )
 
     return _smith_instance

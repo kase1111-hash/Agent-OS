@@ -352,9 +352,28 @@ class FlowController:
             # First successful result (single or parallel)
             return successful[0].output
 
-    def shutdown(self) -> None:
-        """Shutdown executor."""
-        self._executor.shutdown(wait=False)
+    def shutdown(self, wait: bool = True, timeout: float = 30.0) -> None:
+        """
+        Shutdown executor gracefully.
+
+        Args:
+            wait: If True, wait for pending tasks to complete
+            timeout: Maximum time to wait for pending tasks (seconds)
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+
+        if wait:
+            logger.info("Shutting down flow executor, waiting for pending tasks...")
+            # Wait for pending work to complete
+            self._executor.shutdown(wait=True)
+            logger.info("Flow executor shutdown complete")
+        else:
+            logger.warning(
+                "Shutting down flow executor without waiting - "
+                "pending tasks will be abandoned"
+            )
+            self._executor.shutdown(wait=False)
 
     def get_metrics(self) -> Dict[str, Any]:
         """Get flow execution metrics."""

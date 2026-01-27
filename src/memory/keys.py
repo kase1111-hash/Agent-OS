@@ -401,8 +401,8 @@ class KeyManager:
                 key_id=key_id,
                 tier=tier,
                 binding=profile.key_binding,
-                created_at=datetime.now(),
-                expires_at=datetime.now() + ttl if ttl else None,
+                created_at=datetime.utcnow(),
+                expires_at=datetime.utcnow() + ttl if ttl else None,
                 metadata={"purpose": purpose},
             )
 
@@ -477,7 +477,7 @@ class KeyManager:
             key_id=key_id,
             tier=tier,
             binding=KeyBinding.SOFTWARE,
-            created_at=datetime.now(),
+            created_at=datetime.utcnow(),
             metadata={"derived": True},
         )
 
@@ -512,13 +512,14 @@ class KeyManager:
                 return None
 
             # Check expiry
-            if metadata.expires_at and datetime.now() > metadata.expires_at:
+            if metadata.expires_at and datetime.utcnow() > metadata.expires_at:
                 metadata.status = KeyStatus.EXPIRED
+                self._persist_key_metadata()  # Persist the expired status
                 logger.info(f"Key expired: {key_id}")
                 return None
 
             # Update access tracking
-            metadata.last_used = datetime.now()
+            metadata.last_used = datetime.utcnow()
             metadata.use_count += 1
 
             # Retrieve from cache or hardware
@@ -547,7 +548,7 @@ class KeyManager:
 
             # Mark old key for pending rotation
             old_metadata.status = KeyStatus.PENDING_ROTATION
-            old_metadata.rotation_scheduled = datetime.now()
+            old_metadata.rotation_scheduled = datetime.utcnow()
 
             # Generate new key
             new_key = self.generate_key(
@@ -774,7 +775,7 @@ class KeyManager:
         try:
             data = {
                 "keys": [m.to_dict() for m in self._keys.values()],
-                "updated_at": datetime.now().isoformat(),
+                "updated_at": datetime.utcnow().isoformat(),
             }
 
             with open(metadata_path, "w") as f:

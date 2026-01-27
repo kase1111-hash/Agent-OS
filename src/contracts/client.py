@@ -412,7 +412,7 @@ class ContractsClient:
             result, timestamp = cached
             from datetime import datetime
 
-            if (datetime.now() - timestamp).total_seconds() < self.config.cache_ttl_minutes * 60:
+            if (datetime.utcnow() - timestamp).total_seconds() < self.config.cache_ttl_minutes * 60:
                 return result
             del self._decision_cache[cache_key]
         return None
@@ -422,7 +422,7 @@ class ContractsClient:
         if self.config.cache_decisions:
             from datetime import datetime
 
-            self._decision_cache[cache_key] = (result, datetime.now())
+            self._decision_cache[cache_key] = (result, datetime.utcnow())
 
             # Limit cache size
             if len(self._decision_cache) > 1000:

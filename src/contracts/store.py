@@ -174,7 +174,7 @@ class LearningContract:
         if self.status != ContractStatus.ACTIVE:
             return False
 
-        if self.expires_at and datetime.now() > self.expires_at:
+        if self.expires_at and datetime.utcnow() > self.expires_at:
             return False
 
         return True
@@ -383,7 +383,7 @@ class ContractStore:
         )
 
         if duration:
-            contract.expires_at = datetime.now() + duration
+            contract.expires_at = datetime.utcnow() + duration
 
         contract.signature_hash = contract.compute_signature()
 
@@ -394,7 +394,7 @@ class ContractStore:
         if auto_activate:
             self.activate_contract(contract_id, user_id)
             contract.status = ContractStatus.ACTIVE
-            contract.activated_at = datetime.now()
+            contract.activated_at = datetime.utcnow()
 
         return contract
 
@@ -429,7 +429,7 @@ class ContractStore:
                 SET status = ?, activated_at = ?
                 WHERE contract_id = ?
             """,
-                (ContractStatus.ACTIVE.name, datetime.now().isoformat(), contract_id),
+                (ContractStatus.ACTIVE.name, datetime.utcnow().isoformat(), contract_id),
             )
             self._connection.commit()
 
@@ -470,7 +470,7 @@ class ContractStore:
                 SET status = ?, revoked_at = ?, revocation_reason = ?
                 WHERE contract_id = ?
             """,
-                (ContractStatus.REVOKED.name, datetime.now().isoformat(), reason, contract_id),
+                (ContractStatus.REVOKED.name, datetime.utcnow().isoformat(), reason, contract_id),
             )
             self._connection.commit()
 
@@ -592,7 +592,7 @@ class ContractStore:
 
         # Check for expired contracts and expire them
         for contract in contracts:
-            if contract.expires_at and datetime.now() > contract.expires_at:
+            if contract.expires_at and datetime.utcnow() > contract.expires_at:
                 self.expire_contract(contract.contract_id)
 
         # Filter to valid contracts
@@ -702,7 +702,7 @@ class ContractStore:
                 SELECT contract_id FROM contracts
                 WHERE status = ? AND expires_at < ?
             """,
-                (ContractStatus.ACTIVE.name, datetime.now().isoformat()),
+                (ContractStatus.ACTIVE.name, datetime.utcnow().isoformat()),
             )
 
             expired = cursor.fetchall()
@@ -872,7 +872,7 @@ class ContractStore:
 
         if not query.include_expired:
             sql += " AND (expires_at IS NULL OR expires_at > ?)"
-            params.append(datetime.now().isoformat())
+            params.append(datetime.utcnow().isoformat())
 
         # SECURITY FIX: Use parameterized query for LIMIT to prevent SQL injection
         # Validate and sanitize limit value
@@ -927,7 +927,7 @@ class ContractStore:
             INSERT INTO contract_events (contract_id, event_type, actor, details, timestamp)
             VALUES (?, ?, ?, ?, ?)
         """,
-            (contract_id, event_type, actor, details, datetime.now().isoformat()),
+            (contract_id, event_type, actor, details, datetime.utcnow().isoformat()),
         )
         self._connection.commit()
 

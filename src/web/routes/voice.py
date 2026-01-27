@@ -291,7 +291,8 @@ async def transcribe_audio(
         # Decode base64 audio
         audio_bytes = base64.b64decode(request.audio_data)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid base64 audio data: {e}")
+        logger.warning(f"Invalid base64 audio data: {e}")
+        raise HTTPException(status_code=400, detail="Invalid base64 audio data")
 
     # Determine audio format
     from src.voice.audio import AudioFormat
