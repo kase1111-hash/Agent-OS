@@ -101,3 +101,62 @@ class ReloadCallbackError(ConstitutionalError):
         self.callback_name = callback_name
         self.original_error = original_error
         super().__init__(message)
+
+
+# =============================================================================
+# Security Exceptions
+# =============================================================================
+
+
+class SecurityError(Exception):
+    """Base exception for security-related operations."""
+
+    pass
+
+
+class SSRFProtectionError(SecurityError):
+    """
+    Server-Side Request Forgery protection triggered.
+
+    Raised when a URL points to localhost, private networks,
+    or other restricted destinations.
+    """
+
+    def __init__(
+        self,
+        message: str = "SSRF protection: Request to restricted address blocked",
+        url: Optional[str] = None,
+    ):
+        self.url = url
+        super().__init__(message)
+
+
+class PathValidationError(SecurityError):
+    """
+    Path validation/traversal protection triggered.
+
+    Raised when a file path contains traversal sequences or
+    attempts to access restricted locations.
+    """
+
+    def __init__(
+        self,
+        message: str = "Path validation failed",
+        path: Optional[str] = None,
+    ):
+        self.path = path
+        super().__init__(message)
+
+
+class AuthError(SecurityError):
+    """Authentication or authorization error."""
+
+    def __init__(
+        self,
+        message: str,
+        error_code: str = "AUTH_ERROR",
+        is_recoverable: bool = True,
+    ):
+        super().__init__(message)
+        self.error_code = error_code
+        self.is_recoverable = is_recoverable

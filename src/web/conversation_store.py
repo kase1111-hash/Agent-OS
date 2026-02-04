@@ -798,10 +798,8 @@ class ConversationStore:
 
 
 # =============================================================================
-# Global Store Instance
+# Dependency Injection Integration
 # =============================================================================
-
-_store: Optional[ConversationStore] = None
 
 
 def get_conversation_store(
@@ -809,28 +807,57 @@ def get_conversation_store(
     initialize: bool = True,
 ) -> ConversationStore:
     """
-    Get or create the global conversation store.
+    Get the conversation store instance.
+
+    This function integrates with the dependency injection system.
+    For FastAPI routes, use Depends(get_conversation_store) from dependencies.py.
 
     Args:
-        db_path: Optional custom database path
-        initialize: Whether to initialize if not already done
+        db_path: Ignored (for backward compatibility). Use DI configuration.
+        initialize: Ignored (for backward compatibility). Store is always initialized.
 
     Returns:
         ConversationStore instance
     """
-    global _store
+    from src.web.dependencies import get_conversation_store as _get_store_di
 
-    if _store is None:
-        _store = ConversationStore(db_path=db_path)
-        if initialize:
-            _store.initialize()
+    return _get_store_di()
 
-    return _store
+
+def set_conversation_store(store: ConversationStore) -> None:
+    """
+    Set/override the conversation store instance.
+
+    Primarily used for testing.
+    """
+    from src.web.dependencies import _container
+
+    _container.set_override("conversation_store", store)
 
 
 def close_conversation_store() -> None:
-    """Close the global conversation store."""
-    global _store
-    if _store:
-        _store.close()
-        _store = None
+    """
+    Close and reset the conversation store.
+
+    This will cause the next get_conversation_store() call to create a new instance.
+    """
+    from src.web.dependencies import _container, reset_dependencies
+
+    try:
+        store = _container.get("conversation_store")
+        store.close()
+    except KeyError:
+        pass  # Store not initialized
+
+    reset_dependencies("conversation_store")
+
+
+def reset_conversation_store() -> None:
+    """
+    Reset the conversation store to recreate from configuration.
+
+    Useful for tests that need a fresh conversation store.
+    """
+    from src.web.dependencies import reset_dependencies
+
+    reset_dependencies("conversation_store")

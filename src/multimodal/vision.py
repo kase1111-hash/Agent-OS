@@ -31,11 +31,7 @@ logger = logging.getLogger(__name__)
 # Security: URL Validation for SSRF Prevention
 # =============================================================================
 
-
-class SSRFProtectionError(Exception):
-    """Raised when a URL fails SSRF protection validation."""
-
-    pass
+from src.core.exceptions import SSRFProtectionError
 
 
 def validate_api_url(url: str, allow_localhost: bool = True) -> str:
@@ -238,10 +234,10 @@ class ImageInput:
         )
 
     @classmethod
-    def from_base64(cls, b64_string: str, format: ImageFormat = ImageFormat.JPEG) -> "ImageInput":
+    def from_base64(cls, b64_string: str, image_format: ImageFormat = ImageFormat.JPEG) -> "ImageInput":
         """Create from base64 string."""
         data = base64.b64decode(b64_string)
-        return cls(data=data, format=format)
+        return cls(data=data, format=image_format)
 
     def to_base64(self) -> str:
         """Convert to base64 string."""

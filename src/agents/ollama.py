@@ -30,11 +30,7 @@ except ImportError:
 import ipaddress
 from urllib.parse import urlparse
 
-
-class SSRFProtectionError(Exception):
-    """Raised when a URL fails SSRF protection validation."""
-
-    pass
+from src.core.exceptions import SSRFProtectionError
 
 
 def validate_ollama_endpoint(url: str) -> str:

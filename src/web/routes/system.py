@@ -28,8 +28,12 @@ def require_admin_auth(
 
     Returns the user_id if authenticated and authorized.
     Raises HTTPException if not authenticated or not admin.
+
+    This uses the dependency injection system for the user store,
+    making it easy to mock in tests.
     """
-    from ..auth import UserRole, get_user_store
+    from ..auth import UserRole
+    from ..dependencies import get_user_store
 
     # Get token from cookie or Authorization header
     token = session_token

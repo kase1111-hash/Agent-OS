@@ -31,11 +31,7 @@ from urllib.parse import urlparse
 # Security: Endpoint Validation
 # =============================================================================
 
-
-class SSRFProtectionError(Exception):
-    """Raised when a URL fails SSRF protection validation."""
-
-    pass
+from src.core.exceptions import SSRFProtectionError
 
 
 def validate_model_endpoint(url: str) -> str:
@@ -405,13 +401,13 @@ class ConfigLoader:
         except ValueError as e:
             raise ValueError(f"Invalid configuration in {path}: {e}") from e
 
-    def load_from_string(self, content: str, format: str = "yaml") -> AgentConfig:
+    def load_from_string(self, content: str, content_format: str = "yaml") -> AgentConfig:
         """
         Load configuration from string.
 
         Args:
             content: Configuration content
-            format: Content format ("yaml" or "json")
+            content_format: Content format ("yaml" or "json")
 
         Returns:
             AgentConfig instance
@@ -425,14 +421,14 @@ class ConfigLoader:
         content = self._interpolate_env(content)
 
         try:
-            if format == "yaml":
+            if content_format == "yaml":
                 if not YAML_AVAILABLE:
                     raise ValueError("YAML support requires PyYAML package")
                 data = yaml.safe_load(content)
-            elif format == "json":
+            elif content_format == "json":
                 data = json.loads(content)
             else:
-                raise ValueError(f"Unsupported format: {format}. Use 'yaml' or 'json'")
+                raise ValueError(f"Unsupported format: {content_format}. Use 'yaml' or 'json'")
         except yaml.YAMLError as e:
             raise ValueError(f"Invalid YAML configuration: {e}") from e
         except json.JSONDecodeError as e:

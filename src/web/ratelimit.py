@@ -684,22 +684,40 @@ def create_limiter(
     )
 
 
-# Global limiter instance
-_limiter: Optional[RateLimiter] = None
+# =============================================================================
+# Dependency Injection Integration
+# =============================================================================
 
 
 def get_limiter() -> RateLimiter:
-    """Get the global rate limiter."""
-    global _limiter
-    if _limiter is None:
-        _limiter = RateLimiter(
-            requests_per_minute=60,
-            requests_per_hour=1000,
-        )
-    return _limiter
+    """
+    Get the rate limiter.
+
+    This function integrates with the dependency injection system.
+    For FastAPI routes, use Depends(get_rate_limiter) instead.
+    """
+    from src.web.dependencies import get_rate_limiter
+
+    return get_rate_limiter()
 
 
 def set_limiter(limiter: RateLimiter) -> None:
-    """Set the global rate limiter."""
-    global _limiter
-    _limiter = limiter
+    """
+    Set/override the rate limiter.
+
+    Primarily used for testing.
+    """
+    from src.web.dependencies import _container
+
+    _container.set_override("rate_limiter", limiter)
+
+
+def reset_limiter() -> None:
+    """
+    Reset the rate limiter to recreate from configuration.
+
+    Useful for tests that need fresh rate limiter.
+    """
+    from src.web.dependencies import reset_dependencies
+
+    reset_dependencies("rate_limiter")

@@ -456,11 +456,12 @@ class ThreatCorrelator:
         if not entry.indicators:
             return None
 
-        # Find entries with shared indicators
+        # Find entries with shared indicators (with pagination limit)
         related_entries = self.store.query(
             indicators=entry.indicators,
             since=since,
             severity_min=rule.min_severity,
+            limit=rule.max_events,  # Prevent unbounded result sets
         )
 
         # Exclude self
@@ -519,12 +520,13 @@ class ThreatCorrelator:
         since: datetime,
     ) -> Optional[CorrelationResult]:
         """Correlate by temporal proximity."""
-        # Get entries in time window matching criteria
+        # Get entries in time window matching criteria (with pagination limit)
         related_entries = self.store.query(
             entry_types=rule.source_types if rule.source_types else None,
             categories=rule.categories if rule.categories else None,
             since=since,
             severity_min=rule.min_severity,
+            limit=rule.max_events,  # Prevent unbounded result sets
         )
 
         related_entries = [e for e in related_entries if e.entry_id != entry.entry_id]
@@ -588,11 +590,12 @@ class ThreatCorrelator:
         if not entry.mitre_tactics:
             return None
 
-        # Get entries with any MITRE tactics
+        # Get entries with any MITRE tactics (with pagination limit)
         related_entries = self.store.query(
             mitre_tactics=MITRE_KILL_CHAIN,  # Any kill chain tactic
             since=since,
             severity_min=rule.min_severity,
+            limit=rule.max_events,  # Prevent unbounded result sets
         )
 
         related_entries = [e for e in related_entries if e.entry_id != entry.entry_id]
@@ -668,12 +671,13 @@ class ThreatCorrelator:
         since: datetime,
     ) -> Optional[CorrelationResult]:
         """Correlate by behavioral patterns."""
-        # Get entries matching behavioral criteria
+        # Get entries matching behavioral criteria (with pagination limit)
         related_entries = self.store.query(
             categories=rule.categories if rule.categories else None,
             mitre_tactics=rule.required_tactics if rule.required_tactics else None,
             since=since,
             severity_min=rule.min_severity,
+            limit=rule.max_events,  # Prevent unbounded result sets
         )
 
         related_entries = [e for e in related_entries if e.entry_id != entry.entry_id]

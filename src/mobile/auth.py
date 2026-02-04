@@ -53,18 +53,7 @@ class BiometricType(str, Enum):
     IRIS = "iris"
 
 
-class AuthError(Exception):
-    """Authentication error."""
-
-    def __init__(
-        self,
-        message: str,
-        error_code: Optional[str] = None,
-        is_recoverable: bool = True,
-    ):
-        super().__init__(message)
-        self.error_code = error_code
-        self.is_recoverable = is_recoverable
+from src.core.exceptions import AuthError
 
 
 @dataclass

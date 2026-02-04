@@ -26,11 +26,7 @@ logger = logging.getLogger(__name__)
 # Security: Path and Input Validation
 # =============================================================================
 
-
-class PathValidationError(Exception):
-    """Raised when a path fails security validation."""
-
-    pass
+from src.core.exceptions import PathValidationError
 
 
 def validate_output_path(path: Path) -> Path:

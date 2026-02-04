@@ -27,11 +27,7 @@ logger = logging.getLogger(__name__)
 # Security: Path Validation for Subprocess Calls
 # =============================================================================
 
-
-class PathValidationError(Exception):
-    """Raised when a path fails security validation."""
-
-    pass
+from src.core.exceptions import PathValidationError
 
 
 def validate_audio_path(path: Path) -> Path:
@@ -192,13 +188,13 @@ class STTEngine(ABC):
         self._callbacks: List[Callable[[STTResult], None]] = []
 
     @abstractmethod
-    def transcribe(self, audio_data: bytes, format: AudioFormat = AudioFormat.PCM) -> STTResult:
+    def transcribe(self, audio_data: bytes, audio_format: AudioFormat = AudioFormat.PCM) -> STTResult:
         """
         Transcribe audio to text.
 
         Args:
             audio_data: Audio bytes to transcribe
-            format: Audio format
+            audio_format: Audio format
 
         Returns:
             STTResult with transcribed text
@@ -234,7 +230,7 @@ class STTEngine(ABC):
             STTResult with transcribed text
         """
         wav_data = buffer.to_wav()
-        return self.transcribe(wav_data, format=AudioFormat.WAV)
+        return self.transcribe(wav_data, audio_format=AudioFormat.WAV)
 
     def on_transcription(self, callback: Callable[[STTResult], None]) -> None:
         """Register callback for transcription results."""
@@ -276,7 +272,7 @@ class MockSTT(STTEngine):
         """Set simulated processing latency."""
         self._latency = seconds
 
-    def transcribe(self, audio_data: bytes, format: AudioFormat = AudioFormat.PCM) -> STTResult:
+    def transcribe(self, audio_data: bytes, audio_format: AudioFormat = AudioFormat.PCM) -> STTResult:
         """Return mock transcription."""
         start_time = time.time()
 
@@ -303,7 +299,7 @@ class MockSTT(STTEngine):
         """Mock file transcription."""
         with open(file_path, "rb") as f:
             audio_data = f.read()
-        return self.transcribe(audio_data, format=AudioFormat.WAV)
+        return self.transcribe(audio_data, audio_format=AudioFormat.WAV)
 
     def is_available(self) -> bool:
         """Mock is always available."""
@@ -391,12 +387,12 @@ class WhisperSTT(STTEngine):
         """Check if whisper.cpp is available."""
         return self.whisper_path is not None and self.model_path is not None
 
-    def transcribe(self, audio_data: bytes, format: AudioFormat = AudioFormat.PCM) -> STTResult:
+    def transcribe(self, audio_data: bytes, audio_format: AudioFormat = AudioFormat.PCM) -> STTResult:
         """Transcribe audio using whisper.cpp."""
         start_time = time.time()
 
         # Convert to WAV if needed
-        if format == AudioFormat.PCM:
+        if audio_format == AudioFormat.PCM:
             audio_data = pcm_to_wav(audio_data)
 
         # Write to temp file
@@ -521,7 +517,7 @@ class WhisperAPISTT(STTEngine):
 
         return bool(self.api_key or os.getenv("OPENAI_API_KEY"))
 
-    def transcribe(self, audio_data: bytes, format: AudioFormat = AudioFormat.PCM) -> STTResult:
+    def transcribe(self, audio_data: bytes, audio_format: AudioFormat = AudioFormat.PCM) -> STTResult:
         """Transcribe audio using OpenAI Whisper API."""
         start_time = time.time()
 
@@ -535,7 +531,7 @@ class WhisperAPISTT(STTEngine):
             )
 
         # Convert to WAV if needed
-        if format == AudioFormat.PCM:
+        if audio_format == AudioFormat.PCM:
             audio_data = pcm_to_wav(audio_data)
 
         # Write to temp file (API requires file)
@@ -592,7 +588,7 @@ class WhisperAPISTT(STTEngine):
         }
         audio_format = format_map.get(ext, AudioFormat.WAV)
 
-        return self.transcribe(audio_data, format=audio_format)
+        return self.transcribe(audio_data, audio_format=audio_format)
 
 
 # =============================================================================

@@ -68,7 +68,7 @@ exclude_lines =
     except ModuleNotFoundError:
 
 # Fail if coverage is below this percentage
-fail_under = 50
+fail_under = 70
 
 # Show missing lines in report
 show_missing = true

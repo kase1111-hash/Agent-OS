@@ -35,12 +35,7 @@ class UserRole(str, Enum):
     GUEST = "guest"
 
 
-class AuthError(Exception):
-    """Authentication error."""
-
-    def __init__(self, message: str, error_code: str = "AUTH_ERROR"):
-        super().__init__(message)
-        self.error_code = error_code
+from src.core.exceptions import AuthError
 
 
 @dataclass
@@ -357,13 +352,104 @@ class UserStore:
         if env_secret:
             self._token_secret = env_secret.encode()
         else:
-            # Generate random secret for this instance
-            # Note: In production, this should be persistent
-            self._token_secret = secrets.token_bytes(32)
+            # Try to load or generate persistent secret
+            self._token_secret = self._load_or_create_persistent_secret()
+
+    def _load_or_create_persistent_secret(self) -> bytes:
+        """
+        Load or create a persistent session secret.
+
+        The secret is stored in an encrypted file alongside the database.
+        This ensures sessions survive application restarts.
+
+        Returns:
+            32-byte secret for session token signing
+        """
+        # Determine secret file location
+        if self.db_path:
+            secret_path = self.db_path.parent / ".session_secret"
+        else:
+            # In-memory database - use ephemeral secret
             logger.warning(
-                f"No {self._TOKEN_SECRET_ENV} set - using ephemeral session secret. "
+                f"No {self._TOKEN_SECRET_ENV} set and using in-memory database. "
                 "Sessions will not survive restarts."
             )
+            return secrets.token_bytes(32)
+
+        try:
+            if secret_path.exists():
+                # Load existing secret
+                encrypted_data = secret_path.read_bytes()
+                # Decrypt using machine-specific key
+                secret = self._decrypt_secret(encrypted_data)
+                logger.info("Loaded persistent session secret from file.")
+                return secret
+            else:
+                # Generate and persist new secret
+                secret = secrets.token_bytes(32)
+                encrypted_data = self._encrypt_secret(secret)
+                secret_path.write_bytes(encrypted_data)
+                # Set restrictive permissions (owner read/write only)
+                secret_path.chmod(0o600)
+                logger.info(
+                    f"Generated persistent session secret and saved to {secret_path}. "
+                    f"Set {self._TOKEN_SECRET_ENV} environment variable for production."
+                )
+                return secret
+        except Exception as e:
+            logger.warning(
+                f"Failed to load/create persistent secret: {e}. "
+                "Using ephemeral session secret."
+            )
+            return secrets.token_bytes(32)
+
+    def _get_machine_key(self) -> bytes:
+        """
+        Generate a machine-specific key for encrypting the session secret.
+
+        Uses hostname and username to derive a key that's unique per machine/user.
+        """
+        import platform
+        import getpass
+
+        machine_id = f"{platform.node()}:{getpass.getuser()}:agent-os-session"
+        return hashlib.sha256(machine_id.encode()).digest()
+
+    def _encrypt_secret(self, secret: bytes) -> bytes:
+        """
+        Encrypt the session secret using machine-specific key.
+
+        Uses simple XOR with HMAC verification for file-at-rest protection.
+        """
+        machine_key = self._get_machine_key()
+        # XOR encrypt
+        encrypted = bytes(a ^ b for a, b in zip(secret, machine_key[:32]))
+        # Add HMAC for verification
+        mac = hmac.new(machine_key, encrypted, hashlib.sha256).digest()
+        return encrypted + mac
+
+    def _decrypt_secret(self, data: bytes) -> bytes:
+        """
+        Decrypt the session secret.
+
+        Raises:
+            ValueError: If data is invalid or tampered with
+        """
+        if len(data) != 64:  # 32 bytes secret + 32 bytes HMAC
+            raise ValueError("Invalid secret file format")
+
+        encrypted = data[:32]
+        stored_mac = data[32:]
+
+        machine_key = self._get_machine_key()
+        # Verify HMAC
+        expected_mac = hmac.new(machine_key, encrypted, hashlib.sha256).digest()
+        if not hmac.compare_digest(stored_mac, expected_mac):
+            raise ValueError("Secret file verification failed - possible tampering")
+
+        # XOR decrypt
+        secret = bytes(a ^ b for a, b in zip(encrypted, machine_key[:32]))
+        return secret
 
     def _generate_bound_token(
         self,
@@ -1101,28 +1187,43 @@ class UserStore:
         )
 
 
-# Global user store instance
-_user_store: Optional[UserStore] = None
+# =============================================================================
+# Dependency Injection Integration
+# =============================================================================
 
 
 def get_user_store() -> UserStore:
-    """Get the global user store instance."""
-    global _user_store
-    if _user_store is None:
-        # Default to file-based storage in the current directory
-        from .config import get_config
+    """
+    Get the user store instance.
 
-        config = get_config()
-        db_path = config.static_dir.parent / "users.db"
-        _user_store = UserStore(db_path)
-        _user_store.initialize()
-    return _user_store
+    This function integrates with the dependency injection system.
+    For FastAPI routes, use Depends(get_user_store) from dependencies.py instead.
+    """
+    from src.web.dependencies import get_user_store as _get_user_store_di
+
+    return _get_user_store_di()
 
 
 def set_user_store(store: UserStore) -> None:
-    """Set the global user store instance."""
-    global _user_store
-    _user_store = store
+    """
+    Set/override the user store instance.
+
+    Primarily used for testing.
+    """
+    from src.web.dependencies import _container
+
+    _container.set_override("user_store", store)
+
+
+def reset_user_store() -> None:
+    """
+    Reset the user store to recreate from configuration.
+
+    Useful for tests that need a fresh user store.
+    """
+    from src.web.dependencies import reset_dependencies
+
+    reset_dependencies("user_store")
 
 
 def create_user_store(db_path: Optional[Path] = None) -> UserStore:

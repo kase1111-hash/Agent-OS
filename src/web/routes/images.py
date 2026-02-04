@@ -34,17 +34,10 @@ import ipaddress
 import re
 from urllib.parse import urlparse
 
+from src.core.exceptions import PathValidationError, SSRFProtectionError
 
-class PathTraversalError(Exception):
-    """Raised when a path traversal attack is detected."""
-
-    pass
-
-
-class SSRFProtectionError(Exception):
-    """Raised when a URL fails SSRF protection validation."""
-
-    pass
+# Backward compatibility alias
+PathTraversalError = PathValidationError
 
 
 def validate_filename_in_directory(filename: str, base_directory: Path) -> Path:
