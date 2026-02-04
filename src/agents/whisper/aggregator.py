@@ -60,6 +60,13 @@ class ResponseAggregator:
     - Consensus checking
     """
 
+    # Dispatch mapping: RoutingStrategy -> AggregationStrategy
+    _ROUTING_TO_AGGREGATION = {
+        RoutingStrategy.SEQUENTIAL: AggregationStrategy.LAST_SUCCESS,
+        RoutingStrategy.PARALLEL: AggregationStrategy.MERGE,
+        RoutingStrategy.FALLBACK: AggregationStrategy.FIRST_SUCCESS,
+    }
+
     def __init__(
         self,
         default_strategy: AggregationStrategy = AggregationStrategy.FIRST_SUCCESS,
@@ -74,6 +81,15 @@ class ResponseAggregator:
         """
         self.default_strategy = default_strategy
         self.merge_separator = merge_separator
+
+        # Strategy dispatch - maps AggregationStrategy to handler method
+        self._strategy_handlers = {
+            AggregationStrategy.FIRST_SUCCESS: self._first_success,
+            AggregationStrategy.LAST_SUCCESS: self._last_success,
+            AggregationStrategy.MERGE: self._merge_responses,
+            AggregationStrategy.BEST_CONFIDENCE: self._best_confidence,
+            AggregationStrategy.CONSENSUS: self._consensus,
+        }
 
     def aggregate(
         self,
@@ -101,32 +117,18 @@ class ResponseAggregator:
             # No successful results
             return self._create_error_response(request, flow_result)
 
-        # Aggregate based on strategy
-        if strategy == AggregationStrategy.FIRST_SUCCESS:
-            aggregated = self._first_success(successful)
-        elif strategy == AggregationStrategy.LAST_SUCCESS:
-            aggregated = self._last_success(successful)
-        elif strategy == AggregationStrategy.MERGE:
-            aggregated = self._merge_responses(successful)
-        elif strategy == AggregationStrategy.BEST_CONFIDENCE:
-            aggregated = self._best_confidence(successful)
-        elif strategy == AggregationStrategy.CONSENSUS:
-            aggregated = self._consensus(successful)
-        else:
-            aggregated = self._first_success(successful)
+        # Aggregate based on strategy using dispatch pattern
+        handler = self._strategy_handlers.get(strategy, self._first_success)
+        aggregated = handler(successful)
 
         # Build response
         return self._build_response(request, aggregated, flow_result)
 
     def _determine_strategy(self, flow_result: FlowResult) -> AggregationStrategy:
-        """Determine best strategy based on flow."""
-        if flow_result.strategy_used == RoutingStrategy.SEQUENTIAL:
-            return AggregationStrategy.LAST_SUCCESS
-        elif flow_result.strategy_used == RoutingStrategy.PARALLEL:
-            return AggregationStrategy.MERGE
-        elif flow_result.strategy_used == RoutingStrategy.FALLBACK:
-            return AggregationStrategy.FIRST_SUCCESS
-        return self.default_strategy
+        """Determine best strategy based on flow using dispatch pattern."""
+        return self._ROUTING_TO_AGGREGATION.get(
+            flow_result.strategy_used, self.default_strategy
+        )
 
     def _first_success(self, results: List[AgentResult]) -> AggregatedResponse:
         """Use first successful response."""

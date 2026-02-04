@@ -265,6 +265,23 @@ Real-time streaming is available via WebSocket:
         allow_headers=["*"],
     )
 
+    # HTTPS enforcement and HSTS middleware
+    if config.force_https or config.hsts_enabled:
+        from .middleware import HTTPSRedirectMiddleware
+
+        app.add_middleware(
+            HTTPSRedirectMiddleware,
+            force_https=config.force_https,
+            hsts_enabled=config.hsts_enabled,
+            hsts_max_age=config.hsts_max_age,
+            hsts_include_subdomains=config.hsts_include_subdomains,
+            hsts_preload=config.hsts_preload,
+        )
+        if config.force_https:
+            logger.info("HTTPS enforcement enabled - HTTP requests will be redirected")
+        if config.hsts_enabled:
+            logger.info(f"HSTS enabled with max-age={config.hsts_max_age}")
+
     # Static files
     if config.static_dir.exists():
         app.mount("/static", StaticFiles(directory=str(config.static_dir)), name="static")

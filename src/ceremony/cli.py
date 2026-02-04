@@ -57,6 +57,18 @@ class CeremonyCLI:
         CeremonyPhase.PHASE_VIII_EMERGENCY_DRILLS: "Practice emergency procedures",
     }
 
+    # Event type to (message, color) mapping for dispatch pattern
+    # None values indicate events handled elsewhere (e.g., _print_phase, _print_result)
+    _EVENT_MESSAGES = {
+        "ceremony_started": (">>> Ceremony Started", "green"),
+        "ceremony_resumed": (">>> Ceremony Resumed", "yellow"),
+        "ceremony_completed": (">>> Ceremony Completed!", "green"),
+        "drills_failed": (">>> DRILLS FAILED - Returning to Phase I", "red"),
+        "phase_started": None,  # Handled by _print_phase
+        "phase_completed": None,  # Handled by _print_result
+        "phase_failed": None,  # Handled by _print_result
+    }
+
     def __init__(self, use_colors: bool = True):
         """
         Initialize CLI.
@@ -159,21 +171,11 @@ class CeremonyCLI:
             print(f"  Emergency Drills: {self._color('PASSED', 'green')}")
 
     def _on_event(self, event: CeremonyEvent) -> None:
-        """Handle ceremony events."""
-        if event.event_type == "ceremony_started":
-            print(f"\n{self._color('>>> Ceremony Started', 'green')}")
-        elif event.event_type == "ceremony_resumed":
-            print(f"\n{self._color('>>> Ceremony Resumed', 'yellow')}")
-        elif event.event_type == "ceremony_completed":
-            print(f"\n{self._color('>>> Ceremony Completed!', 'green')}")
-        elif event.event_type == "phase_started":
-            pass  # Handled by _print_phase
-        elif event.event_type == "phase_completed":
-            pass  # Handled by _print_result
-        elif event.event_type == "phase_failed":
-            pass  # Handled by _print_result
-        elif event.event_type == "drills_failed":
-            print(f"\n{self._color('>>> DRILLS FAILED - Returning to Phase I', 'red')}")
+        """Handle ceremony events using dispatch pattern."""
+        message_info = self._EVENT_MESSAGES.get(event.event_type)
+        if message_info:
+            message, color = message_info
+            print(f"\n{self._color(message, color)}")
 
     def run_interactive(self, config: Optional[CeremonyConfig] = None) -> bool:
         """

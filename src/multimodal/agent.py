@@ -248,7 +248,7 @@ class MultiModalAgent:
 
     def process(
         self,
-        input: MultiModalInput,
+        mm_input: MultiModalInput,
         task: TaskType = TaskType.DESCRIBE,
         prompt: Optional[str] = None,
     ) -> MultiModalResult:
@@ -256,7 +256,7 @@ class MultiModalAgent:
         Process multi-modal input.
 
         Args:
-            input: Multi-modal input data
+            mm_input: Multi-modal input data
             task: Type of task to perform
             prompt: Optional prompt/question
 
@@ -266,21 +266,21 @@ class MultiModalAgent:
         start_time = time.time()
 
         results = MultiModalResult()
-        results.modalities_processed = input.modalities.copy()
+        results.modalities_processed = mm_input.modalities.copy()
 
         # Process each modality
-        if InputModality.IMAGE in input.modalities:
-            results.vision_result = self._process_images(input.images, task, prompt)
+        if InputModality.IMAGE in mm_input.modalities:
+            results.vision_result = self._process_images(mm_input.images, task, prompt)
 
-        if InputModality.AUDIO in input.modalities:
-            results.audio_result = self._process_audio(input.audio, task)
+        if InputModality.AUDIO in mm_input.modalities:
+            results.audio_result = self._process_audio(mm_input.audio, task)
 
-        if InputModality.VIDEO in input.modalities:
-            results.video_result = self._process_video(input.video, task, prompt)
+        if InputModality.VIDEO in mm_input.modalities:
+            results.video_result = self._process_video(mm_input.video, task, prompt)
 
         # Combine results
         if self.config.combine_modalities:
-            self._combine_results(results, input.text)
+            self._combine_results(results, mm_input.text)
 
         results.processing_time = time.time() - start_time
 
@@ -401,10 +401,10 @@ class MultiModalAgent:
         prompt: Optional[str] = None,
     ) -> MultiModalResult:
         """Describe an image."""
-        input = MultiModalInput.from_image(image_path)
+        mm_input = MultiModalInput.from_image(image_path)
         if prompt:
-            input.text = prompt
-        return self.process(input, TaskType.DESCRIBE, prompt)
+            mm_input.text = prompt
+        return self.process(mm_input, TaskType.DESCRIBE, prompt)
 
     def describe_video(
         self,
@@ -412,46 +412,46 @@ class MultiModalAgent:
         prompt: Optional[str] = None,
     ) -> MultiModalResult:
         """Describe a video."""
-        input = MultiModalInput.from_video(video_path)
+        mm_input = MultiModalInput.from_video(video_path)
         if prompt:
-            input.text = prompt
-        return self.process(input, TaskType.DESCRIBE, prompt)
+            mm_input.text = prompt
+        return self.process(mm_input, TaskType.DESCRIBE, prompt)
 
     def analyze_audio(self, audio_path: Union[str, Path]) -> MultiModalResult:
         """Analyze audio file."""
-        input = MultiModalInput.from_audio(audio_path)
-        return self.process(input, TaskType.ANALYZE)
+        mm_input = MultiModalInput.from_audio(audio_path)
+        return self.process(mm_input, TaskType.ANALYZE)
 
     def answer_question(
         self,
-        input: MultiModalInput,
+        mm_input: MultiModalInput,
         question: str,
     ) -> str:
         """Answer a question about multi-modal input."""
-        result = self.process(input, TaskType.QUESTION_ANSWER, question)
+        result = self.process(mm_input, TaskType.QUESTION_ANSWER, question)
         return result.answer or result.description
 
     def classify(
         self,
-        input: MultiModalInput,
+        mm_input: MultiModalInput,
         labels: Optional[List[str]] = None,
     ) -> MultiModalResult:
         """Classify multi-modal input."""
-        if labels and InputModality.IMAGE in input.modalities:
+        if labels and InputModality.IMAGE in mm_input.modalities:
             # Use CLIP-style classification for images
             vision = self._ensure_vision()
-            result = vision.classify(input.images[0], labels)
+            result = vision.classify(mm_input.images[0], labels)
             return MultiModalResult(
                 labels=result.labels,
                 confidence=result.confidence,
                 vision_result=result,
             )
 
-        return self.process(input, TaskType.CLASSIFY)
+        return self.process(mm_input, TaskType.CLASSIFY)
 
-    def embed(self, input: MultiModalInput) -> MultiModalResult:
+    def embed(self, mm_input: MultiModalInput) -> MultiModalResult:
         """Generate embeddings for input."""
-        result = self.process(input, TaskType.EMBED)
+        result = self.process(mm_input, TaskType.EMBED)
 
         # Collect embeddings from all modalities
         all_embeddings = []

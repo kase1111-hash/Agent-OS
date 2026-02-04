@@ -69,6 +69,20 @@ class RuleScope(str, Enum):
 class RuleValidationError(Exception):
     """Error during rule validation."""
 
+
+# Condition operator dispatch - returns True if condition passes
+_CONDITION_OPERATORS = {
+    "eq": lambda actual, value: actual == value,
+    "ne": lambda actual, value: actual != value,
+    "in": lambda actual, value: actual in value,
+    "not_in": lambda actual, value: actual not in value,
+    "contains": lambda actual, value: value in actual,
+    "gt": lambda actual, value: actual > value,
+    "lt": lambda actual, value: actual < value,
+    "ge": lambda actual, value: actual >= value,
+    "le": lambda actual, value: actual <= value,
+}
+
     def __init__(
         self,
         message: str,
@@ -193,23 +207,11 @@ class Rule:
             actual = context.get(key)
 
             if isinstance(expected, dict):
-                # Complex condition
+                # Complex condition - use operator dispatch
                 op = expected.get("op", "eq")
                 value = expected.get("value")
-
-                if op == "eq" and actual != value:
-                    return False
-                elif op == "ne" and actual == value:
-                    return False
-                elif op == "in" and actual not in value:
-                    return False
-                elif op == "not_in" and actual in value:
-                    return False
-                elif op == "contains" and value not in actual:
-                    return False
-                elif op == "gt" and not (actual > value):
-                    return False
-                elif op == "lt" and not (actual < value):
+                evaluator = _CONDITION_OPERATORS.get(op)
+                if evaluator and not evaluator(actual, value):
                     return False
             else:
                 if actual != expected:

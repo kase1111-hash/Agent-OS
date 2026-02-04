@@ -484,13 +484,13 @@ class AudioPlayer(ABC):
         self.config = config or AudioConfig()
 
     @abstractmethod
-    def play(self, audio_data: bytes, format: AudioFormat = AudioFormat.PCM) -> bool:
+    def play(self, audio_data: bytes, audio_format: AudioFormat = AudioFormat.PCM) -> bool:
         """
         Play audio data.
 
         Args:
             audio_data: Audio bytes to play
-            format: Audio format
+            audio_format: Audio format
 
         Returns:
             True if playback started successfully
@@ -525,13 +525,13 @@ class MockAudioPlayer(AudioPlayer):
         self._playing = False
         self._played_audio: List[bytes] = []
 
-    def play(self, audio_data: bytes, format: AudioFormat = AudioFormat.PCM) -> bool:
+    def play(self, audio_data: bytes, audio_format: AudioFormat = AudioFormat.PCM) -> bool:
         """Record audio instead of playing."""
         self._playing = True
         self._played_audio.append(audio_data)
 
         # Simulate playback duration
-        if format == AudioFormat.PCM:
+        if audio_format == AudioFormat.PCM:
             duration = len(audio_data) / (
                 self.config.sample_rate * self.config.channels * self.config.sample_width
             )
@@ -589,13 +589,13 @@ class PyAudioPlayer(AudioPlayer):
         except Exception:
             return False
 
-    def play(self, audio_data: bytes, format: AudioFormat = AudioFormat.PCM) -> bool:
+    def play(self, audio_data: bytes, audio_format: AudioFormat = AudioFormat.PCM) -> bool:
         """Play audio via PyAudio."""
         try:
             import pyaudio
 
             # Convert to PCM if needed
-            if format == AudioFormat.WAV:
+            if audio_format == AudioFormat.WAV:
                 audio_data, sample_rate, channels, sample_width = wav_to_pcm(audio_data)
             else:
                 sample_rate = self.config.sample_rate
@@ -605,10 +605,10 @@ class PyAudioPlayer(AudioPlayer):
             self._pyaudio = pyaudio.PyAudio()
 
             format_map = {1: pyaudio.paInt8, 2: pyaudio.paInt16, 4: pyaudio.paInt32}
-            audio_format = format_map.get(sample_width, pyaudio.paInt16)
+            pyaudio_format = format_map.get(sample_width, pyaudio.paInt16)
 
             self._stream = self._pyaudio.open(
-                format=audio_format,
+                format=pyaudio_format,
                 channels=channels,
                 rate=sample_rate,
                 output=True,

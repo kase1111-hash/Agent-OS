@@ -51,6 +51,13 @@ class WebConfig:
     api_key: Optional[str] = None
     require_auth: bool = False
 
+    # HTTPS/TLS settings
+    force_https: bool = False  # Redirect HTTP to HTTPS
+    hsts_enabled: bool = False  # HTTP Strict Transport Security
+    hsts_max_age: int = 31536000  # 1 year in seconds
+    hsts_include_subdomains: bool = True
+    hsts_preload: bool = False
+
     # Paths
     static_dir: Path = field(default_factory=lambda: Path(__file__).parent / "static")
     templates_dir: Path = field(default_factory=lambda: Path(__file__).parent / "templates")
@@ -102,6 +109,20 @@ class WebConfig:
                 "and AGENT_OS_API_KEY for production use."
             )
 
+        # Warn if HTTPS is not enforced in non-debug mode with auth
+        if self.require_auth and not self.force_https and not self.debug:
+            logger.warning(
+                "HTTPS enforcement is disabled while authentication is enabled. "
+                "Set AGENT_OS_FORCE_HTTPS=true for production use to protect credentials."
+            )
+
+        # Warn if HSTS is enabled without HTTPS
+        if self.hsts_enabled and not self.force_https:
+            logger.warning(
+                "HSTS is enabled but HTTPS enforcement is disabled. "
+                "HSTS headers will only be effective over HTTPS connections."
+            )
+
     @classmethod
     def from_env(cls, validate: bool = True) -> "WebConfig":
         """
@@ -133,6 +154,14 @@ class WebConfig:
             debug=os.getenv("AGENT_OS_WEB_DEBUG", "").lower() in ("1", "true", "yes"),
             api_key=os.getenv("AGENT_OS_API_KEY"),
             require_auth=os.getenv("AGENT_OS_REQUIRE_AUTH", "").lower() in ("1", "true", "yes"),
+            # HTTPS/TLS settings
+            force_https=os.getenv("AGENT_OS_FORCE_HTTPS", "").lower() in ("1", "true", "yes"),
+            hsts_enabled=os.getenv("AGENT_OS_HSTS_ENABLED", "").lower() in ("1", "true", "yes"),
+            hsts_max_age=int(os.getenv("AGENT_OS_HSTS_MAX_AGE", "31536000")),
+            hsts_include_subdomains=os.getenv("AGENT_OS_HSTS_INCLUDE_SUBDOMAINS", "true").lower()
+            in ("1", "true", "yes"),
+            hsts_preload=os.getenv("AGENT_OS_HSTS_PRELOAD", "").lower() in ("1", "true", "yes"),
+            # Rate limiting
             rate_limit_enabled=os.getenv("AGENT_OS_RATE_LIMIT_ENABLED", "true").lower()
             in ("1", "true", "yes"),
             rate_limit_requests_per_minute=int(os.getenv("AGENT_OS_RATE_LIMIT_PER_MINUTE", "60")),
