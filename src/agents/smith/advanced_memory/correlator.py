@@ -470,10 +470,10 @@ class ThreatCorrelator:
         if len(related_entries) < rule.min_events - 1:
             return None
 
-        # Find shared indicators
-        shared = set(entry.indicators)
+        # Find shared indicators - entry.indicators is already a Set[str]
+        shared = set(entry.indicators)  # Copy to avoid mutating original
         for e in related_entries:
-            shared &= set(e.indicators)
+            shared &= e.indicators  # e.indicators is already a Set[str]
 
         if not shared:
             return None

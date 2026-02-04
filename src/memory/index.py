@@ -134,7 +134,7 @@ class VaultIndex:
         try:
             yield conn
             conn.commit()
-        except Exception:
+        except sqlite3.Error:
             conn.rollback()
             raise
 

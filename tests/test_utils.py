@@ -376,3 +376,177 @@ class TestMasterKeyManagement:
 
         decrypted = service._decrypt_stored_key(encrypted)
         assert decrypted == key
+
+
+# =============================================================================
+# Parameterized Tests for Better Coverage
+# =============================================================================
+
+
+class TestSensitiveDataRedactorParameterized:
+    """Parameterized tests for SensitiveDataRedactor."""
+
+    @pytest.fixture
+    def redactor(self):
+        """Create a redactor instance."""
+        from src.utils.encryption import SensitiveDataRedactor
+
+        return SensitiveDataRedactor()
+
+    @pytest.mark.parametrize(
+        "input_text,should_not_contain,should_contain",
+        [
+            # API Keys
+            ('api_key="sk-1234567890abcdefghijklmnop"', "sk-1234567890", "REDACTED"),
+            ("Using key: sk-proj-abcdefghijklmnopqrstuvwxyz123456", "sk-proj", "REDACTED_OPENAI_KEY"),
+            # GitHub tokens
+            ("token = ghp_abcdefghijklmnopqrstuvwxyz12345", "ghp_", "REDACTED_GITHUB_TOKEN"),
+            ("gho_1234567890abcdefghij", "gho_", "REDACTED_GITHUB_TOKEN"),
+            ("ghs_abcdefghij1234567890", "ghs_", "REDACTED_GITHUB_TOKEN"),
+            # Bearer tokens
+            ("Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", "eyJh", "Bearer [REDACTED]"),
+            # Passwords
+            ('password="mysecretpassword123"', "mysecretpassword123", "REDACTED"),
+            ("passwd=supersecret", "supersecret", "REDACTED"),
+            ("pwd:hidden_value", "hidden_value", "REDACTED"),
+            # Connection strings
+            ("postgresql://user:password123@localhost:5432/db", "password123", "REDACTED"),
+            ("mysql://root:secret@127.0.0.1/mydb", "secret", "REDACTED"),
+            # AWS keys
+            ("AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE", "AKIAIOSFODNN7EXAMPLE", "REDACTED_AWS_KEY"),
+            ("AKIA1234567890ABCDEF", "AKIA1234567890ABCDEF", "REDACTED_AWS_KEY"),
+            # Credit cards (various formats)
+            ("Card number: 4111-1111-1111-1111", "4111-1111", "REDACTED_CARD"),
+            ("cc: 4111111111111111", "4111111111111111", "REDACTED_CARD"),
+            ("visa: 4012 8888 8888 1881", "4012", "REDACTED_CARD"),
+            # SSN
+            ("SSN: 123-45-6789", "123-45-6789", "REDACTED_SSN"),
+            ("social: 987-65-4321", "987-65-4321", "REDACTED_SSN"),
+            # JWT tokens
+            (
+                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U",
+                "eyJhbG",
+                "REDACTED_JWT",
+            ),
+            # Slack tokens (using obviously fake test patterns)
+            ("xoxb-FAKE-TEST-TOKEN-abcdefghijk", "xoxb-", "REDACTED_SLACK_TOKEN"),
+            ("xoxp-FAKE-TEST-TOKEN-abcdefghijk", "xoxp-", "REDACTED_SLACK_TOKEN"),
+            # Private keys (partial match)
+            ("-----BEGIN RSA PRIVATE KEY-----", "PRIVATE KEY", "REDACTED_PRIVATE_KEY"),
+        ],
+        ids=[
+            "api_key_sk",
+            "openai_key",
+            "github_pat",
+            "github_oauth",
+            "github_server",
+            "bearer_token",
+            "password_field",
+            "passwd_field",
+            "pwd_field",
+            "postgres_conn",
+            "mysql_conn",
+            "aws_key_env",
+            "aws_key_inline",
+            "card_dashes",
+            "card_plain",
+            "card_spaces",
+            "ssn_standard",
+            "ssn_alt",
+            "jwt_full",
+            "slack_bot",
+            "slack_user",
+            "private_key",
+        ],
+    )
+    def test_redaction_patterns(self, redactor, input_text, should_not_contain, should_contain):
+        """Test various sensitive data patterns are properly redacted."""
+        result = redactor.redact(input_text)
+        assert should_not_contain not in result, f"'{should_not_contain}' should be redacted"
+        assert should_contain in result, f"'{should_contain}' should be in result"
+
+    @pytest.mark.parametrize(
+        "sensitive_key,sensitive_value",
+        [
+            ("password", "secret123"),
+            ("api_key", "abc123xyz"),
+            ("token", "tok_12345"),
+            ("secret", "mysecret"),
+            ("auth_token", "auth_abc"),
+            ("access_key", "ak_xyz"),
+            ("private_key", "priv_123"),
+            ("credentials", "cred_val"),
+        ],
+        ids=[
+            "password_key",
+            "api_key_key",
+            "token_key",
+            "secret_key",
+            "auth_token_key",
+            "access_key_key",
+            "private_key_key",
+            "credentials_key",
+        ],
+    )
+    def test_dict_key_redaction(self, redactor, sensitive_key, sensitive_value):
+        """Test that sensitive dictionary keys are properly redacted."""
+        data = {"username": "john", sensitive_key: sensitive_value}
+        result = redactor.redact_dict(data)
+        assert result["username"] == "john"
+        assert result[sensitive_key] == "[REDACTED]"
+
+
+class TestEncryptionParameterized:
+    """Parameterized tests for EncryptionService."""
+
+    @pytest.fixture
+    def encryption_service(self):
+        """Create an encryption service with a known key."""
+        from src.utils.encryption import EncryptionService
+
+        key = base64.b64decode("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
+        return EncryptionService(master_key=key)
+
+    @pytest.mark.parametrize(
+        "plaintext",
+        [
+            "Hello, World!",
+            "",  # Empty string
+            "a",  # Single character
+            "A" * 10000,  # Large string
+            "Unicode: こんにちは 🎉",
+            "Special chars: !@#$%^&*()_+-=[]{}|;':\",./<>?",
+            "\n\r\t",  # Whitespace only
+            "Line 1\nLine 2\nLine 3",  # Multiline
+        ],
+        ids=[
+            "simple",
+            "empty",
+            "single_char",
+            "large_string",
+            "unicode",
+            "special_chars",
+            "whitespace",
+            "multiline",
+        ],
+    )
+    def test_encrypt_decrypt_roundtrip(self, encryption_service, plaintext):
+        """Test encryption/decryption roundtrip for various inputs."""
+        encrypted = encryption_service.encrypt(plaintext)
+        decrypted = encryption_service.decrypt(encrypted)
+        assert decrypted == plaintext
+
+    @pytest.mark.parametrize(
+        "password,expected_key_length",
+        [
+            ("short", 32),
+            ("a" * 100, 32),
+            ("password123", 32),
+            ("ün1cödé_p@$$wörd", 32),
+        ],
+        ids=["short_password", "long_password", "alphanumeric", "unicode_password"],
+    )
+    def test_key_derivation_length(self, encryption_service, password, expected_key_length):
+        """Test that derived keys have correct length regardless of password."""
+        key, salt = encryption_service.derive_key(password)
+        assert len(key) == expected_key_length

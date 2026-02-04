@@ -535,7 +535,7 @@ class PolicyInterpreter:
                     except ValueError:
                         pass
 
-                except Exception:
+                except (OSError, ValueError, TypeError):
                     pass
 
             # Check action similarity

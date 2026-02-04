@@ -554,8 +554,8 @@ except Exception as e:
                 timeout=5,
             )
             if result.returncode != 0:
-                raise Exception(f"{runtime} not available")
-        except Exception:
+                raise FileNotFoundError(f"{runtime} not available")
+        except (subprocess.SubprocessError, FileNotFoundError, OSError):
             context.log(f"Container runtime not available, using subprocess")
             return self._execute_subprocess(tool, parameters, timeout, context)
 

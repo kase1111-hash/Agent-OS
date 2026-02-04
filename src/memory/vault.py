@@ -490,7 +490,7 @@ class MemoryVault:
             if metadata.blob_type == BlobType.TEXT:
                 try:
                     result.text = data.decode("utf-8")
-                except Exception:
+                except UnicodeDecodeError:
                     pass
             elif metadata.blob_type == BlobType.JSON:
                 try:
@@ -498,7 +498,7 @@ class MemoryVault:
 
                     result.json_data = json.loads(data)
                     result.text = data.decode("utf-8")
-                except Exception:
+                except (json.JSONDecodeError, UnicodeDecodeError):
                     pass
 
             return result

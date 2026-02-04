@@ -176,6 +176,7 @@ class AdvancedMemoryManager:
         self._initialized = False
         self._running = False
         self._lock = threading.RLock()
+        self._shutdown_event = threading.Event()
 
         # Synthesis thread
         self._synthesis_thread: Optional[threading.Thread] = None
@@ -274,6 +275,9 @@ class AdvancedMemoryManager:
 
         with self._lock:
             try:
+                # Clear shutdown event for fresh start
+                self._shutdown_event.clear()
+
                 # Start store
                 self._store.start()
 
@@ -308,6 +312,7 @@ class AdvancedMemoryManager:
     def stop(self) -> None:
         """Stop all memory components."""
         self._running = False
+        self._shutdown_event.set()  # Signal shutdown to waiting threads
 
         with self._lock:
             # Stop synthesis thread
@@ -643,13 +648,11 @@ class AdvancedMemoryManager:
             except Exception as e:
                 logger.error(f"Synthesis error: {e}")
 
-            # Sleep for synthesis interval
-            for _ in range(self.config.synthesis_interval_hours * 3600):
-                if not self._running:
-                    break
-                # Check every minute for shutdown
-                import time
-                time.sleep(60)
+            # Wait for synthesis interval or shutdown signal
+            # Event.wait() returns True if event was set (shutdown), False on timeout
+            synthesis_seconds = self.config.synthesis_interval_hours * 3600
+            if self._shutdown_event.wait(timeout=synthesis_seconds):
+                break  # Shutdown requested
 
 
 def create_advanced_memory(

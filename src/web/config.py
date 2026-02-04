@@ -48,6 +48,12 @@ class WebConfig:
 
     # Security
     cors_origins: List[str] = field(default_factory=lambda: ["http://localhost:8080"])
+    cors_methods: List[str] = field(
+        default_factory=lambda: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
+    )
+    cors_headers: List[str] = field(
+        default_factory=lambda: ["Authorization", "Content-Type", "Accept", "X-Requested-With"]
+    )
     api_key: Optional[str] = None
     require_auth: bool = False
 
