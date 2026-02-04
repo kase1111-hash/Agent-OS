@@ -334,7 +334,7 @@ class EbpfFilter:
         try:
             # Check for eBPF support
             return os.path.exists("/sys/fs/bpf")
-        except Exception:
+        except (OSError, PermissionError):
             return False
 
     def _check_seccomp_available(self) -> bool:
@@ -343,11 +343,11 @@ class EbpfFilter:
             # Check for seccomp support in kernel
             with open("/proc/sys/kernel/seccomp/actions_avail", "r") as f:
                 return len(f.read().strip()) > 0
-        except Exception:
+        except (OSError, IOError, PermissionError):
             # Try alternative check
             try:
                 return os.path.exists("/proc/self/seccomp")
-            except Exception:
+            except (OSError, PermissionError):
                 return False
 
     @property

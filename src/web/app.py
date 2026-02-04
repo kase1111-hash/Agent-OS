@@ -256,13 +256,13 @@ Real-time streaming is available via WebSocket:
         },
     )
 
-    # CORS middleware
+    # CORS middleware - restrict to specific methods and headers
     app.add_middleware(
         CORSMiddleware,
         allow_origins=config.cors_origins,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=config.cors_methods,
+        allow_headers=config.cors_headers,
     )
 
     # HTTPS enforcement and HSTS middleware

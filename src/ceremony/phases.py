@@ -242,7 +242,7 @@ class ColdBootPhase(CeremonyPhaseExecutor):
             for process in watch_list:
                 if process in output.stdout.lower():
                     suspicious.append(process)
-        except Exception:
+        except (subprocess.SubprocessError, FileNotFoundError, OSError):
             pass
 
         return len(suspicious) == 0, suspicious

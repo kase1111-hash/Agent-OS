@@ -744,7 +744,8 @@ class UserStore:
         # Check rate limiting by username
         is_locked, remaining = self._rate_limiter.is_locked_out(username)
         if is_locked:
-            logger.warning(f"Login attempt for locked account: {username}")
+            # Don't log username to prevent user enumeration via logs
+            logger.warning("Login attempt for locked account")
             return None, f"Account temporarily locked. Try again in {remaining} seconds."
 
         # Also check by IP if provided
@@ -777,7 +778,8 @@ class UserStore:
             self._rate_limiter.record_attempt(username, success=False)
             if ip_address:
                 self._rate_limiter.record_attempt(ip_address, success=False)
-            logger.warning(f"Failed login attempt for user: {username}")
+            # Don't log username to prevent user enumeration via logs
+            logger.warning(f"Failed login attempt from IP: {ip_address or 'unknown'}")
             return None, "Invalid username or password"
 
         # Success - record and clear any lockouts

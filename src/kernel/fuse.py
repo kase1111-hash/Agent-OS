@@ -174,7 +174,7 @@ class FuseWrapper:
             import shutil
 
             return shutil.which("fusermount") is not None or shutil.which("fusermount3") is not None
-        except Exception:
+        except (OSError, PermissionError, ImportError):
             return False
 
     @property

@@ -464,7 +464,7 @@ class FileMonitor:
         try:
             # Try to import inotify bindings or check /proc
             return os.path.exists("/proc/sys/fs/inotify")
-        except Exception:
+        except (OSError, PermissionError):
             return False
 
     @property
