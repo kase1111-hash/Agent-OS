@@ -401,6 +401,7 @@ class TestAgentMetrics:
         # Response time may be 0 if processing is very fast
         assert metrics.average_response_time_ms >= 0
 
+    @pytest.mark.slow
     def test_uptime_tracking(self):
         """Uptime is tracked."""
         agent = SampleAgent(name="sample")

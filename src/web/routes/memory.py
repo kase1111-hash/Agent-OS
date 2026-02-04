@@ -229,12 +229,23 @@ class MemoryStore:
             if not row:
                 return None
 
-            # Update access stats
-            now = datetime.utcnow().isoformat()
-            cursor.execute(
-                "UPDATE memories SET accessed_at = ?, access_count = access_count + 1 WHERE id = ?",
-                (now, entry_id),
+            # Update access stats (only update timestamp if >60s since last access)
+            now = datetime.utcnow()
+            last_accessed = datetime.fromisoformat(row["accessed_at"]) if row["accessed_at"] else None
+            should_update_time = (
+                not last_accessed
+                or (now - last_accessed).total_seconds() > 60
             )
+            if should_update_time:
+                cursor.execute(
+                    "UPDATE memories SET accessed_at = ?, access_count = access_count + 1 WHERE id = ?",
+                    (now.isoformat(), entry_id),
+                )
+            else:
+                cursor.execute(
+                    "UPDATE memories SET access_count = access_count + 1 WHERE id = ?",
+                    (entry_id,),
+                )
             self._connection.commit()
 
             return self._row_to_entry(row)

@@ -527,7 +527,10 @@ class SecurityIntelligenceStore:
             if entry_id in self._hot_store:
                 entry = self._hot_store[entry_id]
                 entry.access_count += 1
-                entry.last_accessed = datetime.now()
+                # Only update timestamp if last access was >60s ago (reduces overhead)
+                now = datetime.now()
+                if not entry.last_accessed or (now - entry.last_accessed).total_seconds() > 60:
+                    entry.last_accessed = now
                 return entry
 
             # Check database
@@ -538,11 +541,22 @@ class SecurityIntelligenceStore:
 
             if row:
                 entry = self._row_to_entry(row)
-                # Update access count
-                self._db.execute(
-                    "UPDATE intelligence SET access_count = access_count + 1, last_accessed = ? WHERE entry_id = ?",
-                    (datetime.now().isoformat(), entry_id),
+                # Only update if last_accessed was >60s ago (reduces write overhead)
+                now = datetime.now()
+                should_update_time = (
+                    not entry.last_accessed
+                    or (now - entry.last_accessed).total_seconds() > 60
                 )
+                if should_update_time:
+                    self._db.execute(
+                        "UPDATE intelligence SET access_count = access_count + 1, last_accessed = ? WHERE entry_id = ?",
+                        (now.isoformat(), entry_id),
+                    )
+                else:
+                    self._db.execute(
+                        "UPDATE intelligence SET access_count = access_count + 1 WHERE entry_id = ?",
+                        (entry_id,),
+                    )
                 self._db.commit()
                 return entry
 

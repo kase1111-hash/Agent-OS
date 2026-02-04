@@ -24,6 +24,7 @@ CONSTITUTION_PATH = PROJECT_ROOT / "CONSTITUTION.md"
 AGENTS_DIR = PROJECT_ROOT / "agents"
 
 
+@pytest.mark.integration
 class TestRealConstitution:
     """Tests against the real CONSTITUTION.md file."""
 
@@ -117,6 +118,7 @@ class TestRealConstitution:
         assert "security" in content_lower or "refusal" in content_lower, "Missing security content"
 
 
+@pytest.mark.integration
 class TestAgentConstitutions:
     """Tests for agent-specific constitutions."""
 
@@ -182,6 +184,7 @@ class TestAgentConstitutions:
                 f"{file_path} violates supreme constitution: {result.errors}"
 
 
+@pytest.mark.integration
 class TestConstitutionalKernel:
     """Integration tests for ConstitutionalKernel."""
 
@@ -279,6 +282,7 @@ class TestConstitutionalKernel:
         kernel.shutdown()
 
 
+@pytest.mark.integration
 class TestConstitutionStats:
     """Print statistics about the constitution for visibility."""
 

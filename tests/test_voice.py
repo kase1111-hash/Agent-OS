@@ -198,6 +198,7 @@ class TestMockAudioCapture:
         capture.stop()
         assert not capture.is_running
 
+    @pytest.mark.slow
     def test_mock_capture_callbacks(self):
         """Test audio callbacks."""
         from src.voice.audio import MockAudioCapture
