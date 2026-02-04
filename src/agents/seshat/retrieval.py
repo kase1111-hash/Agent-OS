@@ -506,9 +506,11 @@ class RetrievalPipeline:
                     importance=result.metadata.get("importance", 0.5),
                 )
 
-            # Update access tracking
+            # Update access tracking (only if last access was >60s ago to reduce overhead)
             memory.access_count += 1
-            memory.last_accessed = datetime.now()
+            now = datetime.now()
+            if not memory.last_accessed or (now - memory.last_accessed).total_seconds() > 60:
+                memory.last_accessed = now
 
             memories.append(memory)
             scores.append(result.score)

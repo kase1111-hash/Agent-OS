@@ -546,8 +546,10 @@ class BlobStorage:
             self._persist_metadata(metadata)
             return None
 
-        # Update access tracking
-        metadata.accessed_at = datetime.now()
+        # Update access tracking (only if last access was >60s ago to reduce overhead)
+        now = datetime.now()
+        if not metadata.accessed_at or (now - metadata.accessed_at).total_seconds() > 60:
+            metadata.accessed_at = now
         metadata.access_count += 1
         self._persist_metadata(metadata)
 
@@ -611,8 +613,10 @@ class BlobStorage:
             self._persist_metadata(metadata)
             return None
 
-        # Update access tracking
-        metadata.accessed_at = datetime.now()
+        # Update access tracking (only if last access was >60s ago to reduce overhead)
+        now = datetime.now()
+        if not metadata.accessed_at or (now - metadata.accessed_at).total_seconds() > 60:
+            metadata.accessed_at = now
         metadata.access_count += 1
         self._persist_metadata(metadata)
 

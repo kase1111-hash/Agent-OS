@@ -176,6 +176,14 @@ def create_app(config: Optional[WebConfig] = None) -> Any:
 
         logger.info("Starting Agent OS Web Interface...")
 
+        # Security warning for disabled authentication
+        if not config.require_auth and not config.debug:
+            logger.warning("=" * 60)
+            logger.warning("SECURITY WARNING: Authentication is DISABLED!")
+            logger.warning("This instance is accessible without credentials.")
+            logger.warning("For production, set AGENT_OS_REQUIRE_AUTH=true")
+            logger.warning("=" * 60)
+
         # Start session cleanup background task
         _cleanup_task = asyncio.create_task(_session_cleanup_task())
         logger.info("Session cleanup task started (runs every hour)")

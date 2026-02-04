@@ -6,6 +6,8 @@ import tempfile
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from freezegun import freeze_time
+
 import pytest
 import pytest_asyncio
 
@@ -945,14 +947,15 @@ class TestCacheEntry:
 
     def test_touch(self):
         """Test updating access time."""
-        entry = CacheEntry(key="test", value="data")
-        old_accessed = entry.accessed_at
+        with freeze_time("2024-01-01 12:00:00") as frozen_time:
+            entry = CacheEntry(key="test", value="data")
+            old_accessed = entry.accessed_at
 
-        import time
-        time.sleep(0.01)
-        entry.touch()
+            # Advance time by 1 second
+            frozen_time.tick(timedelta(seconds=1))
+            entry.touch()
 
-        assert entry.accessed_at > old_accessed
+            assert entry.accessed_at > old_accessed
 
 
 class TestOfflineStorage:

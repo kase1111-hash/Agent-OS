@@ -50,6 +50,7 @@ dev = [
     "pytest-cov>=6.0",
     "pytest-benchmark>=5.0",
     "pytest-asyncio>=0.24.0",
+    "freezegun>=1.4.0",
     "mypy>=1.13",
     "black>=24.0",
     "isort>=5.13",
@@ -113,6 +114,10 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+]
 
 [tool.bandit]
 exclude_dirs = ["tests", "docs", "examples"]

@@ -129,6 +129,7 @@ class TestStateMonitor:
         assert isinstance(state, SystemState)
         assert state.timestamp is not None
 
+    @pytest.mark.slow
     def test_start_stop(self):
         """Test starting and stopping monitor."""
         monitor = StateMonitor(poll_interval=0.1)
@@ -139,6 +140,7 @@ class TestStateMonitor:
 
         monitor.stop()
 
+    @pytest.mark.slow
     def test_callback_registration(self):
         """Test callback registration."""
         monitor = StateMonitor()
