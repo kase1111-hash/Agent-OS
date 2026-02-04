@@ -1187,28 +1187,43 @@ class UserStore:
         )
 
 
-# Global user store instance
-_user_store: Optional[UserStore] = None
+# =============================================================================
+# Dependency Injection Integration
+# =============================================================================
 
 
 def get_user_store() -> UserStore:
-    """Get the global user store instance."""
-    global _user_store
-    if _user_store is None:
-        # Default to file-based storage in the current directory
-        from .config import get_config
+    """
+    Get the user store instance.
 
-        config = get_config()
-        db_path = config.static_dir.parent / "users.db"
-        _user_store = UserStore(db_path)
-        _user_store.initialize()
-    return _user_store
+    This function integrates with the dependency injection system.
+    For FastAPI routes, use Depends(get_user_store) from dependencies.py instead.
+    """
+    from src.web.dependencies import get_user_store as _get_user_store_di
+
+    return _get_user_store_di()
 
 
 def set_user_store(store: UserStore) -> None:
-    """Set the global user store instance."""
-    global _user_store
-    _user_store = store
+    """
+    Set/override the user store instance.
+
+    Primarily used for testing.
+    """
+    from src.web.dependencies import _container
+
+    _container.set_override("user_store", store)
+
+
+def reset_user_store() -> None:
+    """
+    Reset the user store to recreate from configuration.
+
+    Useful for tests that need a fresh user store.
+    """
+    from src.web.dependencies import reset_dependencies
+
+    reset_dependencies("user_store")
 
 
 def create_user_store(db_path: Optional[Path] = None) -> UserStore:

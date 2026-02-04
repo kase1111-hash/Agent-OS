@@ -150,22 +150,47 @@ class WebConfig:
         return config
 
 
-# Global configuration instance
-_config: Optional[WebConfig] = None
+# =============================================================================
+# Dependency Injection Integration
+# =============================================================================
+
+# Import from dependencies module for DI-based access
+# These are the preferred methods for accessing configuration
 
 
 def get_config() -> WebConfig:
-    """Get the global web configuration."""
-    global _config
-    if _config is None:
-        _config = WebConfig.from_env()
-    return _config
+    """
+    Get the web configuration.
+
+    This function integrates with the dependency injection system.
+    For FastAPI routes, use Depends(get_config) instead.
+    """
+    from src.web.dependencies import get_config as _get_config_di
+
+    return _get_config_di()
 
 
 def set_config(config: WebConfig) -> None:
-    """Set the global web configuration."""
-    global _config
-    _config = config
+    """
+    Set/override the web configuration.
+
+    Primarily used for testing. In production, configuration
+    is loaded from environment variables.
+    """
+    from src.web.dependencies import _container
+
+    _container.set_override("config", config)
+
+
+def reset_config() -> None:
+    """
+    Reset the configuration to reload from environment.
+
+    Useful for tests that need fresh configuration.
+    """
+    from src.web.dependencies import reset_dependencies
+
+    reset_dependencies("config")
 
 
 def generate_api_key(length: int = 32) -> str:
