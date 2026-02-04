@@ -31,11 +31,7 @@ from urllib.parse import urlparse
 # Security: Endpoint Validation
 # =============================================================================
 
-
-class SSRFProtectionError(Exception):
-    """Raised when a URL fails SSRF protection validation."""
-
-    pass
+from src.core.exceptions import SSRFProtectionError
 
 
 def validate_model_endpoint(url: str) -> str:

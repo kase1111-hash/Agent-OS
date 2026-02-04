@@ -147,21 +147,27 @@ class ConsentVerifier:
     Verifies consent for memory access.
 
     Integrates with Memory Vault consent system.
+    Uses bounded cache with TTL and size limit to prevent memory leaks.
     """
 
     def __init__(
         self,
         verify_callback: Optional[Callable[[str, str], bool]] = None,
+        cache_max_size: int = 10000,
+        cache_ttl_seconds: int = 300,
     ):
         """
         Initialize consent verifier.
 
         Args:
             verify_callback: Callback(consent_id, accessor) -> bool
+            cache_max_size: Maximum cache entries (default 10000)
+            cache_ttl_seconds: TTL for cache entries in seconds (default 300)
         """
         self._verify_callback = verify_callback
         self._cache: Dict[Tuple[str, str], Tuple[bool, datetime]] = {}
-        self._cache_ttl_seconds = 300  # 5 minutes
+        self._cache_ttl_seconds = cache_ttl_seconds
+        self._cache_max_size = cache_max_size
 
     def verify(
         self,
@@ -188,13 +194,42 @@ class ConsentVerifier:
         cache_key = (consent_id, accessor)
         if cache_key in self._cache:
             result, cached_at = self._cache[cache_key]
-            if (datetime.now() - cached_at).seconds < self._cache_ttl_seconds:
+            # Use total_seconds() for correct time delta calculation
+            if (datetime.now() - cached_at).total_seconds() < self._cache_ttl_seconds:
                 return result
 
         # Verify with callback
         result = self._verify_callback(consent_id, accessor)
+
+        # Evict oldest entries if cache is full
+        if len(self._cache) >= self._cache_max_size:
+            self._evict_expired_and_oldest()
+
         self._cache[cache_key] = (result, datetime.now())
         return result
+
+    def _evict_expired_and_oldest(self) -> None:
+        """Evict expired entries and oldest if still over capacity."""
+        now = datetime.now()
+
+        # First, remove all expired entries
+        expired_keys = [
+            key
+            for key, (_, cached_at) in self._cache.items()
+            if (now - cached_at).total_seconds() >= self._cache_ttl_seconds
+        ]
+        for key in expired_keys:
+            del self._cache[key]
+
+        # If still over capacity, remove oldest entries
+        if len(self._cache) >= self._cache_max_size:
+            sorted_entries = sorted(
+                self._cache.items(), key=lambda x: x[1][1]  # Sort by cached_at
+            )
+            # Remove oldest 10% to avoid frequent eviction
+            entries_to_remove = max(1, len(sorted_entries) // 10)
+            for key, _ in sorted_entries[:entries_to_remove]:
+                del self._cache[key]
 
     def clear_cache(self) -> None:
         """Clear the verification cache."""
@@ -218,6 +253,7 @@ class RetrievalPipeline:
         vector_store: VectorStoreBase,
         consent_verifier: Optional[ConsentVerifier] = None,
         default_accessor: str = "seshat",
+        max_memory_metadata: int = 100000,
     ):
         """
         Initialize retrieval pipeline.
@@ -227,13 +263,15 @@ class RetrievalPipeline:
             vector_store: Vector store for similarity search
             consent_verifier: Optional consent verification
             default_accessor: Default accessor for consent checks
+            max_memory_metadata: Maximum entries in memory metadata cache
         """
         self._embedding = embedding_engine
         self._store = vector_store
         self._consent = consent_verifier or ConsentVerifier()
         self._default_accessor = default_accessor
+        self._max_memory_metadata = max_memory_metadata
 
-        # Memory metadata (kept separate from vector store)
+        # Memory metadata (kept separate from vector store) with bounded size
         self._memory_metadata: Dict[str, MemoryEntry] = {}
 
         # Statistics
@@ -295,12 +333,33 @@ class RetrievalPipeline:
         )
         self._store.add(doc)
 
-        # Store metadata
+        # Store metadata with eviction if needed
+        self._evict_metadata_if_needed()
         self._memory_metadata[memory_id] = memory
         self._total_stores += 1
 
         logger.debug(f"Stored memory: {memory_id} ({context_type.name})")
         return memory
+
+    def _evict_metadata_if_needed(self) -> None:
+        """Evict oldest metadata entries if over capacity."""
+        if len(self._memory_metadata) < self._max_memory_metadata:
+            return
+
+        # Sort by last_accessed (None treated as oldest) then created_at
+        def sort_key(entry: Tuple[str, MemoryEntry]) -> Tuple[datetime, datetime]:
+            mem = entry[1]
+            last_access = mem.last_accessed or datetime.min
+            return (last_access, mem.created_at)
+
+        sorted_entries = sorted(self._memory_metadata.items(), key=sort_key)
+
+        # Remove oldest 10% to avoid frequent eviction
+        entries_to_remove = max(1, len(sorted_entries) // 10)
+        for memory_id, _ in sorted_entries[:entries_to_remove]:
+            del self._memory_metadata[memory_id]
+
+        logger.debug(f"Evicted {entries_to_remove} memory metadata entries")
 
     def store_memories_batch(
         self,

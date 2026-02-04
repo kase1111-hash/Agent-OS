@@ -31,11 +31,7 @@ logger = logging.getLogger(__name__)
 # Security: URL Validation for SSRF Prevention
 # =============================================================================
 
-
-class SSRFProtectionError(Exception):
-    """Raised when a URL fails SSRF protection validation."""
-
-    pass
+from src.core.exceptions import SSRFProtectionError
 
 
 def validate_api_url(url: str, allow_localhost: bool = True) -> str:

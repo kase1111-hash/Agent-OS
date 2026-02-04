@@ -8,6 +8,7 @@ Supports multiple embedding models with caching.
 import hashlib
 import logging
 import threading
+from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -51,6 +52,7 @@ class EmbeddingCache:
     LRU cache for embeddings.
 
     Caches computed embeddings to avoid redundant computation.
+    Uses OrderedDict for O(1) LRU operations.
     """
 
     def __init__(self, max_size: int = 10000):
@@ -60,8 +62,8 @@ class EmbeddingCache:
         Args:
             max_size: Maximum number of embeddings to cache
         """
-        self._cache: Dict[str, EmbeddingResult] = {}
-        self._access_order: List[str] = []
+        # OrderedDict provides O(1) move_to_end and popitem operations
+        self._cache: OrderedDict[str, EmbeddingResult] = OrderedDict()
         self._max_size = max_size
         self._lock = threading.RLock()
         self._hits = 0
@@ -72,9 +74,8 @@ class EmbeddingCache:
         with self._lock:
             if text_hash in self._cache:
                 self._hits += 1
-                # Move to end of access order
-                self._access_order.remove(text_hash)
-                self._access_order.append(text_hash)
+                # Move to end of access order - O(1) operation
+                self._cache.move_to_end(text_hash)
                 result = self._cache[text_hash]
                 result.cached = True
                 return result
@@ -85,21 +86,20 @@ class EmbeddingCache:
         """Add embedding to cache."""
         with self._lock:
             if text_hash in self._cache:
+                # Update and move to end
+                self._cache.move_to_end(text_hash)
                 return
 
-            # Evict if at capacity
+            # Evict oldest if at capacity - O(1) with popitem(last=False)
             while len(self._cache) >= self._max_size:
-                oldest = self._access_order.pop(0)
-                del self._cache[oldest]
+                self._cache.popitem(last=False)
 
             self._cache[text_hash] = result
-            self._access_order.append(text_hash)
 
     def clear(self) -> None:
         """Clear the cache."""
         with self._lock:
             self._cache.clear()
-            self._access_order.clear()
 
     @property
     def hit_rate(self) -> float:

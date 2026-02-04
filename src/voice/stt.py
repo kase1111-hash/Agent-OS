@@ -27,11 +27,7 @@ logger = logging.getLogger(__name__)
 # Security: Path Validation for Subprocess Calls
 # =============================================================================
 
-
-class PathValidationError(Exception):
-    """Raised when a path fails security validation."""
-
-    pass
+from src.core.exceptions import PathValidationError
 
 
 def validate_audio_path(path: Path) -> Path:
