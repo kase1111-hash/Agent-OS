@@ -31,13 +31,17 @@ from .patterns import (
     PatternType,
     create_pattern_library,
 )
-from .siem_connector import (
-    SIEMConnector,
-    SIEMEvent,
-    SIEMConfig,
-    SIEMProvider,
-    create_siem_connector,
-)
+try:
+    from .siem_connector import (
+        SIEMConnector,
+        SIEMEvent,
+        SIEMConfig,
+        SIEMProvider,
+        create_siem_connector,
+    )
+    SIEM_AVAILABLE = True
+except ImportError:
+    SIEM_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -206,7 +210,7 @@ class AttackDetector:
         self._pattern_library = create_pattern_library(
             patterns_dir=self.config.patterns_dir
         )
-        self._siem_connector: Optional[SIEMConnector] = None
+        self._siem_connector: Optional[Any] = None
 
         # Event processing
         self._event_window: Deque[Dict[str, Any]] = deque(
@@ -237,7 +241,7 @@ class AttackDetector:
 
     def start(
         self,
-        siem_config: Optional[SIEMConfig] = None,
+        siem_config: Optional[Any] = None,
     ) -> None:
         """
         Start the attack detector.
@@ -252,7 +256,7 @@ class AttackDetector:
         self._running = True
 
         # Initialize SIEM if configured
-        if self.config.enable_siem:
+        if self.config.enable_siem and SIEM_AVAILABLE:
             self._siem_connector = create_siem_connector(
                 on_event=self._on_siem_event,
             )
@@ -713,7 +717,7 @@ class AttackDetector:
 
         existing.updated_at = datetime.now()
 
-    def _on_siem_event(self, event: SIEMEvent) -> None:
+    def _on_siem_event(self, event: Any) -> None:
         """Handle SIEM event."""
         event_dict = event.to_dict()
         self._process_event(event_dict, source=f"siem:{event.source}")

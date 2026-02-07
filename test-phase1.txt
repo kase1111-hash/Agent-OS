@@ -1,0 +1,55 @@
+============================= test session starts ==============================
+platform linux -- Python 3.11.14, pytest-9.0.2, pluggy-1.6.0
+benchmark: 5.2.3 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+rootdir: /home/user/Agent-OS
+configfile: pyproject.toml (WARNING: ignoring pytest config in tox.ini!)
+plugins: anyio-4.12.1, asyncio-1.3.0, benchmark-5.2.3, cov-7.0.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 1169 items / 2 errors
+
+==================================== ERRORS ====================================
+_______________ ERROR collecting tests/test_attack_detection.py ________________
+tests/test_attack_detection.py:22: in <module>
+    from src.agents.smith.attack_detection.patterns import (
+src/agents/smith/__init__.py:11: in <module>
+    from .agent import (
+src/agents/smith/agent.py:47: in <module>
+    from .attack_detection import (
+src/agents/smith/attack_detection/__init__.py:12: in <module>
+    from .detector import (
+src/agents/smith/attack_detection/detector.py:186: in <module>
+    class AttackDetector:
+src/agents/smith/attack_detection/detector.py:244: in AttackDetector
+    siem_config: Optional[SIEMConfig] = None,
+                          ^^^^^^^^^^
+E   NameError: name 'SIEMConfig' is not defined
+_____________________ ERROR collecting tests/test_smith.py _____________________
+tests/test_smith.py:18: in <module>
+    from src.agents.smith import (
+src/agents/smith/__init__.py:11: in <module>
+    from .agent import (
+src/agents/smith/agent.py:47: in <module>
+    from .attack_detection import (
+src/agents/smith/attack_detection/__init__.py:12: in <module>
+    from .detector import (
+src/agents/smith/attack_detection/detector.py:186: in <module>
+    class AttackDetector:
+src/agents/smith/attack_detection/detector.py:244: in AttackDetector
+    siem_config: Optional[SIEMConfig] = None,
+                          ^^^^^^^^^^
+E   NameError: name 'SIEMConfig' is not defined
+=============================== warnings summary ===============================
+src/sdk/testing/fixtures.py:133
+  /home/user/Agent-OS/src/sdk/testing/fixtures.py:133: PytestCollectionWarning: cannot collect test class 'TestRequestBuilder' because it has a __init__ constructor (from: tests/test_sdk.py)
+    class TestRequestBuilder:
+
+src/sdk/testing/runner.py:80
+  /home/user/Agent-OS/src/sdk/testing/runner.py:80: PytestCollectionWarning: cannot collect test class 'TestSuite' because it has a __init__ constructor (from: tests/test_sdk.py)
+    class TestSuite:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+ERROR tests/test_attack_detection.py - NameError: name 'SIEMConfig' is not de...
+ERROR tests/test_smith.py - NameError: name 'SIEMConfig' is not defined
+!!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!!
+======================== 2 warnings, 2 errors in 2.10s =========================

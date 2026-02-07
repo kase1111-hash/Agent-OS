@@ -54,11 +54,6 @@ OPENAPI_TAGS = [
         "Generate images with various models and manage your image gallery.",
     },
     {
-        "name": "Voice",
-        "description": "Voice interface for speech-to-text and text-to-speech. "
-        "Supports real-time voice streaming via WebSocket.",
-    },
-    {
         "name": "Intent Log",
         "description": "Immutable audit log of all AI decisions and actions. "
         "Provides transparency and accountability for AI behavior.",
@@ -67,11 +62,6 @@ OPENAPI_TAGS = [
         "name": "System",
         "description": "System status, health checks, and configuration. "
         "Monitor system resources and component health.",
-    },
-    {
-        "name": "Observability",
-        "description": "Metrics, tracing, and health monitoring endpoints. "
-        "Prometheus-compatible metrics export at /api/observability/metrics.",
     },
     {
         "name": "Security",
@@ -249,7 +239,6 @@ When rate limited, responses return HTTP 429 with `Retry-After` header.
 Real-time streaming is available via WebSocket:
 - `/api/chat/ws` - Chat message streaming
 - `/api/images/ws` - Image generation progress
-- `/api/voice/ws` - Voice streaming
         """,
         version=API_VERSION,
         lifespan=lifespan,
@@ -327,15 +316,6 @@ Real-time streaming is available via WebSocket:
         except Exception as e:
             logger.warning(f"Failed to enable rate limiting: {e}")
 
-    # Set up observability (metrics and tracing middleware)
-    try:
-        from src.observability.middleware import setup_observability
-
-        setup_observability(app, enable_metrics=True, enable_tracing=True)
-        logger.info("Observability middleware enabled")
-    except ImportError:
-        logger.debug("Observability module not available, skipping middleware")
-
     # Include routers
     from .routes import (
         agents,
@@ -348,7 +328,6 @@ Real-time streaming is available via WebSocket:
         memory,
         security,
         system,
-        voice,
     )
 
     app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
@@ -361,18 +340,6 @@ Real-time streaming is available via WebSocket:
     app.include_router(memory.router, prefix="/api/memory", tags=["Memory"])
     app.include_router(security.router, prefix="/api/security", tags=["Security"])
     app.include_router(system.router, prefix="/api/system", tags=["System"])
-    app.include_router(voice.router, prefix="/api/voice", tags=["Voice"])
-
-    # Observability routes (metrics, health, tracing)
-    try:
-        from .routes import observability
-
-        app.include_router(
-            observability.router, prefix="/api/observability", tags=["Observability"]
-        )
-        logger.info("Observability routes enabled")
-    except ImportError:
-        logger.debug("Observability routes not available")
 
     # Root endpoint
     @app.get("/")
@@ -402,7 +369,6 @@ Real-time streaming is available via WebSocket:
             "components": {
                 "api": "up",
                 "websocket": "up",
-                "voice": "up",
             },
         }
 

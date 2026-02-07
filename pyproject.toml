@@ -39,12 +39,6 @@ dependencies = [
 
 [project.optional-dependencies]
 redis = ["redis>=5.0"]
-observability = [
-    "prometheus-client>=0.21.0",
-    "opentelemetry-api>=1.28.0",
-    "opentelemetry-sdk>=1.28.0",
-    "opentelemetry-instrumentation-fastapi>=0.49b0",
-]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=6.0",
@@ -56,15 +50,8 @@ dev = [
     "isort>=5.13",
     "ipython>=8.29",
 ]
-build = [
-    "pyinstaller>=6.11",
-    "nsis>=3.0; sys_platform == 'win32'",
-]
-
 [project.scripts]
 agent-os = "src.web.app:main"
-agent-os-install = "src.installer.cli:main"
-agent-os-ceremony = "src.ceremony.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/kase1111-hash/Agent-OS"
@@ -123,11 +110,3 @@ markers = [
 exclude_dirs = ["tests", "docs", "examples"]
 skips = ["B101"]  # Skip assert warnings (used in tests)
 
-[tool.pytest-benchmark]
-# Benchmark configuration
-disable_gc = true
-warmup = true
-warmup_iterations = 3
-min_rounds = 5
-max_time = 1.0
-calibration_precision = 10
