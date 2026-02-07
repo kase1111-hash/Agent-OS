@@ -64,11 +64,6 @@ OPENAPI_TAGS = [
         "Monitor system resources and component health.",
     },
     {
-        "name": "Observability",
-        "description": "Metrics, tracing, and health monitoring endpoints. "
-        "Prometheus-compatible metrics export at /api/observability/metrics.",
-    },
-    {
         "name": "Security",
         "description": "Attack detection, security monitoring, and remediation. "
         "View detected attacks, manage fix recommendations, and control the attack detection pipeline.",
@@ -321,15 +316,6 @@ Real-time streaming is available via WebSocket:
         except Exception as e:
             logger.warning(f"Failed to enable rate limiting: {e}")
 
-    # Set up observability (metrics and tracing middleware)
-    try:
-        from src.observability.middleware import setup_observability
-
-        setup_observability(app, enable_metrics=True, enable_tracing=True)
-        logger.info("Observability middleware enabled")
-    except ImportError:
-        logger.debug("Observability module not available, skipping middleware")
-
     # Include routers
     from .routes import (
         agents,
@@ -354,17 +340,6 @@ Real-time streaming is available via WebSocket:
     app.include_router(memory.router, prefix="/api/memory", tags=["Memory"])
     app.include_router(security.router, prefix="/api/security", tags=["Security"])
     app.include_router(system.router, prefix="/api/system", tags=["System"])
-
-    # Observability routes (metrics, health, tracing)
-    try:
-        from .routes import observability
-
-        app.include_router(
-            observability.router, prefix="/api/observability", tags=["Observability"]
-        )
-        logger.info("Observability routes enabled")
-    except ImportError:
-        logger.debug("Observability routes not available")
 
     # Root endpoint
     @app.get("/")
