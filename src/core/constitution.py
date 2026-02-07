@@ -17,6 +17,7 @@ from typing import Callable, Dict, List, Optional, Set
 from watchdog.events import FileModifiedEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
+from .enforcement import EnforcementEngine
 from .exceptions import (
     ConstitutionLoadError,
     KernelNotInitializedError,
@@ -112,6 +113,8 @@ class ConstitutionalKernel:
         constitution_dir: Optional[Path] = None,
         supreme_constitution_path: Optional[Path] = None,
         enable_hot_reload: bool = True,
+        ollama_client: Optional[object] = None,
+        enforcement_config: Optional[Dict] = None,
     ):
         """
         Initialize the Constitutional Kernel.
@@ -120,6 +123,9 @@ class ConstitutionalKernel:
             constitution_dir: Directory containing constitution files
             supreme_constitution_path: Path to supreme constitution (CONSTITUTION.md)
             enable_hot_reload: Enable watching for file changes
+            ollama_client: OllamaClient instance for semantic matching and LLM judge
+            enforcement_config: Optional config dict with keys:
+                embedding_model, llm_model, semantic_threshold, llm_timeout
         """
         self.constitution_dir = constitution_dir
         self.supreme_constitution_path = supreme_constitution_path
@@ -128,6 +134,16 @@ class ConstitutionalKernel:
         self._parser = ConstitutionParser()
         self._validator = ConstitutionValidator()
         self._registry = ConstitutionRegistry()
+
+        # 3-tier enforcement engine
+        ec = enforcement_config or {}
+        self._enforcement = EnforcementEngine(
+            ollama_client=ollama_client,
+            embedding_model=ec.get("embedding_model", "nomic-embed-text"),
+            llm_model=ec.get("llm_model", "llama3.2:3b"),
+            semantic_threshold=ec.get("semantic_threshold", 0.45),
+            llm_timeout=ec.get("llm_timeout", 10.0),
+        )
 
         self._file_hashes: Dict[Path, str] = {}
         self._reload_callbacks: List[Callable[[Path], None]] = []
@@ -217,7 +233,13 @@ class ConstitutionalKernel:
 
     def enforce(self, context: RequestContext) -> EnforcementResult:
         """
-        Enforce constitutional rules on a request.
+        Enforce constitutional rules on a request using the 3-tier engine.
+
+        Tier 1: Structural checks (fast, deterministic)
+        Tier 2: Semantic rule matching (embedding similarity via Ollama)
+        Tier 3: LLM compliance judgment (full Ollama evaluation)
+
+        Falls back gracefully: if Ollama is unavailable, uses keyword matching.
 
         Args:
             context: Request context to validate
@@ -232,39 +254,33 @@ class ConstitutionalKernel:
             raise KernelNotInitializedError("enforce")
 
         with self._lock:
-            # Get applicable rules for destination agent
+            # Get all rules for the destination agent
             rules = self._registry.get_rules_for_agent(context.destination)
 
-            violated = []
-            applicable = []
+            # Run 3-tier enforcement
+            decision = self._enforcement.evaluate(context, rules)
 
-            for rule in rules:
-                if self._rule_applies(rule, context):
-                    applicable.append(rule)
-
-                    if self._rule_violated(rule, context):
-                        violated.append(rule)
-
-            # Determine result
-            if violated:
-                # Check if any violation requires human escalation
-                escalate = any(r.is_immutable for r in violated)
-
-                # Generate suggestions
-                suggestions = self._generate_suggestions(violated)
+            # Convert EnforcementDecision -> EnforcementResult
+            if not decision.allowed:
+                suggestions = decision.suggestions or self._generate_suggestions(
+                    decision.matched_rules
+                )
+                reason = decision.reason or self._format_violation_reason(
+                    decision.matched_rules
+                )
 
                 return EnforcementResult(
                     allowed=False,
-                    violated_rules=violated,
-                    applicable_rules=applicable,
-                    reason=self._format_violation_reason(violated),
+                    violated_rules=decision.matched_rules,
+                    applicable_rules=decision.matched_rules,
+                    reason=reason,
                     suggestions=suggestions,
-                    escalate_to_human=escalate,
+                    escalate_to_human=decision.escalate_to_human,
                 )
 
             return EnforcementResult(
                 allowed=True,
-                applicable_rules=applicable,
+                applicable_rules=decision.matched_rules,
             )
 
     def get_rules_for_agent(self, agent_scope: str) -> List[Rule]:
@@ -540,6 +556,8 @@ class ConstitutionalKernel:
 def create_kernel(
     project_root: Path,
     enable_hot_reload: bool = True,
+    ollama_client: Optional[object] = None,
+    enforcement_config: Optional[Dict] = None,
 ) -> ConstitutionalKernel:
     """
     Convenience function to create and initialize a kernel.
@@ -547,6 +565,8 @@ def create_kernel(
     Args:
         project_root: Root directory of Agent OS project
         enable_hot_reload: Enable file watching
+        ollama_client: OllamaClient for semantic matching and LLM judge
+        enforcement_config: Optional config for enforcement engine
 
     Returns:
         Initialized ConstitutionalKernel
@@ -558,6 +578,8 @@ def create_kernel(
         constitution_dir=agents_dir,
         supreme_constitution_path=supreme_path if supreme_path.exists() else None,
         enable_hot_reload=enable_hot_reload,
+        ollama_client=ollama_client,
+        enforcement_config=enforcement_config,
     )
 
     result = kernel.initialize()

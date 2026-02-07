@@ -9,6 +9,7 @@ This module contains the foundational components of Agent OS:
 """
 
 from .constitution import ConstitutionalKernel
+from .enforcement import EnforcementEngine, EnforcementDecision
 from .models import (
     AuthorityLevel,
     ConflictType,
@@ -34,4 +35,6 @@ __all__ = [
     "ConstitutionParser",
     "ConstitutionalKernel",
     "ConstitutionValidator",
+    "EnforcementEngine",
+    "EnforcementDecision",
 ]
