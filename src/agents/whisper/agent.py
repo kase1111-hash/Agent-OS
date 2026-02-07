@@ -264,8 +264,12 @@ class WhisperAgent(BaseAgent):
         # Log routing decision
         self._auditor.log(str(request.request_id), routing)
 
-        # Handle system.meta locally
+        # Handle system.meta locally — but still validate with Smith first
         if classification.primary_intent == IntentCategory.SYSTEM_META:
+            if routing.requires_smith:
+                smith_check = self._smith.pre_validate(request, classification)
+                if not smith_check.approved:
+                    return self._smith.handle_denial(request, smith_check)
             return self._handle_meta_request(request, classification)
 
         # Step 3: Pre-validate with Smith (already done in validate_request)
@@ -297,11 +301,18 @@ class WhisperAgent(BaseAgent):
 
         self._whisper_metrics.requests_routed += 1
 
-        # Step 6: Post-validate with Smith
-        # (Would validate each agent response, simplified here)
-
-        # Step 7: Aggregate responses
+        # Step 6: Aggregate responses
         response = self._aggregator.aggregate(flow_result, request)
+
+        # Step 7: Post-validate response with Smith
+        if routing.requires_smith and self._smith:
+            post_check = self._smith.post_validate(request, response)
+            if not post_check.approved:
+                logger.warning(
+                    f"Smith post-validation denied response for request {request_id}: "
+                    f"{post_check.denial_reason}"
+                )
+                return self._smith.handle_denial(request, post_check)
 
         # Update metrics
         elapsed_ms = int((time.time() - start_time) * 1000)

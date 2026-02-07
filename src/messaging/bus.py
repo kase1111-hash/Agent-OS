@@ -284,46 +284,30 @@ class InMemoryMessageBus(MessageBus):
         try:
             result = subscription.handler(message)
 
-            # Handle async handlers properly
+            # Handle async handlers — always block until the coroutine completes
             if asyncio.iscoroutine(result):
-                # SECURITY FIX: Properly handle async handlers to ensure errors are captured
                 try:
-                    # Try to get running loop in current thread
-                    loop = asyncio.get_running_loop()
-                    # Schedule and wait for the coroutine with error handling
-                    future = asyncio.ensure_future(result)
-
-                    # Add error callback to capture async errors
-                    def on_error(f):
-                        try:
-                            f.result()  # This will raise if there was an error
-                        except Exception as e:
-                            logger.error(
-                                f"Async handler error for {subscription.subscriber_name}: {e}"
-                            )
-
-                    future.add_done_callback(on_error)
-
+                    # Use asyncio.run() for clean event loop lifecycle.
+                    # This works whether or not a loop exists in the current thread,
+                    # because asyncio.run() creates its own loop.
+                    asyncio.run(result)
                 except RuntimeError:
-                    # No running loop - create a new event loop for this thread
-                    # This is safe because we're in a dedicated thread context
-                    try:
-                        new_loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(new_loop)
-                        try:
-                            new_loop.run_until_complete(result)
-                        finally:
-                            new_loop.close()
-                    except Exception as e:
-                        logger.error(
-                            f"Async handler error for {subscription.subscriber_name}: {e}"
-                        )
-                        raise HandlerExecutionError(
-                            message=f"Async handler execution failed: {e}",
-                            channel=subscription.channel,
-                            handler_name=subscription.subscriber_name,
-                            original_error=e,
-                        )
+                    # Already inside a running event loop (e.g., during async tests)
+                    # Fall back to creating a new loop in a thread-safe way
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                        future = pool.submit(asyncio.run, result)
+                        future.result()  # Block until complete, propagates exceptions
+                except Exception as e:
+                    logger.error(
+                        f"Async handler error for {subscription.subscriber_name}: {e}"
+                    )
+                    raise HandlerExecutionError(
+                        message=f"Async handler execution failed: {e}",
+                        channel=subscription.channel,
+                        handler_name=subscription.subscriber_name,
+                        original_error=e,
+                    )
 
         except HandlerExecutionError:
             # Already wrapped, re-raise

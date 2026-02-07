@@ -936,7 +936,7 @@ class SmithAgent(BaseAgent):
             ConstitutionalCheck for attachment to requests/responses
         """
         if violations:
-            status = CheckStatus.REJECTED
+            status = CheckStatus.DENIED
         elif constraints:
             status = CheckStatus.CONDITIONAL
         else:

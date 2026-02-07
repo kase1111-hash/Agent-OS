@@ -362,14 +362,56 @@ Real-time streaming is available via WebSocket:
     # Health check
     @app.get("/health")
     async def health_check():
-        """Health check endpoint."""
+        """Health check endpoint — actually checks component health."""
+        components = {}
+
+        # API is up if we're responding
+        components["api"] = "up"
+
+        # Check constitutional kernel
+        try:
+            if _app_state.constitution_registry is not None:
+                components["constitutional_kernel"] = "up"
+            else:
+                components["constitutional_kernel"] = "degraded"
+        except Exception:
+            components["constitutional_kernel"] = "down"
+
+        # Check agent registry
+        try:
+            if _app_state.agent_registry is not None:
+                components["agent_registry"] = "up"
+            else:
+                components["agent_registry"] = "degraded"
+        except Exception:
+            components["agent_registry"] = "down"
+
+        # Check memory store
+        try:
+            if _app_state.memory_store is not None:
+                components["memory_store"] = "up"
+            else:
+                components["memory_store"] = "not_configured"
+        except Exception:
+            components["memory_store"] = "down"
+
+        # WebSocket connections
+        components["websocket"] = "up"
+        components["active_connections"] = len(_app_state.active_connections)
+
+        # Determine overall status
+        statuses = [v for k, v in components.items() if k != "active_connections"]
+        if all(s == "up" for s in statuses):
+            overall = "healthy"
+        elif any(s == "down" for s in statuses):
+            overall = "unhealthy"
+        else:
+            overall = "degraded"
+
         return {
-            "status": "healthy",
+            "status": overall,
             "version": API_VERSION,
-            "components": {
-                "api": "up",
-                "websocket": "up",
-            },
+            "components": components,
         }
 
     _app = app

@@ -66,7 +66,7 @@ class SmithIntegration:
     def __init__(
         self,
         smith_validator: Optional[SmithValidator] = None,
-        bypass_for_meta: bool = True,
+        bypass_for_meta: bool = False,
         strict_mode: bool = True,
     ):
         """

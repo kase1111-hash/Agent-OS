@@ -1,126 +1,196 @@
-# Agent-OS Quick Start Guide (Windows)
+# Agent-OS: Getting Started
 
-Welcome! This guide will help you get Agent-OS running on your Windows computer in just a few minutes.
-
----
-
-## What You'll Need
-
-Before starting, make sure you have:
-
-1. **Python 3.10 or newer** - [Download here](https://www.python.org/downloads/)
-   - During installation, check ✅ "Add Python to PATH"
-
-2. **Ollama** (for AI chat) - [Download here](https://ollama.com/download)
+A developer-focused guide to running Agent-OS and understanding its constitutional governance framework.
 
 ---
 
-## Step 1: Install Agent-OS
+## Prerequisites
 
-1. **Download** or clone this repository to your computer
-2. **Open the folder** where you saved it
-3. **Double-click `build.bat`**
-
-That's it! The script will automatically:
-- Create a virtual environment
-- Install all required packages
-- Set up configuration files
-
-⏳ **Note:** First-time setup downloads ~4GB of AI libraries. This may take 10-20 minutes depending on your internet speed.
+1. **Python 3.10+**
+2. **Ollama** for local LLM inference -- [ollama.com](https://ollama.com/download)
 
 ---
 
-## Step 2: Set Up Ollama
+## 1. Install
 
-1. **Open a new terminal** (Command Prompt or PowerShell)
-2. **Pull a language model:**
-   ```
-   ollama pull mistral
-   ```
-3. **Start Ollama** (if not already running):
-   ```
-   ollama serve
-   ```
+```bash
+git clone https://github.com/kase1111-hash/Agent-OS.git
+cd Agent-OS
+pip install -e .
+```
 
-💡 **Tip:** Ollama usually starts automatically after installation.
+No GPU libraries are required. Agent-OS uses Ollama for all LLM inference.
 
 ---
 
-## Step 3: Run Agent-OS
+## 2. Set Up Ollama
 
-1. **Double-click `start.bat`**
-2. Wait for the message: `Uvicorn running on http://0.0.0.0:8080`
-3. **Open your web browser** and go to:
-   ```
-   http://localhost:8080
-   ```
+Pull a model for the agents to use:
 
-🎉 **You're done!** Agent-OS is now running.
+```bash
+ollama pull mistral        # General agent model
+ollama pull llama3.2:3b    # Used by constitutional enforcement (lightweight)
+ollama pull nomic-embed-text  # Used for semantic rule matching (embeddings)
+```
 
----
+Ollama must be running before starting Agent-OS:
 
-## Daily Usage
-
-After the first-time setup, you only need to:
-
-1. Double-click `start.bat`
-2. Open http://localhost:8080 in your browser
+```bash
+ollama serve   # If not already running as a service
+```
 
 ---
 
-## Troubleshooting
+## 3. Run Agent-OS
 
-### "Python is not installed"
-- Download Python from https://python.org
-- **Important:** Check "Add Python to PATH" during installation
-- Restart your computer after installing
+```bash
+python -m uvicorn src.web.app:get_app --factory --host 0.0.0.0 --port 8080
+```
 
-### "Ollama not detected"
-- Make sure Ollama is installed: https://ollama.com
-- Open a terminal and run: `ollama serve`
-- Pull a model: `ollama pull mistral`
-
-### "Network access restricted" in chat
-- Make sure Ollama is running (`ollama serve`)
-- Check that you pulled a model (`ollama list`)
-
-### Build fails or freezes
-- Check your internet connection
-- Try running `build.bat` again
-- If it still fails, open Command Prompt and run:
-  ```
-  pip install -r requirements.txt
-  ```
-
-### Port 8080 already in use
-- Another program is using port 8080
-- Close that program, or edit `start.bat` to use a different port
+Then open http://localhost:8080 in your browser.
 
 ---
 
-## Stopping Agent-OS
+## 4. Write Your First Constitution
 
-- Press `Ctrl+C` in the terminal window where Agent-OS is running
-- Or simply close the terminal window
+Constitutions are Markdown files with YAML frontmatter. They define the rules that govern agent behavior.
+
+### The Supreme Constitution
+
+The file `CONSTITUTION.md` at the project root is the supreme law. All agents obey it. It defines:
+
+- Core principles (human sovereignty, transparency, consent)
+- Universal prohibitions (no unauthorized external access, no data exfiltration)
+- Universal mandates (memory consent, audit logging)
+- Escalation rules (irreversible actions need human approval)
+
+### Agent-Specific Constitutions
+
+Each agent has its own constitution in `agents/<name>/constitution.md`:
+
+```yaml
+---
+document_type: constitution
+version: "1.0"
+scope: "sage"
+authority_level: "agent_specific"
+---
+
+# Sage Agent Constitution
+
+## Mandate
+Sage SHALL provide accurate, well-reasoned responses.
+
+## Prohibited Actions
+Sage MUST refuse to make ethical judgments on behalf of the user.
+```
+
+See [docs/constitutional-format-spec.md](docs/constitutional-format-spec.md) for the full format specification.
 
 ---
 
-## Features
+## 5. Understand the Request Lifecycle
 
-Once running, you can:
+Every user request follows this path:
 
-- 💬 **Chat** with the AI assistant
-- 🖼️ **Generate images** (requires GPU for best performance)
-- 🎤 **Voice input** (if microphone is available)
-- 📁 **Manage conversations** and export them
+```
+User Request
+    |
+    v
+[1] Whisper: Classify intent (factual, creative, memory, system)
+    |
+    v
+[2] Smith: Pre-validate against constitutional rules
+    |-- DENIED --> Return refusal with reason
+    |-- ESCALATE --> Request human approval
+    v
+[3] Route to target agent (Sage, Quill, Seshat, Muse)
+    |
+    v
+[4] Agent processes request and generates response
+    |
+    v
+[5] Smith: Post-validate response (data leakage, anomalies)
+    |-- DENIED --> Redact or refuse
+    v
+[6] Return response to user with audit trail
+```
+
+### Constitutional Enforcement (3-tier)
+
+Smith validates requests using a 3-tier engine:
+
+- **Tier 1 -- Structural checks:** Format validation, prompt injection detection, scope verification. No LLM needed.
+- **Tier 2 -- Semantic matching:** Embedding similarity between request and constitutional rules via Ollama.
+- **Tier 3 -- LLM judgment:** Full compliance evaluation by Ollama for ambiguous cases.
+
+If Ollama is unavailable, enforcement falls back to keyword-based matching with conservative (deny) defaults.
+
+---
+
+## 6. Run the Tests
+
+```bash
+python -m pytest tests/ -v --ignore=tests/test_kernel.py \
+  --ignore=tests/test_memory_vault.py \
+  --ignore=tests/test_pq_keys.py \
+  --ignore=tests/test_seshat.py
+```
+
+The ignored tests have dependencies on optional C libraries. All core governance tests run without them.
+
+---
+
+## 7. Project Structure
+
+```
+Agent-OS/
+  CONSTITUTION.md           # Supreme constitutional law
+  agents/                   # Agent constitutional definitions
+    sage/constitution.md
+    guardian/constitution.md
+    muse/constitution.md
+    ...
+  src/
+    core/                   # Constitutional kernel, parser, validator, enforcement
+    agents/
+      whisper/              # Orchestrator (intent classification, routing)
+      smith/                # Guardian (security validation, emergency controls)
+      sage/                 # Reasoning agent
+      quill/                # Writing agent
+      muse/                 # Creative agent
+      seshat/               # Memory/archival agent
+    messaging/              # Inter-agent message bus
+    boundary/               # Security enforcement daemon
+    web/                    # FastAPI web interface
+  tests/                    # Test suite (30+ modules, 1000+ tests)
+  docs/                     # Documentation
+```
+
+---
+
+## Key Concepts
+
+| Concept | Description |
+|---------|-------------|
+| **Supreme Constitution** | Top-level rules that no agent can override |
+| **Agent Constitution** | Per-agent rules subordinate to the supreme |
+| **Enforcement Engine** | 3-tier pipeline: structural, semantic, LLM judge |
+| **Smith (Guardian)** | Security agent that validates every request and response |
+| **Whisper (Orchestrator)** | Routes requests to the right agent |
+| **Hot-Reload** | Constitution changes take effect without restart |
+| **Consent-Based Memory** | No data persists without explicit user permission |
+
+---
+
+## Further Reading
+
+- [Constitutional Format Specification](docs/constitutional-format-spec.md)
+- [CONSTITUTION.md](CONSTITUTION.md) -- the supreme constitutional law
+- [agents/sage/constitution.md](agents/sage/constitution.md) -- example agent constitution
 
 ---
 
 ## Getting Help
 
-- Check the [full documentation](docs/README.md)
-- Report issues at: https://github.com/kase1111-hash/Agent-OS/issues
-
----
-
-Happy chatting! 🚀
+- Report issues: https://github.com/kase1111-hash/Agent-OS/issues
