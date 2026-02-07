@@ -27,15 +27,6 @@ from src.agents.smith.attack_detection.patterns import (
     PatternType,
     create_pattern_library,
 )
-from src.agents.smith.attack_detection.siem_connector import (
-    BoundarySIEMAdapter,
-    EventSeverity,
-    SIEMConfig,
-    SIEMConnector,
-    SIEMEvent,
-    SIEMProvider,
-    create_siem_connector,
-)
 from src.agents.smith.attack_detection.detector import (
     AttackDetector,
     AttackEvent,
@@ -184,81 +175,6 @@ class TestPatternLibrary:
         library.enable_pattern("prompt_injection_basic")
         pattern = library.get_pattern("prompt_injection_basic")
         assert pattern.enabled
-
-
-# ============================================================================
-# SIEM Connector Tests
-# ============================================================================
-
-
-class TestSIEMConnector:
-    """Tests for the SIEM connector."""
-
-    def test_create_siem_connector(self):
-        """Test creating a SIEM connector."""
-        connector = create_siem_connector()
-        assert connector is not None
-
-    def test_add_mock_source(self):
-        """Test adding a mock SIEM source."""
-        connector = create_siem_connector(add_mock_source=True)
-
-        stats = connector.get_stats()
-        assert stats["sources_total"] >= 1
-        assert stats["sources_connected"] >= 1
-
-    def test_fetch_events(self):
-        """Test fetching events from mock source."""
-        connector = create_siem_connector(add_mock_source=True)
-
-        # Fetch multiple times to get some events
-        all_events = []
-        for _ in range(10):
-            events = connector.fetch_immediate(lookback_minutes=60)
-            all_events.extend(events)
-
-        # Mock source occasionally generates events
-        # This is probabilistic, so we just check it works
-        assert connector.get_stats()["poll_cycles"] == 0  # Not polling yet
-
-    def test_siem_event_creation(self):
-        """Test SIEM event creation."""
-        event = SIEMEvent(
-            event_id="test_001",
-            timestamp=datetime.now(),
-            source="192.168.1.100",
-            event_type="authentication_failure",
-            severity=EventSeverity.HIGH,
-            category="authentication",
-            description="Multiple failed login attempts",
-        )
-
-        assert event.event_id == "test_001"
-        assert event.severity_score == 4
-
-        event_dict = event.to_dict()
-        assert "event_id" in event_dict
-        assert "severity" in event_dict
-
-    def test_event_filtering(self):
-        """Test event filtering."""
-        event = SIEMEvent(
-            event_id="test_002",
-            timestamp=datetime.now(),
-            source="10.0.0.50",
-            event_type="suspicious_command",
-            severity=EventSeverity.CRITICAL,
-            category="command_execution",
-            description="Suspicious command detected",
-        )
-
-        # Should match severity filter
-        assert event.matches_filter({"severity_min": 3})
-        assert event.matches_filter({"category": "command_execution"})
-
-        # Should not match
-        assert not event.matches_filter({"severity_min": 6})
-        assert not event.matches_filter({"category": "network"})
 
 
 # ============================================================================
@@ -789,10 +705,6 @@ class TestModuleImports:
         from src.agents.smith.attack_detection import patterns
         assert patterns.AttackPattern is not None
 
-    def test_import_siem(self):
-        from src.agents.smith.attack_detection import siem_connector
-        assert siem_connector.SIEMConnector is not None
-
     def test_import_detector(self):
         from src.agents.smith.attack_detection import detector
         assert detector.AttackDetector is not None
@@ -1055,168 +967,6 @@ class TestIntegrationModule:
         # Disconnect
         disconnect()
         mock_daemon.unsubscribe.assert_called_once()
-
-
-# ============================================================================
-# Boundary SIEM Integration Tests
-# ============================================================================
-
-
-class TestBoundarySIEMAdapter:
-    """Tests for Boundary SIEM adapter integration.
-
-    See: https://github.com/kase1111-hash/Boundary-SIEM
-    """
-
-    def test_create_boundary_siem_adapter(self):
-        """Test creating a Boundary SIEM adapter."""
-        config = SIEMConfig(
-            provider=SIEMProvider.BOUNDARY_SIEM,
-            endpoint="http://localhost:8080",
-            api_key="test-api-key",
-        )
-        adapter = BoundarySIEMAdapter(config)
-        assert adapter is not None
-        assert adapter.config.provider == SIEMProvider.BOUNDARY_SIEM
-
-    def test_boundary_siem_provider_enum(self):
-        """Test that BOUNDARY_SIEM is a valid provider."""
-        assert SIEMProvider.BOUNDARY_SIEM is not None
-        assert SIEMProvider.BOUNDARY_SIEM.name == "BOUNDARY_SIEM"
-
-    def test_boundary_siem_config_defaults(self):
-        """Test Boundary SIEM configuration with defaults."""
-        config = SIEMConfig(
-            provider=SIEMProvider.BOUNDARY_SIEM,
-            endpoint="https://boundary-siem.example.com",
-            api_key="secure-api-key",
-        )
-        # Check defaults
-        assert config.verify_ssl is True
-        assert config.timeout == 30
-        assert config.poll_interval == 60
-        assert config.batch_size == 100
-
-    def test_boundary_siem_config_custom(self):
-        """Test Boundary SIEM configuration with custom values."""
-        config = SIEMConfig(
-            provider=SIEMProvider.BOUNDARY_SIEM,
-            endpoint="https://boundary-siem.example.com",
-            api_key="secure-api-key",
-            verify_ssl=False,
-            timeout=60,
-            poll_interval=30,
-            batch_size=200,
-            extra_params={
-                "query_filter": "source:agent-os",
-                "severity_min": "medium",
-                "include_alerts": True,
-            },
-        )
-        assert config.verify_ssl is False
-        assert config.timeout == 60
-        assert config.extra_params["severity_min"] == "medium"
-
-    def test_boundary_siem_not_connected_initially(self):
-        """Test that adapter is not connected initially."""
-        config = SIEMConfig(
-            provider=SIEMProvider.BOUNDARY_SIEM,
-            endpoint="http://localhost:8080",
-            api_key="test-key",
-        )
-        adapter = BoundarySIEMAdapter(config)
-        assert adapter.is_connected() is False
-
-    def test_boundary_siem_fetch_without_connect(self):
-        """Test fetching events without connection returns empty list."""
-        config = SIEMConfig(
-            provider=SIEMProvider.BOUNDARY_SIEM,
-            endpoint="http://localhost:8080",
-            api_key="test-key",
-        )
-        adapter = BoundarySIEMAdapter(config)
-        events = adapter.fetch_events(datetime.now())
-        assert events == []
-
-    def test_add_boundary_siem_to_connector(self):
-        """Test adding Boundary SIEM source to connector."""
-        connector = create_siem_connector()
-
-        config = SIEMConfig(
-            provider=SIEMProvider.BOUNDARY_SIEM,
-            endpoint="http://boundary-siem:8080",
-            api_key="test-integration-key",
-            extra_params={
-                "query_filter": "source:agent-os OR source:boundary-daemon",
-            },
-        )
-
-        connector.add_source("boundary-siem", config)
-        stats = connector.get_stats()
-        assert stats["sources_total"] >= 1
-
-    def test_boundary_siem_event_parsing(self):
-        """Test that Boundary SIEM adapter can parse event responses."""
-        config = SIEMConfig(
-            provider=SIEMProvider.BOUNDARY_SIEM,
-            endpoint="http://localhost:8080",
-            api_key="test-key",
-        )
-        adapter = BoundarySIEMAdapter(config)
-
-        # Test parsing a mock event
-        mock_event = {
-            "id": "evt-001",
-            "timestamp": datetime.now().isoformat(),
-            "source": "agent-os",
-            "event_type": "security_violation",
-            "severity": "high",
-            "category": "policy",
-            "message": "Constitutional rule violation detected",
-            "mitre_tactics": ["TA0001"],
-            "iocs": {
-                "ips": ["192.168.1.100"],
-                "domains": [],
-                "hashes": [],
-            },
-        }
-
-        event = adapter._parse_boundary_event(mock_event)
-        assert event is not None
-        assert event.event_id.startswith("boundary_siem_")
-        assert event.source == "agent-os"
-
-    def test_boundary_siem_alert_parsing(self):
-        """Test that Boundary SIEM adapter can parse alert responses."""
-        config = SIEMConfig(
-            provider=SIEMProvider.BOUNDARY_SIEM,
-            endpoint="http://localhost:8080",
-            api_key="test-key",
-        )
-        adapter = BoundarySIEMAdapter(config)
-
-        # Test parsing a mock alert
-        mock_alert = {
-            "id": "alert-001",
-            "timestamp": datetime.now().isoformat(),
-            "name": "Multi-stage Attack Detected",
-            "severity": "critical",
-            "status": "open",
-            "source": "correlation-engine",
-            "description": "Correlated events indicate potential attack",
-            "mitre_tactics": ["TA0001", "TA0002"],
-            "mitre_techniques": ["T1190", "T1059"],
-            "correlated_events": ["evt-001", "evt-002"],
-            "iocs": {
-                "ips": ["10.0.0.50"],
-                "domains": ["malicious.example.com"],
-                "hashes": [],
-            },
-        }
-
-        event = adapter._parse_boundary_alert(mock_alert)
-        assert event is not None
-        assert event.severity == EventSeverity.CRITICAL
 
 
 if __name__ == "__main__":

@@ -30,11 +30,15 @@ from .remediation import (
     RemediationEngine,
     PatchType,
 )
-from .git_integration import (
-    GitIntegration,
-    PullRequestInfo,
-    PRStatus,
-)
+try:
+    from .git_integration import (
+        GitIntegration,
+        PullRequestInfo,
+        PRStatus,
+    )
+    GIT_INTEGRATION_AVAILABLE = True
+except ImportError:
+    GIT_INTEGRATION_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -337,7 +341,7 @@ class RecommendationSystem:
     def __init__(
         self,
         remediation_engine: Optional[RemediationEngine] = None,
-        git_integration: Optional[GitIntegration] = None,
+        git_integration: Optional[Any] = None,
         on_recommendation: Optional[Callable[[FixRecommendation], None]] = None,
         auto_create_pr: bool = False,
         pr_draft_mode: bool = True,
@@ -714,7 +718,7 @@ class RecommendationSystem:
         rec_id: str,
         draft: Optional[bool] = None,
         additional_reviewers: Optional[List[str]] = None,
-    ) -> Tuple[bool, Optional[PullRequestInfo]]:
+    ) -> Tuple[bool, Optional[Any]]:
         """
         Create a pull request for a recommendation.
 
@@ -800,7 +804,7 @@ class RecommendationSystem:
     async def get_pr_status(
         self,
         rec_id: str,
-    ) -> Optional[PRStatus]:
+    ) -> Optional[Any]:
         """
         Get the current status of a recommendation's pull request.
 
@@ -1013,7 +1017,7 @@ class RecommendationSystem:
 
 def create_recommendation_system(
     remediation_engine: Optional[RemediationEngine] = None,
-    git_integration: Optional[GitIntegration] = None,
+    git_integration: Optional[Any] = None,
     on_recommendation: Optional[Callable[[FixRecommendation], None]] = None,
     auto_create_pr: bool = False,
     pr_draft_mode: bool = True,

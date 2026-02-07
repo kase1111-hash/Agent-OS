@@ -2,45 +2,11 @@
 Agent Smith Attack Detection & Auto-Remediation System
 
 This module provides Agent Smith with the ability to:
-1. Watch boundary daemon events and SIEM feeds for attack indicators
+1. Watch boundary daemon events for attack indicators
 2. Detect and classify attacks in real-time
 3. Analyze attacks to identify vulnerable code paths
 4. Generate patches to immunize against detected attacks
-5. Test patches in isolation
-6. Submit patches as recommendations for human review
-
-Architecture:
-    ┌─────────────────┐     ┌─────────────────┐
-    │ Boundary Daemon │────▶│  Attack         │
-    │ Event Stream    │     │  Detector       │
-    └─────────────────┘     └────────┬────────┘
-                                     │
-    ┌─────────────────┐              │
-    │ SIEM Feed       │──────────────┤
-    │ (External)      │              │
-    └─────────────────┘              ▼
-                            ┌────────────────┐
-                            │ Attack         │
-                            │ Analyzer       │
-                            └────────┬───────┘
-                                     │
-                                     ▼
-                            ┌────────────────┐
-                            │ Remediation    │
-                            │ Engine         │
-                            └────────┬───────┘
-                                     │
-                                     ▼
-                            ┌────────────────┐
-                            │ Recommendation │
-                            │ System         │
-                            └────────────────┘
-                                     │
-                                     ▼
-                            ┌────────────────┐
-                            │ Human Review   │
-                            │ (PR/Approval)  │
-                            └────────────────┘
+5. Submit patches as recommendations for human review
 """
 
 from .detector import (
@@ -49,20 +15,6 @@ from .detector import (
     AttackSeverity,
     AttackType,
     create_attack_detector,
-)
-from .siem_connector import (
-    SIEMConnector,
-    SIEMConfig,
-    SIEMEvent,
-    SIEMProvider,
-    EventSeverity,
-    SIEMAdapter,
-    SplunkAdapter,
-    ElasticAdapter,
-    SentinelAdapter,
-    SyslogAdapter,
-    MockSIEMAdapter,
-    create_siem_connector,
 )
 from .patterns import (
     AttackPattern,
@@ -94,6 +46,7 @@ from .integration import (
     AttackDetectionPipeline,
     setup_attack_detection_pipeline,
     create_attack_alert_handler,
+    setup_pipeline_from_config,
 )
 from .storage import (
     AttackStorage,
@@ -123,74 +76,23 @@ from .llm_analyzer import (
     AnalysisConfidence,
     create_llm_analyzer,
 )
-from .git_integration import (
-    GitIntegration,
-    GitProvider,
-    LocalGitProvider,
-    MockGitProvider,
-    PatchApplicator,
-    BranchInfo,
-    CommitInfo,
-    PullRequestInfo,
-    PatchApplication,
-    PRStatus,
-    GitOperationError,
-    PRCreationError,
-    create_git_integration,
-    create_local_git_provider,
-    create_mock_git_provider,
-    create_patch_applicator,
-)
-from .notifications import (
-    NotificationManager,
-    NotificationConfig,
-    NotificationChannel,
-    NotificationPriority,
-    NotificationSender,
-    NotificationRecord,
-    SecurityAlert,
-    DeliveryStatus,
-    ConsoleSender,
-    EmailSender,
-    WebhookSender,
-    SlackSender,
-    PagerDutySender,
-    TeamsSender,
-    create_notification_manager,
-    create_console_channel,
-    create_slack_channel,
-    create_email_channel,
-    create_pagerduty_channel,
-    create_webhook_channel,
-    create_alert_from_attack,
-)
 from .config import (
     AttackDetectionConfig,
     ConfigLoader,
     ConfigError,
     ConfigValidationError,
     DetectorConfig,
-    SIEMConfig,
-    SIEMSourceConfig,
-    NotificationsConfig,
-    NotificationChannelConfig,
     StorageConfig,
     AnalyzerConfig,
     RemediationConfig,
-    GitIntegrationConfig,
     SeverityLevel,
     StorageBackend,
-    SIEMProviderType,
-    NotificationChannelType,
     create_config_loader,
     load_config,
     get_default_config,
     save_config,
     generate_default_config,
     generate_example_config,
-)
-from .integration import (
-    setup_pipeline_from_config,
 )
 
 __all__ = [
@@ -200,19 +102,6 @@ __all__ = [
     "AttackSeverity",
     "AttackType",
     "create_attack_detector",
-    # SIEM
-    "SIEMConnector",
-    "SIEMConfig",
-    "SIEMEvent",
-    "SIEMProvider",
-    "EventSeverity",
-    "SIEMAdapter",
-    "SplunkAdapter",
-    "ElasticAdapter",
-    "SentinelAdapter",
-    "SyslogAdapter",
-    "MockSIEMAdapter",
-    "create_siem_connector",
     # Patterns
     "AttackPattern",
     "PatternLibrary",
@@ -239,6 +128,7 @@ __all__ = [
     "AttackDetectionPipeline",
     "setup_attack_detection_pipeline",
     "create_attack_alert_handler",
+    "setup_pipeline_from_config",
     # Storage
     "AttackStorage",
     "SQLiteStorage",
@@ -264,68 +154,20 @@ __all__ = [
     "CodeVulnerability",
     "AnalysisConfidence",
     "create_llm_analyzer",
-    # Git Integration
-    "GitIntegration",
-    "GitProvider",
-    "LocalGitProvider",
-    "MockGitProvider",
-    "PatchApplicator",
-    "BranchInfo",
-    "CommitInfo",
-    "PullRequestInfo",
-    "PatchApplication",
-    "PRStatus",
-    "GitOperationError",
-    "PRCreationError",
-    "create_git_integration",
-    "create_local_git_provider",
-    "create_mock_git_provider",
-    "create_patch_applicator",
-    # Notifications
-    "NotificationManager",
-    "NotificationConfig",
-    "NotificationChannel",
-    "NotificationPriority",
-    "NotificationSender",
-    "NotificationRecord",
-    "SecurityAlert",
-    "DeliveryStatus",
-    "ConsoleSender",
-    "EmailSender",
-    "WebhookSender",
-    "SlackSender",
-    "PagerDutySender",
-    "TeamsSender",
-    "create_notification_manager",
-    "create_console_channel",
-    "create_slack_channel",
-    "create_email_channel",
-    "create_pagerduty_channel",
-    "create_webhook_channel",
-    "create_alert_from_attack",
     # Configuration
     "AttackDetectionConfig",
     "ConfigLoader",
     "ConfigError",
     "ConfigValidationError",
     "DetectorConfig",
-    "SIEMConfig",
-    "SIEMSourceConfig",
-    "NotificationsConfig",
-    "NotificationChannelConfig",
     "StorageConfig",
     "AnalyzerConfig",
     "RemediationConfig",
-    "GitIntegrationConfig",
     "SeverityLevel",
-    "StorageBackend",
-    "SIEMProviderType",
-    "NotificationChannelType",
     "create_config_loader",
     "load_config",
     "get_default_config",
     "save_config",
     "generate_default_config",
     "generate_example_config",
-    "setup_pipeline_from_config",
 ]

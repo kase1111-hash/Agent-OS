@@ -63,7 +63,6 @@ build = [
 
 [project.scripts]
 agent-os = "src.web.app:main"
-agent-os-install = "src.installer.cli:main"
 agent-os-ceremony = "src.ceremony.cli:main"
 
 [project.urls]
