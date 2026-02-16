@@ -140,16 +140,19 @@ class SmithClient:
             # - Cross-process boundary enforcement
             # - Network-based security policy synchronization
             #
-            # For now, use embedded mode (config.embedded=True) which runs
-            # the daemon in-process. This is suitable for single-instance
-            # deployments and development.
-            #
             # Socket protocol will use:
             # - Unix domain sockets (Linux/macOS) or named pipes (Windows)
             # - JSON-RPC for request/response
             # - mTLS for remote network connections
-            logger.info("Socket connection deferred to Phase 2 - using embedded mode")
-            return self._init_embedded()
+            #
+            # For now, socket connections are not implemented.
+            # When embedded=False, the client cannot connect and should
+            # fail closed (or open) based on config.fail_closed.
+            logger.warning(
+                "Socket connection not yet implemented (Phase 2). "
+                "Cannot connect to external daemon. Use embedded=True for in-process mode."
+            )
+            return False
 
     def disconnect(self) -> None:
         """Disconnect from the daemon."""

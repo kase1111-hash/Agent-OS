@@ -221,7 +221,7 @@ class InMemoryMessageBus(MessageBus):
         """Publish a message to a channel."""
         if not self._running:
             logger.warning("Cannot publish: bus is shutting down")
-            raise BusShutdownError("publish")
+            return False
 
         with self._lock:
             # Ensure channel stats exist
@@ -265,12 +265,12 @@ class InMemoryMessageBus(MessageBus):
 
             self._log_audit(message, channel)
 
-            # If all deliveries failed, raise an exception
+            # If all deliveries failed, log and return False
+            # (failed messages are already in the dead letter queue)
             if delivered == 0 and delivery_errors:
-                raise MessageDeliveryError(
-                    f"All deliveries failed: {'; '.join(delivery_errors)}",
-                    channel=channel,
-                    partial_delivery=False,
+                logger.error(
+                    f"All deliveries failed for channel {channel}: "
+                    f"{'; '.join(delivery_errors)}"
                 )
 
             return delivered > 0

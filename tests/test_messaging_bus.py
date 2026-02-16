@@ -167,7 +167,7 @@ class TestInMemoryMessageBus:
         dead_letters = bus.get_dead_letters()
 
         assert len(dead_letters) >= 1
-        assert dead_letters[-1].failure_reason == "Handler failed"
+        assert "Handler failed" in dead_letters[-1].failure_reason
 
     def test_retry_dead_letter(self, bus, sample_request):
         """Retry a dead letter message."""

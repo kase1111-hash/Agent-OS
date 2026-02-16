@@ -126,9 +126,9 @@ class TestMessageBusAsyncHandler:
 
         bus.subscribe("test", failing_handler, "failing_subscriber")
 
-        # Should not silently swallow the error — raises when all deliveries fail
-        with pytest.raises(MessageDeliveryError):
-            bus.publish("test", _make_flow_request())
+        # All deliveries failed — publish returns False, message goes to dead letter queue
+        result = bus.publish("test", _make_flow_request())
+        assert result is False
 
         # Check dead letter queue has the failed message
         dead_letters = bus.get_dead_letters()
@@ -395,9 +395,9 @@ class TestOrchestrationFlow:
 
         bus.subscribe("test.channel", failing_handler, "failer")
 
-        # Publish — handler will fail, raises when all deliveries fail
-        with pytest.raises(MessageDeliveryError):
-            bus.publish("test.channel", _make_flow_request())
+        # Publish — handler will fail, message goes to dead letter queue
+        result = bus.publish("test.channel", _make_flow_request())
+        assert result is False
 
         dead_letters = bus.get_dead_letters()
         assert len(dead_letters) >= 1

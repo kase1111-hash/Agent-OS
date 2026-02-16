@@ -240,7 +240,7 @@ name: inline-agent
 version: "0.1.0"
 """
         loader = ConfigLoader()
-        config = loader.load_from_string(content, format="yaml")
+        config = loader.load_from_string(content, content_format="yaml")
 
         assert config.name == "inline-agent"
 
