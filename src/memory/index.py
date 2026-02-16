@@ -465,6 +465,23 @@ class VaultIndex:
         cursor = conn.execute(query, params)
         return [self._row_to_consent(row) for row in cursor.fetchall()]
 
+    def get_all_consents(
+        self,
+        scope: Optional[str] = None,
+    ) -> List[ConsentRecord]:
+        """Get all consents (including revoked/expired), optionally filtered by scope."""
+        conn = self._get_connection()
+
+        query = "SELECT * FROM consents"
+        params: List[Any] = []
+
+        if scope:
+            query += " WHERE scope = ?"
+            params.append(scope)
+
+        cursor = conn.execute(query, params)
+        return [self._row_to_consent(row) for row in cursor.fetchall()]
+
     def log_access(
         self,
         blob_id: str,

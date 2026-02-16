@@ -253,35 +253,36 @@ class ConstitutionalKernel:
         if not self._initialized:
             raise KernelNotInitializedError("enforce")
 
+        # Hold lock only for the fast registry lookup, not during potentially
+        # slow LLM evaluation (Tier 2/3) which can take seconds
         with self._lock:
-            # Get all rules for the destination agent
             rules = self._registry.get_rules_for_agent(context.destination)
 
-            # Run 3-tier enforcement
-            decision = self._enforcement.evaluate(context, rules)
+        # Run 3-tier enforcement outside the lock to allow concurrent evaluations
+        decision = self._enforcement.evaluate(context, rules)
 
-            # Convert EnforcementDecision -> EnforcementResult
-            if not decision.allowed:
-                suggestions = decision.suggestions or self._generate_suggestions(
-                    decision.matched_rules
-                )
-                reason = decision.reason or self._format_violation_reason(
-                    decision.matched_rules
-                )
-
-                return EnforcementResult(
-                    allowed=False,
-                    violated_rules=decision.matched_rules,
-                    applicable_rules=decision.matched_rules,
-                    reason=reason,
-                    suggestions=suggestions,
-                    escalate_to_human=decision.escalate_to_human,
-                )
+        # Convert EnforcementDecision -> EnforcementResult
+        if not decision.allowed:
+            suggestions = decision.suggestions or self._generate_suggestions(
+                decision.matched_rules
+            )
+            reason = decision.reason or self._format_violation_reason(
+                decision.matched_rules
+            )
 
             return EnforcementResult(
-                allowed=True,
+                allowed=False,
+                violated_rules=decision.matched_rules,
                 applicable_rules=decision.matched_rules,
+                reason=reason,
+                suggestions=suggestions,
+                escalate_to_human=decision.escalate_to_human,
             )
+
+        return EnforcementResult(
+            allowed=True,
+            applicable_rules=decision.matched_rules,
+        )
 
     def get_rules_for_agent(self, agent_scope: str) -> List[Rule]:
         """
@@ -348,6 +349,7 @@ class ConstitutionalKernel:
         """Start watching constitution files for changes."""
         if self._observer:
             self._observer.stop()
+            self._observer.join(timeout=5)
 
         monitored_paths = set(self._file_hashes.keys())
         if not monitored_paths:

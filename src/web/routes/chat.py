@@ -17,7 +17,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
 from src.boundary import BoundaryMode, SmithClient, create_smith_client
@@ -98,12 +98,19 @@ def validate_ollama_endpoint(url: str) -> str:
         ip = ipaddress.ip_address(hostname)
         # Allow localhost/loopback for local Ollama
         if not ip.is_loopback:
-            if ip.is_private:
-                # Allow common private network ranges for local Ollama deployments
-                # but block link-local, multicast, reserved
-                pass
             if ip.is_link_local or ip.is_multicast or ip.is_reserved:
                 raise SSRFProtectionError(f"Reserved IP address not allowed: {hostname}")
+            if ip.is_private:
+                # Only allow common LAN ranges for local Ollama deployments
+                # Block all other private IPs to prevent SSRF to internal services
+                allowed_private = (
+                    ipaddress.ip_network("192.168.0.0/16"),
+                    ipaddress.ip_network("10.0.0.0/8"),
+                )
+                if not any(ip in net for net in allowed_private):
+                    raise SSRFProtectionError(
+                        f"Private IP address not allowed: {hostname}"
+                    )
     except ValueError:
         # Not an IP address, it's a hostname - that's fine
         pass
@@ -139,17 +146,16 @@ class ModelManager:
         return self.current_model
 
     def set_model(self, model_name: str) -> bool:
-        """Set the current model. Returns True if model exists."""
+        """Set the current model. Returns True if model exists in available models."""
+        if not model_name:
+            return False
         available = self.get_available_models()
         # Check exact match or partial match
         for m in available:
             if m == model_name or m.startswith(model_name + ":"):
                 self.current_model = m
                 return True
-        # If not found but user specified it, try anyway
-        if model_name:
-            self.current_model = model_name
-            return True
+        # Model not found in available models
         return False
 
     def get_available_models(self) -> List[str]:
@@ -599,6 +605,7 @@ class ConnectionManager:
             history = self.get_conversation(conversation_id)
 
             # Convert history to Ollama message format
+            # Note: the user message is already in history (added by process_message)
             messages = []
             for msg in history[-10:]:  # Keep last 10 messages for context
                 messages.append(
@@ -607,9 +614,6 @@ class ConnectionManager:
                         "content": msg.content,
                     }
                 )
-
-            # Add the current message
-            messages.append({"role": "user", "content": message})
 
             # Run Ollama in thread pool (since httpx client is synchronous)
             loop = asyncio.get_event_loop()
@@ -874,15 +878,47 @@ async def chat_websocket(
 # =============================================================================
 
 
+def _authenticate_rest_request(http_request: Request) -> str:
+    """
+    Authenticate a REST request via session token.
+
+    Checks cookies and Authorization header for a valid session token.
+
+    Returns:
+        User ID if authenticated
+
+    Raises:
+        HTTPException 401 if not authenticated
+    """
+    from ..auth import get_user_store
+
+    token = http_request.cookies.get("session_token")
+    if not token:
+        auth_header = http_request.headers.get("authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+
+    if token:
+        store = get_user_store()
+        user = store.validate_session(token)
+        if user:
+            return user.user_id
+
+    raise HTTPException(status_code=401, detail="Authentication required")
+
+
 @router.post("/send", response_model=ChatResponse)
 async def send_message(
     request: ChatRequest,
+    http_request: Request,
     manager: ConnectionManager = Depends(get_manager),
+    user_id: str = Depends(_authenticate_rest_request),
 ) -> ChatResponse:
     """
     Send a message via REST API.
 
     For simple request/response without WebSocket.
+    Requires authentication via session token (cookie or Bearer header).
     """
     import time
 

@@ -192,7 +192,8 @@ class SmithClient:
             else:
                 raise PermissionError("Network access denied by Smith")
         """
-        self._request_count += 1
+        with self._lock:
+            self._request_count += 1
 
         # Check cache first
         if self.config.cache_decisions:
@@ -205,7 +206,8 @@ class SmithClient:
             if not self.connect():
                 logger.warning("Cannot connect to Smith daemon")
                 if self.config.fail_closed:
-                    self._denied_count += 1
+                    with self._lock:
+                        self._denied_count += 1
                     return False
                 return True  # Fail open (dangerous!)
 
@@ -222,14 +224,16 @@ class SmithClient:
                 self._cache_decision(request_type, source, target, allowed)
 
             if not allowed:
-                self._denied_count += 1
+                with self._lock:
+                    self._denied_count += 1
 
             return allowed
 
         except Exception as e:
             logger.error(f"Smith permission check failed: {e}")
             if self.config.fail_closed:
-                self._denied_count += 1
+                with self._lock:
+                    self._denied_count += 1
                 return False
             return True
 
