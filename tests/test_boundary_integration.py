@@ -205,7 +205,7 @@ class TestFailSafeMechanisms:
         assert enforcement.is_halted is True
 
         # Valid auth code should work
-        assert enforcement.resume("valid_authorization_code") is True
+        assert enforcement.resume("ValidAuthCode1234") is True
         assert enforcement.is_halted is False
 
     def test_auto_lockdown_on_critical(self):
@@ -423,7 +423,7 @@ class TestTripwireSystem:
         assert system.is_triggered() is True
 
         # Valid auth works
-        assert system.reset_tripwire("auth_test", "valid_auth_code") is True
+        assert system.reset_tripwire("auth_test", "ValidAuthCode1234") is True
         assert system.is_triggered() is False
 
     def test_file_tripwire_detects_modification(self):
@@ -592,7 +592,7 @@ class TestPolicyEnforcement:
         assert engine.mode == BoundaryMode.LOCKDOWN
 
         # With auth
-        success = engine.set_mode(BoundaryMode.TRUSTED, "test", "auth_code_12345")
+        success = engine.set_mode(BoundaryMode.TRUSTED, "test", "ValidAuthCode1234")
         assert success is True
         assert engine.mode == BoundaryMode.TRUSTED
 
@@ -797,7 +797,7 @@ class TestEdgeCases:
 
         for _ in range(10):
             engine.lockdown("test")
-            engine.set_mode(BoundaryMode.TRUSTED, "test", "auth_code_12345")
+            engine.set_mode(BoundaryMode.TRUSTED, "test", "ValidAuthCode1234")
 
         # Should end in a valid state
         assert engine.mode in list(BoundaryMode)

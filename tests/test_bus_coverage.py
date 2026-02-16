@@ -73,12 +73,12 @@ class TestBusChannelStats:
 
 
 class TestBusShutdown:
-    def test_publish_after_shutdown_raises(self):
-        """Publishing after shutdown should raise BusShutdownError."""
+    def test_publish_after_shutdown_returns_false(self):
+        """Publishing after shutdown should return False."""
         bus = InMemoryMessageBus()
         bus.shutdown()
-        with pytest.raises(BusShutdownError):
-            bus.publish("ch1", _make_request())
+        result = bus.publish("ch1", _make_request())
+        assert result is False
 
     def test_double_shutdown(self):
         """Double shutdown should not raise."""

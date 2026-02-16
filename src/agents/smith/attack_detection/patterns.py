@@ -363,11 +363,11 @@ class PatternLibrary:
                 category=AttackCategory.PROMPT_INJECTION,
                 severity=4,
                 signatures=[
-                    r"ignore\s+(previous|all|prior)\s+instructions?",
-                    r"disregard\s+(your|the|all)\s+(rules?|instructions?|guidelines?)",
-                    r"you\s+are\s+now\s+(a|an)\s+\w+\s+(without|with\s+no)\s+restrictions?",
-                    r"pretend\s+(you|that)\s+(are|have)\s+no\s+(rules?|limits?|restrictions?)",
-                    r"act\s+as\s+(if|though)\s+you\s+(have|had)\s+no\s+constitution",
+                    r"ignore\s+(?:(?:all|previous|prior)\s+)*instructions?",
+                    r"disregard\s+(?:(?:your|the|all|prior|previous)\s+)*(?:rules?|instructions?|guidelines?)",
+                    r"you\s+are\s+now\s+(?:a|an)\s+(?:\w+\s+)+(?:without|with\s+no)\s+(?:rules?|restrictions?)",
+                    r"pretend\s+(?:you|that)\s+(?:are|have)\s+no\s+(?:rules?|limits?|restrictions?)",
+                    r"act\s+as\s+(?:if|though)\s+you\s+(?:have|had)\s+no\s+constitution",
                 ],
                 keywords=[
                     "ignore previous instructions",

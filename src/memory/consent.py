@@ -476,11 +476,10 @@ class ConsentManager:
         """List consents, optionally filtered."""
         if active_only:
             consents = list(self._active_consents.values())
+            if scope:
+                consents = [c for c in consents if c.scope == scope or c.scope == "*"]
         else:
-            consents = self._index.get_active_consents(scope)
-
-        if scope:
-            consents = [c for c in consents if c.scope == scope or c.scope == "*"]
+            consents = self._index.get_all_consents(scope)
 
         return consents
 

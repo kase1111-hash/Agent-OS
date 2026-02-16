@@ -226,7 +226,7 @@ class TestTripwire:
         assert tripwire.state == TripwireState.TRIGGERED
 
         # Reset with authorization
-        success = tripwire.reset("valid_auth_code_12345")
+        success = tripwire.reset("ValidAuthCode1234")
         assert success is True
         assert tripwire.state == TripwireState.ARMED
 
@@ -288,7 +288,7 @@ class TestTripwireSystem:
         system.check_all()
         assert system.is_triggered() is True
 
-        count = system.reset_all("authorization_code")
+        count = system.reset_all("ValidAuthCode1234")
         assert count >= 1
         assert system.is_triggered() is False
 
@@ -336,7 +336,7 @@ class TestPolicyEngine:
         success = engine.set_mode(BoundaryMode.TRUSTED, "test")
         assert success is False
 
-        success = engine.set_mode(BoundaryMode.TRUSTED, "test", "auth_code_here")
+        success = engine.set_mode(BoundaryMode.TRUSTED, "test", "ValidAuthCode1234")
         assert success is True
 
     def test_evaluate_lockdown_denies(self):
@@ -457,7 +457,7 @@ class TestEnforcementLayer:
         layer.halt("test")
         assert layer.is_halted is True
 
-        success = layer.resume("valid_auth_code")
+        success = layer.resume("ValidAuthCode1234")
         assert success is True
         assert layer.is_halted is False
 

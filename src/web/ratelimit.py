@@ -145,6 +145,25 @@ class RateLimitStorage(ABC):
         """Increment counter and return new value."""
         pass
 
+    async def get_and_set(
+        self,
+        key: str,
+        updater: Callable[[Optional[Dict[str, Any]]], Tuple[Dict[str, Any], int]],
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Atomically get current data, apply updater, and set result.
+
+        The updater receives the current data (or None) and returns
+        (new_data, ttl). This prevents TOCTOU races on read-modify-write.
+
+        Default implementation is non-atomic (get then set). Backends
+        should override with atomic implementations.
+        """
+        data = await self.get(key)
+        new_data, ttl = updater(data)
+        await self.set(key, new_data, ttl)
+        return data
+
 
 class InMemoryStorage(RateLimitStorage):
     """In-memory rate limit storage."""
@@ -182,6 +201,27 @@ class InMemoryStorage(RateLimitStorage):
             data["count"] = count
             self._data[key] = (data, expires_at)
             return count
+
+    async def get_and_set(
+        self,
+        key: str,
+        updater: Callable[[Optional[Dict[str, Any]]], Tuple[Dict[str, Any], int]],
+    ) -> Optional[Dict[str, Any]]:
+        """Atomically get, apply updater, and set under a single lock."""
+        async with self._lock:
+            # Get current data
+            current = None
+            if key in self._data:
+                data, expires_at = self._data[key]
+                if time.time() <= expires_at:
+                    current = data
+                else:
+                    del self._data[key]
+
+            # Apply updater and store result
+            new_data, ttl = updater(current)
+            self._data[key] = (new_data, time.time() + ttl)
+            return current
 
     async def cleanup(self) -> int:
         """Remove expired entries. Returns count of removed entries."""
@@ -381,54 +421,62 @@ class RateLimiter:
     async def _check_sliding_window(
         self, key: str, rule: RateLimitRule, cost: int
     ) -> RateLimitResult:
-        """Sliding window rate limiting."""
+        """Sliding window rate limiting with atomic read-modify-write."""
         now = time.time()
         window_start = now - rule.window_seconds
         window_key = f"{rule.key_prefix}{key}:sliding"
-
-        data = await self.storage.get(window_key)
-        if data is None:
-            data = {"requests": [], "count": 0}
-
-        # Filter out old requests
-        requests = [ts for ts in data.get("requests", []) if ts > window_start]
-        count = len(requests)
-
         reset_at = now + rule.window_seconds
-        remaining = max(0, rule.requests - count - cost)
 
-        if count + cost > rule.requests:
-            # Find when the oldest request will expire
-            if requests:
-                oldest = min(requests)
-                retry_after = oldest + rule.window_seconds - now
-            else:
-                retry_after = rule.window_seconds
+        # Use a mutable container to capture the result from the updater
+        result_holder: List[Optional[RateLimitResult]] = [None]
 
-            return RateLimitResult(
-                allowed=False,
-                remaining=0,
+        def updater(data: Optional[Dict[str, Any]]) -> Tuple[Dict[str, Any], int]:
+            if data is None:
+                data = {"requests": [], "count": 0}
+
+            # Filter out old requests
+            requests = [ts for ts in data.get("requests", []) if ts > window_start]
+            count = len(requests)
+            remaining = max(0, rule.requests - count - cost)
+
+            if count + cost > rule.requests:
+                # Over limit - don't modify, just report
+                if requests:
+                    oldest = min(requests)
+                    retry_after = oldest + rule.window_seconds - now
+                else:
+                    retry_after = rule.window_seconds
+
+                result_holder[0] = RateLimitResult(
+                    allowed=False,
+                    remaining=0,
+                    limit=rule.requests,
+                    reset_at=reset_at,
+                    retry_after=max(0, retry_after),
+                )
+                # Return existing data unchanged
+                return (
+                    {"requests": requests[-rule.requests:], "count": count},
+                    int(rule.window_seconds * 2),
+                )
+
+            # Add current request(s)
+            for _ in range(cost):
+                requests.append(now)
+
+            result_holder[0] = RateLimitResult(
+                allowed=True,
+                remaining=remaining,
                 limit=rule.requests,
                 reset_at=reset_at,
-                retry_after=max(0, retry_after),
+            )
+            return (
+                {"requests": requests[-rule.requests:], "count": len(requests)},
+                int(rule.window_seconds * 2),
             )
 
-        # Add current request(s)
-        for _ in range(cost):
-            requests.append(now)
-
-        await self.storage.set(
-            window_key,
-            {"requests": requests[-rule.requests :], "count": len(requests)},
-            rule.window_seconds * 2,  # Keep data a bit longer
-        )
-
-        return RateLimitResult(
-            allowed=True,
-            remaining=remaining,
-            limit=rule.requests,
-            reset_at=reset_at,
-        )
+        await self.storage.get_and_set(window_key, updater)
+        return result_holder[0]
 
     async def _check_token_bucket(
         self, key: str, rule: RateLimitRule, cost: int

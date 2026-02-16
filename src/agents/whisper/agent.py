@@ -106,6 +106,10 @@ class WhisperAgent(BaseAgent):
         # classification between validate_request() and process()
         self._classification_cache: Dict[str, IntentClassification] = {}
 
+        # Smith validation cache to prevent duplicate pre-validation
+        # Maps request_id to smith pre-validation result
+        self._smith_cache: Dict[str, Any] = {}
+
     def initialize(self, config: Dict[str, Any]) -> bool:
         """
         Initialize Whisper with configuration.
@@ -196,6 +200,15 @@ class WhisperAgent(BaseAgent):
         # Pre-validate with Smith
         smith_result = self._smith.pre_validate(request, classification)
 
+        # Cache Smith result to avoid duplicate pre-validation in process()
+        self._smith_cache[request_id] = smith_result
+
+        # Limit cache size to prevent memory leak
+        if len(self._smith_cache) > 1000:
+            keys_to_remove = list(self._smith_cache.keys())[:100]
+            for key in keys_to_remove:
+                self._smith_cache.pop(key, None)
+
         if not smith_result.approved:
             for violation in smith_result.violations:
                 result.add_error(violation)
@@ -249,6 +262,9 @@ class WhisperAgent(BaseAgent):
                 context=[msg for msg in request.content.context],
             )
 
+        # Step 1b: Get cached Smith result (from validate_request)
+        smith_check = self._smith_cache.pop(request_id, None)
+
         # Track intent distribution
         intent_key = classification.primary_intent.value
         self._whisper_metrics.intent_distribution[intent_key] = (
@@ -267,15 +283,17 @@ class WhisperAgent(BaseAgent):
         # Handle system.meta locally — but still validate with Smith first
         if classification.primary_intent == IntentCategory.SYSTEM_META:
             if routing.requires_smith:
-                smith_check = self._smith.pre_validate(request, classification)
+                if smith_check is None:
+                    smith_check = self._smith.pre_validate(request, classification)
                 if not smith_check.approved:
                     return self._smith.handle_denial(request, smith_check)
             return self._handle_meta_request(request, classification)
 
-        # Step 3: Pre-validate with Smith (already done in validate_request)
-        # Apply any constraints
+        # Step 3: Reuse cached Smith result (already done in validate_request)
+        # Only call pre_validate if not cached (direct process call without validate)
         if routing.requires_smith:
-            smith_check = self._smith.pre_validate(request, classification)
+            if smith_check is None:
+                smith_check = self._smith.pre_validate(request, classification)
             if not smith_check.approved:
                 return self._smith.handle_denial(request, smith_check)
             if smith_check.requires_human_approval:

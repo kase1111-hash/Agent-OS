@@ -140,16 +140,19 @@ class SmithClient:
             # - Cross-process boundary enforcement
             # - Network-based security policy synchronization
             #
-            # For now, use embedded mode (config.embedded=True) which runs
-            # the daemon in-process. This is suitable for single-instance
-            # deployments and development.
-            #
             # Socket protocol will use:
             # - Unix domain sockets (Linux/macOS) or named pipes (Windows)
             # - JSON-RPC for request/response
             # - mTLS for remote network connections
-            logger.info("Socket connection deferred to Phase 2 - using embedded mode")
-            return self._init_embedded()
+            #
+            # For now, socket connections are not implemented.
+            # When embedded=False, the client cannot connect and should
+            # fail closed (or open) based on config.fail_closed.
+            logger.warning(
+                "Socket connection not yet implemented (Phase 2). "
+                "Cannot connect to external daemon. Use embedded=True for in-process mode."
+            )
+            return False
 
     def disconnect(self) -> None:
         """Disconnect from the daemon."""
@@ -192,7 +195,8 @@ class SmithClient:
             else:
                 raise PermissionError("Network access denied by Smith")
         """
-        self._request_count += 1
+        with self._lock:
+            self._request_count += 1
 
         # Check cache first
         if self.config.cache_decisions:
@@ -205,7 +209,8 @@ class SmithClient:
             if not self.connect():
                 logger.warning("Cannot connect to Smith daemon")
                 if self.config.fail_closed:
-                    self._denied_count += 1
+                    with self._lock:
+                        self._denied_count += 1
                     return False
                 return True  # Fail open (dangerous!)
 
@@ -222,14 +227,16 @@ class SmithClient:
                 self._cache_decision(request_type, source, target, allowed)
 
             if not allowed:
-                self._denied_count += 1
+                with self._lock:
+                    self._denied_count += 1
 
             return allowed
 
         except Exception as e:
             logger.error(f"Smith permission check failed: {e}")
             if self.config.fail_closed:
-                self._denied_count += 1
+                with self._lock:
+                    self._denied_count += 1
                 return False
             return True
 
