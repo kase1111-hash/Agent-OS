@@ -45,6 +45,7 @@ class ToolRegistration:
     disabled_at: Optional[datetime] = None
     disabled_reason: Optional[str] = None
     invocation_count: int = 0
+    manifest: Optional[Any] = None  # V6-4: Optional ToolManifest
     last_invoked: Optional[datetime] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
@@ -155,6 +156,7 @@ class ToolRegistry:
         tool: ToolInterface,
         registered_by: Optional[str] = None,
         auto_approve: bool = False,
+        manifest: Optional[Any] = None,
     ) -> ToolRegistration:
         """
         Register a new tool.
@@ -163,10 +165,22 @@ class ToolRegistry:
             tool: Tool instance to register
             registered_by: ID of registering entity
             auto_approve: Force auto-approval
+            manifest: V6-4 optional ToolManifest declaring tool permissions
 
         Returns:
             ToolRegistration
         """
+        # V6-4: Verify manifest signature if provided
+        if manifest is not None:
+            if not manifest.verify_signature():
+                raise ValueError(
+                    f"Manifest signature verification failed for tool '{tool.name}'"
+                )
+            logger.info(
+                f"Manifest verified for tool '{tool.name}' "
+                f"(author={manifest.author}, version={manifest.version})"
+            )
+
         with self._lock:
             # Check for duplicate name
             if tool.name in self._by_name:
@@ -204,6 +218,7 @@ class ToolRegistry:
                 registered_by=registered_by,
                 approved_at=approved_at,
                 approved_by=approved_by,
+                manifest=manifest,
             )
 
             self._tools[tool_id] = registration

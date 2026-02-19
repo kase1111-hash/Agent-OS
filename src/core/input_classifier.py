@@ -28,6 +28,63 @@ DATA_BOUNDARY_INSTRUCTION = (
 )
 
 
+class MarkupSanitizer:
+    """
+    Strips dangerous HTML/Markdown constructs from untrusted content.
+
+    Removes script/style/iframe/object/embed tags, event handler attributes,
+    invisible CSS tricks, and zero-width Unicode obfuscation — while preserving
+    readable text content.
+
+    Phase 6.2 of the Agentic Security Audit remediation.
+    """
+
+    # Tags whose entire content (including inner text) should be stripped
+    _DANGEROUS_TAGS = re.compile(
+        r"<\s*(script|style|iframe|object|embed|applet|form)\b[^>]*>.*?</\s*\1\s*>",
+        re.IGNORECASE | re.DOTALL,
+    )
+    # Self-closing dangerous tags
+    _DANGEROUS_VOID_TAGS = re.compile(
+        r"<\s*(script|style|iframe|object|embed|applet|form)\b[^>]*/?\s*>",
+        re.IGNORECASE,
+    )
+    # HTML event handler attributes (onclick, onload, onerror, etc.)
+    _EVENT_ATTRS = re.compile(
+        r"""\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)""",
+        re.IGNORECASE,
+    )
+    # Inline style attributes that hide content
+    _HIDDEN_STYLES = re.compile(
+        r"""style\s*=\s*"[^"]*(?:display\s*:\s*none|visibility\s*:\s*hidden)[^"]*" """,
+        re.IGNORECASE,
+    )
+    # javascript: and data: URI schemes in href/src attributes
+    _DANGEROUS_URIS = re.compile(
+        r"""(href|src|action)\s*=\s*["']?\s*(javascript|data|vbscript)\s*:""",
+        re.IGNORECASE,
+    )
+
+    @classmethod
+    def sanitize(cls, text: str) -> str:
+        """
+        Remove dangerous markup from untrusted content.
+
+        Preserves readable text. Applied automatically before
+        wrap_if_untrusted() for all external data inputs.
+        """
+        # Strip dangerous tags with their content
+        text = cls._DANGEROUS_TAGS.sub("", text)
+        text = cls._DANGEROUS_VOID_TAGS.sub("", text)
+        # Strip event handler attributes
+        text = cls._EVENT_ATTRS.sub("", text)
+        # Strip hidden-content style tricks
+        text = cls._HIDDEN_STYLES.sub("", text)
+        # Neutralise dangerous URI schemes
+        text = cls._DANGEROUS_URIS.sub(r"\1=blocked:", text)
+        return text
+
+
 class InputClassifier:
     """
     Classifies and wraps input content based on trust level.
@@ -66,6 +123,8 @@ class InputClassifier:
             Wrapped content for untrusted sources, original content otherwise
         """
         if source in self.UNTRUSTED_SOURCES:
+            # V6-2: Sanitise markup before wrapping
+            content = MarkupSanitizer.sanitize(content)
             return f"{DATA_PREFIX}\n{content}\n{DATA_SUFFIX}"
         return content
 

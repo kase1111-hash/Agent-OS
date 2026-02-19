@@ -5,6 +5,7 @@ Tracks user intents and actions per user for audit and analytics purposes.
 Each user has their own isolated intent log.
 """
 
+import hashlib
 import json
 import logging
 import secrets
@@ -111,6 +112,22 @@ class IntentLogQuery:
     offset: int = 0
 
 
+@dataclass
+class ChainVerificationResult:
+    """V6-3: Result of audit log hash-chain verification."""
+
+    entries_checked: int
+    chain_breaks: List[str]
+    is_valid: bool
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "entries_checked": self.entries_checked,
+            "chain_breaks": self.chain_breaks,
+            "is_valid": self.is_valid,
+        }
+
+
 class IntentLogStore:
     """
     Persistent store for intent log entries.
@@ -129,6 +146,8 @@ class IntentLogStore:
         self._lock = threading.Lock()
         self._connection: Optional[sqlite3.Connection] = None
         self._initialized = False
+        # V6-3: Hash chain state — the hash of the most recent entry
+        self._latest_hash: str = "GENESIS"
 
     def initialize(self) -> bool:
         """Initialize the intent log store."""
@@ -140,8 +159,39 @@ class IntentLogStore:
             self._connection = sqlite3.connect(db_str, check_same_thread=False)
             self._connection.row_factory = sqlite3.Row
 
+            # V6-6: Enable WAL mode for better concurrent access
+            self._connection.execute("PRAGMA journal_mode=WAL")
+
             self._create_tables()
+
+            # V6-6: Set restrictive file permissions (owner read/write only)
+            if self.db_path:
+                try:
+                    import os
+                    os.chmod(self.db_path, 0o600)
+                    # Also restrict the WAL and SHM files if they exist
+                    for suffix in ("-wal", "-shm"):
+                        wal_path = Path(str(self.db_path) + suffix)
+                        if wal_path.exists():
+                            os.chmod(wal_path, 0o600)
+                except OSError as e:
+                    logger.warning(f"Could not set file permissions on {self.db_path}: {e}")
             self._initialized = True
+
+            # V6-3: Restore hash chain head from existing entries
+            try:
+                cursor = self._connection.cursor()
+                cursor.execute(
+                    "SELECT entry_hash FROM intent_log "
+                    "WHERE entry_hash IS NOT NULL "
+                    "ORDER BY created_at DESC LIMIT 1"
+                )
+                row = cursor.fetchone()
+                if row and row[0]:
+                    self._latest_hash = row[0]
+            except Exception:
+                pass
+
             logger.info(f"Intent log store initialized: {db_str}")
             return True
 
@@ -340,10 +390,26 @@ class IntentLogStore:
                 related_entity_id TEXT,
                 ip_address TEXT,
                 user_agent TEXT,
-                created_at TEXT NOT NULL
+                created_at TEXT NOT NULL,
+                entry_hash TEXT,
+                previous_hash TEXT
             )
         """
         )
+
+        # V6-3: Migration — add hash columns if table already exists without them
+        try:
+            cursor.execute(
+                "ALTER TABLE intent_log ADD COLUMN entry_hash TEXT"
+            )
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        try:
+            cursor.execute(
+                "ALTER TABLE intent_log ADD COLUMN previous_hash TEXT"
+            )
+        except sqlite3.OperationalError:
+            pass  # Column already exists
 
         # Indexes for common queries
         cursor.execute(
@@ -376,16 +442,94 @@ class IntentLogStore:
 
         self._connection.commit()
 
+    def _compute_entry_hash(self, entry: IntentLogEntry, previous_hash: str) -> str:
+        """V6-3: Compute a tamper-evident hash for a log entry."""
+        details_json = json.dumps(entry.details, sort_keys=True) if entry.details else ""
+        payload = (
+            f"{previous_hash}|{entry.entry_id}|{entry.user_id}|"
+            f"{entry.intent_type.name}|{entry.created_at.isoformat()}|{details_json}"
+        )
+        return hashlib.sha256(payload.encode()).hexdigest()
+
+    def verify_chain(self, limit: int = 0) -> "ChainVerificationResult":
+        """
+        V6-3: Walk the hash chain and report any breaks.
+
+        Args:
+            limit: Maximum entries to verify (0 = all)
+
+        Returns:
+            ChainVerificationResult with verification status
+        """
+        with self._lock:
+            cursor = self._connection.cursor()
+            query = (
+                "SELECT entry_id, user_id, intent_type, description, "
+                "details_json, created_at, entry_hash, previous_hash "
+                "FROM intent_log ORDER BY created_at ASC"
+            )
+            if limit > 0:
+                query += f" LIMIT {int(limit)}"
+            cursor.execute(query)
+            rows = cursor.fetchall()
+
+            verified = 0
+            breaks: List[str] = []
+            expected_prev = "GENESIS"
+
+            for row in rows:
+                entry_hash = row["entry_hash"]
+                previous_hash = row["previous_hash"]
+
+                if entry_hash is None:
+                    # Pre-migration entry, skip
+                    continue
+
+                if previous_hash != expected_prev:
+                    breaks.append(
+                        f"Chain break at {row['entry_id']}: "
+                        f"expected previous_hash={expected_prev!r}, "
+                        f"got {previous_hash!r}"
+                    )
+
+                # Recompute hash
+                details = json.loads(row["details_json"]) if row["details_json"] else {}
+                payload = (
+                    f"{previous_hash}|{row['entry_id']}|{row['user_id']}|"
+                    f"{row['intent_type']}|{row['created_at']}|"
+                    f"{json.dumps(details, sort_keys=True) if details else ''}"
+                )
+                recomputed = hashlib.sha256(payload.encode()).hexdigest()
+                if recomputed != entry_hash:
+                    breaks.append(
+                        f"Hash mismatch at {row['entry_id']}: "
+                        f"stored={entry_hash[:16]}..., "
+                        f"computed={recomputed[:16]}..."
+                    )
+
+                verified += 1
+                expected_prev = entry_hash
+
+            return ChainVerificationResult(
+                entries_checked=verified,
+                chain_breaks=breaks,
+                is_valid=len(breaks) == 0,
+            )
+
     def _insert_entry(self, entry: IntentLogEntry) -> None:
         """Insert an entry into the database."""
+        # V6-3: Compute hash chain
+        previous_hash = self._latest_hash
+        entry_hash = self._compute_entry_hash(entry, previous_hash)
+
         cursor = self._connection.cursor()
         cursor.execute(
             """
             INSERT INTO intent_log (
                 entry_id, user_id, intent_type, description, details_json,
                 session_id, related_entity_type, related_entity_id,
-                ip_address, user_agent, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ip_address, user_agent, created_at, entry_hash, previous_hash
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 entry.entry_id,
@@ -399,9 +543,13 @@ class IntentLogStore:
                 entry.ip_address,
                 entry.user_agent,
                 entry.created_at.isoformat(),
+                entry_hash,
+                previous_hash,
             ),
         )
         self._connection.commit()
+        # V6-3: Advance the chain head
+        self._latest_hash = entry_hash
 
     def _get_entry(self, entry_id: str) -> Optional[IntentLogEntry]:
         """Get an entry from the database."""
