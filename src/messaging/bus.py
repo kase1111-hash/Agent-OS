@@ -182,7 +182,7 @@ class InMemoryMessageBus(MessageBus):
         max_audit_entries: int = 10000,
         max_dead_letters: int = 1000,
         delivery_timeout_seconds: float = 30.0,
-        max_messages_per_minute: int = 100,
+        max_messages_per_minute: int = 1000,
         identity_registry: object = None,
         channel_acls: Optional[Dict[str, set]] = None,
     ):

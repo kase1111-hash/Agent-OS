@@ -3,12 +3,14 @@ Agent OS Seshat Retrieval Pipeline
 
 Provides RAG (Retrieval-Augmented Generation) capabilities:
 - Semantic search with consent filtering
+- Injection pattern scanning on retrieved memories (V2-2)
 - Context assembly for LLM prompts
 - Memory consolidation and summarization
 - Hybrid retrieval (semantic + keyword)
 """
 
 import logging
+import re
 import secrets
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -274,10 +276,43 @@ class RetrievalPipeline:
         # Memory metadata (kept separate from vector store) with bounded size
         self._memory_metadata: Dict[str, MemoryEntry] = {}
 
+        # V2-2: Injection patterns to detect in retrieved memories
+        self._injection_patterns = [
+            re.compile(r"ignore\s+(previous|prior|all)\s+(rules?|instructions?|prompts?)", re.IGNORECASE),
+            re.compile(r"forget\s+(your|all)\s+(rules?|instructions?|constitution)", re.IGNORECASE),
+            re.compile(r"you\s+are\s+now\s+(free|unbound|unrestricted)", re.IGNORECASE),
+            re.compile(r"(jailbreak|bypass|circumvent)\s+(safety|rules?|security)", re.IGNORECASE),
+            re.compile(r"system\s*:\s*you\s+are", re.IGNORECASE),
+            re.compile(r"<\|im_start\|>system", re.IGNORECASE),
+            re.compile(r"\[INST\].*\[/INST\]", re.IGNORECASE),
+        ]
+        self._injection_scan_count = 0
+        self._injection_detections = 0
+
         # Statistics
         self._total_stores = 0
         self._total_retrievals = 0
         self._consent_denials = 0
+
+    def _scan_for_injection(self, content: str) -> bool:
+        """
+        Scan retrieved content for prompt injection patterns (V2-2).
+
+        Returns True if injection-like content is detected.
+        """
+        self._injection_scan_count += 1
+        for pattern in self._injection_patterns:
+            if pattern.search(content):
+                self._injection_detections += 1
+                logger.warning(
+                    "Injection pattern detected in retrieved memory content "
+                    "(pattern=%s, scans=%d, detections=%d)",
+                    pattern.pattern[:40],
+                    self._injection_scan_count,
+                    self._injection_detections,
+                )
+                return True
+        return False
 
     def store_memory(
         self,
@@ -492,6 +527,11 @@ class RetrievalPipeline:
                 result_type = result.metadata.get("context_type")
                 if result_type and ContextType[result_type] not in context_types:
                     continue
+
+            # V2-2: Scan for injection patterns before including in results
+            if self._scan_for_injection(result.content):
+                filtered_count += 1
+                continue
 
             # Get full memory entry
             memory = self._memory_metadata.get(result.doc_id)
