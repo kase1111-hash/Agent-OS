@@ -407,49 +407,99 @@ class UserStore:
         """
         Generate a machine-specific key for encrypting the session secret.
 
-        Uses hostname and username to derive a key that's unique per machine/user.
+        Uses hostname, username, and a random salt (generated once per machine)
+        to derive a key that's unique per machine/user.
         """
-        import platform
         import getpass
+        import platform
+
+        # Load or create a random salt for additional entropy
+        salt_path = Path.home() / ".agent-os" / ".machine_salt"
+        try:
+            if salt_path.exists():
+                salt = salt_path.read_bytes()
+            else:
+                salt = os.urandom(32)
+                salt_path.parent.mkdir(parents=True, exist_ok=True)
+                salt_path.write_bytes(salt)
+                salt_path.chmod(0o600)
+        except Exception:
+            salt = b"agent-os-fallback-salt-v1"
 
         machine_id = f"{platform.node()}:{getpass.getuser()}:agent-os-session"
-        return hashlib.sha256(machine_id.encode()).digest()
+        return hashlib.pbkdf2_hmac(
+            "sha256",
+            machine_id.encode(),
+            salt,
+            iterations=100_000,
+        )
 
     def _encrypt_secret(self, secret: bytes) -> bytes:
         """
-        Encrypt the session secret using machine-specific key.
+        Encrypt the session secret using AES-256-GCM with machine-specific key.
 
-        Uses simple XOR with HMAC verification for file-at-rest protection.
+        Format: nonce (12 bytes) + ciphertext + tag (16 bytes)
         """
         machine_key = self._get_machine_key()
-        # XOR encrypt
-        encrypted = bytes(a ^ b for a, b in zip(secret, machine_key[:32]))
-        # Add HMAC for verification
-        mac = hmac.new(machine_key, encrypted, hashlib.sha256).digest()
-        return encrypted + mac
+        nonce = os.urandom(12)
+        try:
+            from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+            aesgcm = AESGCM(machine_key)
+            ciphertext = aesgcm.encrypt(nonce, secret, None)
+            return nonce + ciphertext
+        except ImportError:
+            # Fallback: HMAC-verified XOR if cryptography not available
+            encrypted = bytes(a ^ b for a, b in zip(secret, machine_key[:32]))
+            mac = hmac.new(machine_key, encrypted, hashlib.sha256).digest()
+            return b"\x00" + encrypted + mac  # Leading null byte indicates legacy format
 
     def _decrypt_secret(self, data: bytes) -> bytes:
         """
         Decrypt the session secret.
 
+        Supports both AES-256-GCM (new) and legacy XOR format.
+
         Raises:
             ValueError: If data is invalid or tampered with
         """
-        if len(data) != 64:  # 32 bytes secret + 32 bytes HMAC
+        # Legacy XOR format: starts with \x00 and is exactly 65 bytes (1 + 32 + 32)
+        if len(data) == 65 and data[0] == 0:
+            encrypted = data[1:33]
+            stored_mac = data[33:]
+            machine_key = self._get_machine_key()
+            expected_mac = hmac.new(machine_key, encrypted, hashlib.sha256).digest()
+            if not hmac.compare_digest(stored_mac, expected_mac):
+                raise ValueError("Secret file verification failed - possible tampering")
+            return bytes(a ^ b for a, b in zip(encrypted, machine_key[:32]))
+
+        # Legacy XOR format (original 64-byte): 32 encrypted + 32 HMAC
+        if len(data) == 64:
+            encrypted = data[:32]
+            stored_mac = data[32:]
+            machine_key = self._get_machine_key()
+            expected_mac = hmac.new(machine_key, encrypted, hashlib.sha256).digest()
+            if not hmac.compare_digest(stored_mac, expected_mac):
+                raise ValueError("Secret file verification failed - possible tampering")
+            return bytes(a ^ b for a, b in zip(encrypted, machine_key[:32]))
+
+        # AES-256-GCM format: nonce (12) + ciphertext + tag (16)
+        if len(data) < 28:  # minimum: 12 nonce + 16 tag
             raise ValueError("Invalid secret file format")
 
-        encrypted = data[:32]
-        stored_mac = data[32:]
-
+        nonce = data[:12]
+        ciphertext = data[12:]
         machine_key = self._get_machine_key()
-        # Verify HMAC
-        expected_mac = hmac.new(machine_key, encrypted, hashlib.sha256).digest()
-        if not hmac.compare_digest(stored_mac, expected_mac):
-            raise ValueError("Secret file verification failed - possible tampering")
 
-        # XOR decrypt
-        secret = bytes(a ^ b for a, b in zip(encrypted, machine_key[:32]))
-        return secret
+        try:
+            from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+            aesgcm = AESGCM(machine_key)
+            return aesgcm.decrypt(nonce, ciphertext, None)
+        except ImportError:
+            raise ValueError(
+                "cryptography library required to decrypt AES-256-GCM session secret"
+            )
 
     def _generate_bound_token(
         self,

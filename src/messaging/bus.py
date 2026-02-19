@@ -182,6 +182,9 @@ class InMemoryMessageBus(MessageBus):
         max_audit_entries: int = 10000,
         max_dead_letters: int = 1000,
         delivery_timeout_seconds: float = 30.0,
+        max_messages_per_minute: int = 100,
+        identity_registry: object = None,
+        channel_acls: Optional[Dict[str, set]] = None,
     ):
         """
         Initialize the in-memory message bus.
@@ -191,6 +194,9 @@ class InMemoryMessageBus(MessageBus):
             max_audit_entries: Maximum audit log entries to keep
             max_dead_letters: Maximum dead letter messages to keep
             delivery_timeout_seconds: Timeout for message delivery
+            max_messages_per_minute: Rate limit per agent (V10-1)
+            identity_registry: AgentIdentityRegistry for sender verification (V4-2)
+            channel_acls: Channel-level access control lists (V4-4)
         """
         self._subscriptions: Dict[str, List[Subscription]] = defaultdict(list)
         self._channel_stats: Dict[str, ChannelStats] = {}
@@ -211,16 +217,68 @@ class InMemoryMessageBus(MessageBus):
         # Worker threads for processing messages
         self._workers: Dict[str, threading.Thread] = {}
 
+        # V4-2: Agent identity verification
+        self._identity_registry = identity_registry
+
+        # V4-4: Channel-level access control lists
+        # Maps channel name -> set of agent names allowed to publish
+        self._channel_acls: Dict[str, set] = channel_acls or {}
+
+        # V10-1: Per-agent rate limiting
+        self._max_messages_per_minute = max_messages_per_minute
+        self._agent_message_times: Dict[str, list] = defaultdict(list)
+
         logger.info("InMemoryMessageBus initialized")
+
+    def _check_agent_rate_limit(self, source: str) -> bool:
+        """Check per-agent rate limit (V10-1). Returns True if within limit."""
+        import time
+
+        now = time.time()
+        times = self._agent_message_times[source]
+        # Remove entries older than 60s
+        while times and times[0] < now - 60:
+            times.pop(0)
+        if len(times) >= self._max_messages_per_minute:
+            return False
+        times.append(now)
+        return True
+
+    def _check_channel_acl(self, channel: str, source: str) -> bool:
+        """Check channel-level ACL (V4-4). Returns True if allowed."""
+        if not self._channel_acls:
+            return True
+        allowed = self._channel_acls.get(channel)
+        if allowed is None:
+            return True  # No ACL for this channel = open
+        return source in allowed
 
     def publish(
         self,
         channel: str,
         message: Union[FlowRequest, FlowResponse],
     ) -> bool:
-        """Publish a message to a channel."""
+        """Publish a message to a channel with security checks."""
         if not self._running:
             logger.warning("Cannot publish: bus is shutting down")
+            return False
+
+        # Extract source from message
+        source = getattr(message, "source", "unknown")
+
+        # V10-1: Check per-agent rate limit
+        if not self._check_agent_rate_limit(source):
+            logger.warning(
+                f"Rate limit exceeded for agent '{source}' on channel '{channel}' "
+                f"({self._max_messages_per_minute}/min)"
+            )
+            return False
+
+        # V4-4: Check channel ACL
+        if not self._check_channel_acl(channel, source):
+            logger.warning(
+                f"Agent '{source}' not authorized to publish to channel '{channel}'"
+            )
             return False
 
         with self._lock:
