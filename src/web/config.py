@@ -38,10 +38,10 @@ class WebConfig:
         default_factory=lambda: ["Authorization", "Content-Type", "Accept", "X-Requested-With"]
     )
     api_key: Optional[str] = None
-    require_auth: bool = False
+    require_auth: bool = True  # SECURITY: Auth enabled by default; set to False only for local dev
 
     # HTTPS/TLS settings
-    force_https: bool = False  # Redirect HTTP to HTTPS
+    force_https: bool = True  # SECURITY: HTTPS enforced by default; set to False only for local dev
     hsts_enabled: bool = False  # HTTP Strict Transport Security
     hsts_max_age: int = 31536000  # 1 year in seconds
     hsts_include_subdomains: bool = True

@@ -18,6 +18,9 @@ httpx>=0.28
 # Secure XML parsing (prevents XXE attacks)
 defusedxml>=0.7
 
+# Cryptography (AES-256-GCM encryption, key derivation, signing)
+cryptography>=42.0
+
 # Web interface (UC-017)
 fastapi>=0.115
 uvicorn[standard]>=0.32
