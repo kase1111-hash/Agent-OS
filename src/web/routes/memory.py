@@ -14,8 +14,10 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Cookie, HTTPException, Query, Request
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
+
+from ..auth_helpers import require_authenticated_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -510,27 +512,11 @@ def get_current_user_id(request: Request, session_token: Optional[str] = None) -
 
     Returns the authenticated user's ID.
     Raises HTTPException 401 if not authenticated.
+
+    Note: This wraps require_authenticated_user for backward compatibility
+    with endpoints that call it directly instead of via Depends().
     """
-    try:
-        from ..auth import get_user_store
-
-        # Get token from cookie or header
-        token = session_token
-        if not token:
-            auth_header = request.headers.get("authorization")
-            if auth_header and auth_header.startswith("Bearer "):
-                token = auth_header[7:]
-
-        if token:
-            store = get_user_store()
-            user = store.validate_session(token)
-            if user:
-                return user.user_id
-
-    except Exception as e:
-        logger.debug(f"Auth check failed: {e}")
-
-    raise HTTPException(status_code=401, detail="Authentication required")
+    return require_authenticated_user(request, session_token)
 
 
 # =============================================================================

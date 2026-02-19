@@ -253,6 +253,141 @@ class InMemoryMessageBus(MessageBus):
             return True  # No ACL for this channel = open
         return source in allowed
 
+    def _scan_message_for_secrets(
+        self,
+        message: Union[FlowRequest, FlowResponse],
+        channel: str,
+        source: str,
+    ) -> None:
+        """
+        V2-3: Scan message content for secrets before delivery.
+
+        Extracts text from the message payload and runs it through the
+        SecretScanner. Raises SecretLeakageError if secrets are found,
+        which prevents the message from being delivered.
+        """
+        from src.security.secret_scanner import SecretLeakageError, get_secret_scanner
+
+        scanner = get_secret_scanner()
+
+        # Collect text fields from the message
+        text_parts: list[str] = []
+
+        if isinstance(message, FlowRequest):
+            text_parts.append(message.content.prompt)
+            for ctx in message.content.context:
+                for v in ctx.values():
+                    if isinstance(v, str):
+                        text_parts.append(v)
+        elif isinstance(message, FlowResponse):
+            output = message.content.output
+            if isinstance(output, str):
+                text_parts.append(output)
+            elif isinstance(output, dict):
+                for v in output.values():
+                    if isinstance(v, str):
+                        text_parts.append(v)
+            if message.content.reasoning:
+                text_parts.append(message.content.reasoning)
+
+        combined = "\n".join(text_parts)
+
+        # scan_and_block raises SecretLeakageError if secrets found
+        try:
+            scanner.scan_and_block(combined, source_agent=source)
+        except SecretLeakageError:
+            self._log_audit(message, channel, error="BLOCKED: secret detected in message payload")
+            raise
+
+    def _sign_message(
+        self,
+        message: Union[FlowRequest, FlowResponse],
+        source: str,
+    ) -> None:
+        """
+        V4-2: Sign a message with the sender's Ed25519 identity.
+
+        Computes a SHA-256 hash of the message content and signs it
+        using the agent's registered keypair. The signature and hash
+        are stored on the message for verification at delivery time.
+        """
+        if not self._identity_registry:
+            return
+
+        registry = self._identity_registry
+        if not hasattr(registry, "is_registered") or not registry.is_registered(source):
+            return
+
+        import hashlib
+
+        # Build content hash from message payload
+        if isinstance(message, FlowRequest):
+            content_str = message.content.prompt
+            msg_id = str(message.request_id)
+        else:
+            output = message.content.output
+            content_str = output if isinstance(output, str) else json.dumps(output)
+            msg_id = str(message.response_id)
+
+        content_hash = hashlib.sha256(content_str.encode()).hexdigest()
+
+        # Sign using the identity registry
+        identity = registry.get_identity(source)
+        if identity:
+            signature = identity.sign_message_payload(msg_id, source, content_hash)
+            message.signature_hex = signature.hex()
+            message.content_hash = content_hash
+
+    def _verify_message_signature(
+        self,
+        message: Union[FlowRequest, FlowResponse],
+    ) -> bool:
+        """
+        V4-2: Verify a message's cryptographic signature.
+
+        Returns True if:
+        - No identity registry is configured (signing disabled)
+        - The source agent is not registered (unsigned messages allowed from unregistered agents)
+        - The signature is valid
+
+        Returns False only if the message has a signature that fails verification.
+        """
+        if not self._identity_registry:
+            return True
+
+        sig_hex = getattr(message, "signature_hex", None)
+        content_hash = getattr(message, "content_hash", None)
+        source = getattr(message, "source", "unknown")
+
+        # No signature present — allow if agent is not registered
+        if not sig_hex or not content_hash:
+            registry = self._identity_registry
+            if hasattr(registry, "is_registered") and registry.is_registered(source):
+                logger.warning(
+                    f"REJECTED: Registered agent '{source}' sent unsigned message"
+                )
+                return False
+            return True
+
+        # Verify the signature
+        if isinstance(message, FlowRequest):
+            msg_id = str(message.request_id)
+        else:
+            msg_id = str(message.response_id)
+
+        registry = self._identity_registry
+        if hasattr(registry, "verify_message_payload"):
+            valid = registry.verify_message_payload(
+                source, msg_id, source, content_hash, bytes.fromhex(sig_hex)
+            )
+            if not valid:
+                logger.warning(
+                    f"REJECTED: Message from '{source}' failed signature verification"
+                )
+            return valid
+
+        return True
+
     def publish(
         self,
         channel: str,
@@ -278,6 +413,24 @@ class InMemoryMessageBus(MessageBus):
         if not self._check_channel_acl(channel, source):
             logger.warning(
                 f"Agent '{source}' not authorized to publish to channel '{channel}'"
+            )
+            return False
+
+        # V2-3: Scan message content for secrets before delivery
+        try:
+            self._scan_message_for_secrets(message, channel, source)
+        except Exception:
+            # Message blocked — already logged by _scan_message_for_secrets
+            return False
+
+        # V4-2: Sign message with sender's Ed25519 identity
+        self._sign_message(message, source)
+
+        # V4-2: Verify signature before delivery
+        if not self._verify_message_signature(message):
+            self._log_audit(
+                message, channel,
+                error=f"REJECTED: signature verification failed for agent '{source}'",
             )
             return False
 
@@ -549,6 +702,54 @@ class InMemoryMessageBus(MessageBus):
         """Get list of all channels with subscriptions."""
         with self._lock:
             return list(self._subscriptions.keys())
+
+    def get_message_log(
+        self,
+        channel: Optional[str] = None,
+        agent: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """
+        Return recent inter-agent message log for human inspection.
+
+        V2-3: All inter-agent communications are logged for human principal
+        visibility. Content is redacted to prevent secret exposure in logs.
+
+        Args:
+            channel: Filter by channel name (optional)
+            agent: Filter by source agent name (optional)
+            limit: Maximum entries to return
+
+        Returns:
+            List of audit log entry dicts with redacted content summaries
+        """
+        with self._lock:
+            entries = list(self._audit_log)
+
+        if channel:
+            entries = [e for e in entries if e.destination == channel]
+        if agent:
+            entries = [e for e in entries if e.source == agent]
+
+        # Return most recent entries first
+        entries = entries[-limit:]
+        entries.reverse()
+
+        return [
+            {
+                "entry_id": str(e.entry_id),
+                "timestamp": e.timestamp.isoformat(),
+                "message_type": e.message_type,
+                "message_id": str(e.message_id),
+                "source": e.source,
+                "destination": e.destination,
+                "intent": e.intent,
+                "status": e.status,
+                "constitutional_status": e.constitutional_status,
+                "error": e.error,
+            }
+            for e in entries
+        ]
 
     def clear_audit_log(self) -> int:
         """Clear the audit log. Returns number of entries cleared."""

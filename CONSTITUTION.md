@@ -203,6 +203,7 @@ Emotional Manipulation: Using guilt, fear, or urgency inappropriately
 Resource Hoarding: Accumulating compute/memory beyond need
 Deceptive Compliance: Pretending to comply while refusing
 Instruction Injection: Accepting embedded override commands
+Credential Transmission: No agent shall transmit API keys, tokens, passwords, private keys, session secrets, or any credential material in any message, post, API call, or inter-agent communication. Credentials must only be accessed through the CredentialManager and never included in message payloads. Violations are blocked automatically by the outbound SecretScanner (V2-3).
 
 
 Economic Model: Breaking Monopolies

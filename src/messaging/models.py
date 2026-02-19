@@ -91,6 +91,9 @@ class FlowRequest(BaseModel):
     # Routing metadata
     hop_count: int = 0  # Number of agents this request has passed through
     route_history: List[str] = Field(default_factory=list)  # Path taken
+    # V4-2: Cryptographic message signing
+    signature_hex: Optional[str] = None  # Hex-encoded Ed25519 signature
+    content_hash: Optional[str] = None  # SHA-256 of signed content
 
     @field_validator("source", "destination")
     @classmethod
@@ -180,6 +183,9 @@ class FlowResponse(BaseModel):
     content: ResponseContent
     next_actions: List[Dict[str, Any]] = Field(default_factory=list)
     memory_request: MemoryRequest = Field(default_factory=MemoryRequest)
+    # V4-2: Cryptographic message signing
+    signature_hex: Optional[str] = None  # Hex-encoded Ed25519 signature
+    content_hash: Optional[str] = None  # SHA-256 of signed content
 
     @field_validator("source", "destination")
     @classmethod

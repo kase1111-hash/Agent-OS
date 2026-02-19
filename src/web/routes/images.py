@@ -17,9 +17,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+
+from ..auth_helpers import require_admin_user, require_authenticated_user
 
 logger = logging.getLogger(__name__)
 
@@ -763,13 +765,18 @@ def get_generator() -> ImageGenerator:
 
 
 @router.get("/models", response_model=List[ImageModelInfo])
-async def list_models():
+async def list_models(
+    user_id: str = Depends(require_authenticated_user),
+):
     """List available image generation models."""
     return AVAILABLE_MODELS
 
 
 @router.get("/models/{model_id}", response_model=ImageModelInfo)
-async def get_model(model_id: str):
+async def get_model(
+    model_id: str,
+    user_id: str = Depends(require_authenticated_user),
+):
     """Get information about a specific model."""
     for model in AVAILABLE_MODELS:
         if model.id == model_id:
@@ -781,6 +788,7 @@ async def get_model(model_id: str):
 async def generate_image(
     request: ImageGenerationRequest,
     background_tasks: BackgroundTasks,
+    user_id: str = Depends(require_authenticated_user),
 ):
     """
     Generate images from a text prompt.
@@ -811,7 +819,10 @@ async def generate_image(
 
 
 @router.get("/generate/{job_id}", response_model=ImageGenerationResponse)
-async def get_generation_status(job_id: str):
+async def get_generation_status(
+    job_id: str,
+    user_id: str = Depends(require_authenticated_user),
+):
     """Get the status of a generation job."""
     store = get_image_store()
     job = store.get_job(job_id)
@@ -839,7 +850,10 @@ async def get_generation_status(job_id: str):
 
 
 @router.get("/jobs", response_model=List[ImageGenerationResponse])
-async def list_jobs(limit: int = 50):
+async def list_jobs(
+    limit: int = 50,
+    user_id: str = Depends(require_authenticated_user),
+):
     """List recent generation jobs."""
     store = get_image_store()
     jobs = store.list_jobs(limit)
@@ -860,14 +874,21 @@ async def list_jobs(limit: int = 50):
 
 
 @router.get("/gallery", response_model=List[GalleryImage])
-async def get_gallery(limit: int = 50, offset: int = 0):
+async def get_gallery(
+    limit: int = 50,
+    offset: int = 0,
+    user_id: str = Depends(require_authenticated_user),
+):
     """Get gallery of generated images."""
     store = get_image_store()
     return store.get_gallery(limit, offset)
 
 
 @router.delete("/gallery/{image_id}")
-async def delete_gallery_image(image_id: str):
+async def delete_gallery_image(
+    image_id: str,
+    admin_id: str = Depends(require_admin_user),
+):
     """Delete an image from the gallery."""
     store = get_image_store()
     if store.delete_from_gallery(image_id):
@@ -876,7 +897,10 @@ async def delete_gallery_image(image_id: str):
 
 
 @router.get("/image/{image_id}")
-async def get_image(image_id: str):
+async def get_image(
+    image_id: str,
+    user_id: str = Depends(require_authenticated_user),
+):
     """Get a generated image by ID."""
     store = get_image_store()
 
@@ -907,7 +931,9 @@ async def get_image(image_id: str):
 
 
 @router.get("/stats")
-async def get_stats():
+async def get_stats(
+    user_id: str = Depends(require_authenticated_user),
+):
     """Get image generation statistics."""
     store = get_image_store()
     jobs = list(store.jobs.values())
