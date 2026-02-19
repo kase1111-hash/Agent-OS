@@ -159,6 +159,21 @@ def _create_rate_limiter():
     )
 
 
+def _harden_sqlite_path(db_path) -> None:
+    """V6-6: Set restrictive file permissions on SQLite database files."""
+    import os
+
+    try:
+        if db_path.exists():
+            os.chmod(db_path, 0o600)
+        for suffix in ("-wal", "-shm"):
+            wal_path = db_path.parent / (db_path.name + suffix)
+            if wal_path.exists():
+                os.chmod(wal_path, 0o600)
+    except OSError:
+        pass
+
+
 def _create_user_store():
     """Factory for UserStore."""
     from src.web.auth import UserStore
@@ -169,6 +184,7 @@ def _create_user_store():
 
     store = UserStore(db_path)
     store.initialize()
+    _harden_sqlite_path(db_path)
     return store
 
 
@@ -182,6 +198,7 @@ def _create_conversation_store():
 
     store = ConversationStore(db_path)
     store.initialize()
+    _harden_sqlite_path(db_path)
     return store
 
 
@@ -195,6 +212,7 @@ def _create_intent_log_store():
 
     store = IntentLogStore(db_path)
     store.initialize()
+    _harden_sqlite_path(db_path)
     return store
 
 

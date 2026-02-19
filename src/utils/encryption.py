@@ -122,6 +122,12 @@ class EncryptionService:
     def _try_file_load(self) -> Optional[bytes]:
         """Try to load master key from encrypted file."""
         key_file = os.path.expanduser("~/.agent-os/encryption.key")
+        # V6-1: Use configurable config directory
+        try:
+            from src.utils.paths import get_encryption_key_path
+            key_file = get_encryption_key_path()
+        except ImportError:
+            pass
         if not os.path.exists(key_file):
             return None
 
@@ -224,6 +230,12 @@ class EncryptionService:
 
         # Fall back to encrypted file storage
         key_file = os.path.expanduser("~/.agent-os/encryption.key")
+        # V6-1: Use configurable config directory
+        try:
+            from src.utils.paths import get_encryption_key_path
+            key_file = get_encryption_key_path()
+        except ImportError:
+            pass
         try:
             key_dir = os.path.dirname(key_file)
             os.makedirs(key_dir, mode=0o700, exist_ok=True)
@@ -390,6 +402,12 @@ class CredentialManager:
         self.encryption = encryption_service or EncryptionService()
         self._credentials: Dict[str, str] = {}
         self._storage_path = os.path.expanduser("~/.agent-os/credentials.enc")
+        # V6-1: Use configurable config directory
+        try:
+            from src.utils.paths import get_credentials_path
+            self._storage_path = get_credentials_path()
+        except ImportError:
+            pass
 
     def store(self, key: str, value: str) -> None:
         """Store an encrypted credential."""

@@ -32,11 +32,9 @@ jobs:
 
       - name: Run safety check
         run: safety check -r requirements.txt --full-report
-        continue-on-error: true
 
       - name: Run pip-audit
         run: pip-audit -r requirements.txt --desc
-        continue-on-error: true
 
   secret-scan:
     name: Secret Detection
@@ -54,7 +52,6 @@ jobs:
 
       - name: Run gitleaks
         run: ./gitleaks detect --source . --verbose --redact
-        continue-on-error: true
 
   sast:
     name: Static Analysis (SAST)
@@ -77,8 +74,7 @@ jobs:
             -o bandit-results.json \
             --severity-level medium \
             --confidence-level medium \
-            -x "**/tests/**" \
-            || true
+            -x "**/tests/**"
 
       - name: Display bandit results
         run: |

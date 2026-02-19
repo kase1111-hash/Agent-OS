@@ -414,7 +414,12 @@ class UserStore:
         import platform
 
         # Load or create a random salt for additional entropy
-        salt_path = Path.home() / ".agent-os" / ".machine_salt"
+        # V6-1: Use configurable config directory
+        try:
+            from src.utils.paths import get_machine_salt_path
+            salt_path = get_machine_salt_path()
+        except ImportError:
+            salt_path = Path.home() / ".agent-os" / ".machine_salt"
         try:
             if salt_path.exists():
                 salt = salt_path.read_bytes()

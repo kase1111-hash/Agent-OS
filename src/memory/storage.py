@@ -53,9 +53,14 @@ class BlobStatus(Enum):
 
     ACTIVE = auto()
     SEALED = auto()
+    QUARANTINED = auto()  # V2-2: Untrusted source, awaiting human review
     PENDING_DELETE = auto()
     DELETED = auto()
     CORRUPTED = auto()
+
+
+# V2-2: Trust levels that trigger automatic quarantine
+QUARANTINE_TRUST_LEVELS = {SourceTrustLevel.EXTERNAL_DOCUMENT, SourceTrustLevel.LLM_OUTPUT}
 
 
 class SourceTrustLevel(Enum):
@@ -251,6 +256,49 @@ class BlobStorage:
         self._ensure_directories()
         self._load_metadata_cache()
 
+    def _log_memory_intent(
+        self,
+        action: str,
+        blob_id: str,
+        metadata: Optional["BlobMetadata"] = None,
+        actor: Optional[str] = None,
+    ) -> None:
+        """
+        V3-1: Log memory operations to the intent log for audit trail.
+
+        This is a best-effort operation — failures are logged but do not
+        block the storage operation.
+        """
+        try:
+            from src.web.intent_log import IntentType, log_user_intent
+
+            intent_map = {
+                "store": IntentType.MEMORY_CREATE,
+                "retrieve": IntentType.MEMORY_SEARCH,
+                "delete": IntentType.MEMORY_DELETE,
+            }
+            intent_type = intent_map.get(action, IntentType.SYSTEM_ACTION)
+
+            details: Dict[str, Any] = {"blob_id": blob_id}
+            if metadata:
+                details["source_trust_level"] = metadata.source_trust_level.name
+                details["source_agent"] = metadata.source_agent
+                details["status"] = metadata.status.name
+                details["tier"] = metadata.tier.name
+                details["size_bytes"] = metadata.size_bytes
+
+            log_user_intent(
+                user_id=actor or metadata.source_agent if metadata else "system",
+                intent_type=intent_type,
+                description=f"Memory {action}: {blob_id}",
+                details=details,
+                related_entity_type="memory_blob",
+                related_entity_id=blob_id,
+            )
+        except Exception as e:
+            # Best-effort: don't block storage on intent log failures
+            logger.debug(f"Intent log for memory {action} failed: {e}")
+
     def _ensure_directories(self) -> None:
         """Create storage directories if they don't exist."""
         self._blobs_dir.mkdir(parents=True, exist_ok=True)
@@ -266,6 +314,8 @@ class BlobStorage:
         tags: Optional[List[str]] = None,
         custom_metadata: Optional[Dict[str, Any]] = None,
         ttl_seconds: Optional[int] = None,
+        source_trust_level: SourceTrustLevel = SourceTrustLevel.AGENT_GENERATED,
+        source_agent: Optional[str] = None,
     ) -> BlobMetadata:
         """
         Store encrypted data.
@@ -278,6 +328,8 @@ class BlobStorage:
             tags: Optional tags
             custom_metadata: Optional custom metadata
             ttl_seconds: Optional time-to-live
+            source_trust_level: V2-1 provenance — trust level of the data source
+            source_agent: V2-1 provenance — which agent produced this data
 
         Returns:
             BlobMetadata for stored blob
@@ -297,6 +349,9 @@ class BlobStorage:
             aesgcm = AESGCM(derived_key.key)
             ciphertext = aesgcm.encrypt(nonce, data, None)
 
+            # V2-2: Determine if this blob should be quarantined
+            quarantined = source_trust_level in QUARANTINE_TRUST_LEVELS
+
             # Create metadata
             now = datetime.now()
             metadata = BlobMetadata(
@@ -313,7 +368,16 @@ class BlobStorage:
                 ttl_seconds=ttl_seconds,
                 tags=tags or [],
                 custom_metadata=custom_metadata or {},
+                source_trust_level=source_trust_level,
+                source_agent=source_agent,
+                status=BlobStatus.QUARANTINED if quarantined else BlobStatus.ACTIVE,
             )
+
+            if quarantined:
+                logger.info(
+                    f"Quarantined blob {blob_id} from {source_agent or 'unknown'} "
+                    f"(trust_level={source_trust_level.name})"
+                )
 
             # Create encrypted blob
             encrypted_blob = EncryptedBlob(
@@ -344,6 +408,7 @@ class BlobStorage:
                 raise IOError(f"Failed to persist metadata for blob {blob_id}: {e}") from e
 
             logger.info(f"Stored blob: {blob_id} (tier={tier.name}, size={len(data)})")
+            self._log_memory_intent("store", blob_id, metadata, actor=source_agent)
             return metadata
 
     def store_text(
@@ -481,12 +546,19 @@ class BlobStorage:
             )
             return metadata
 
-    def retrieve(self, blob_id: str) -> Optional[bytes]:
+    def retrieve(
+        self,
+        blob_id: str,
+        include_quarantined: bool = False,
+    ) -> Optional[bytes]:
         """
         Retrieve and decrypt a blob.
 
         Args:
             blob_id: Blob identifier
+            include_quarantined: If True, allow retrieving quarantined blobs.
+                                 Default False for safety — quarantined content
+                                 requires explicit opt-in (V2-2).
 
         Returns:
             Decrypted data or None if not found
@@ -496,7 +568,11 @@ class BlobStorage:
             if not metadata:
                 return None
 
-            if metadata.status not in (BlobStatus.ACTIVE, BlobStatus.SEALED):
+            allowed_statuses = {BlobStatus.ACTIVE, BlobStatus.SEALED}
+            if include_quarantined:
+                allowed_statuses.add(BlobStatus.QUARANTINED)
+
+            if metadata.status not in allowed_statuses:
                 logger.warning(f"Attempted access to non-active blob: {blob_id}")
                 return None
 
@@ -567,6 +643,7 @@ class BlobStorage:
             metadata.accessed_at = now
         metadata.access_count += 1
         self._persist_metadata(metadata)
+        self._log_memory_intent("retrieve", blob_id, metadata)
 
         return plaintext
 
@@ -732,6 +809,7 @@ class BlobStorage:
             del self._cache[blob_id]
 
             logger.info(f"Deleted blob: {blob_id} (secure={secure})")
+            self._log_memory_intent("delete", blob_id, metadata)
             return True
 
     def seal(self, blob_id: str) -> bool:
@@ -786,15 +864,18 @@ class BlobStorage:
         status: Optional[BlobStatus] = None,
         consent_id: Optional[str] = None,
         tags: Optional[List[str]] = None,
+        include_quarantined: bool = False,
     ) -> List[BlobMetadata]:
         """
         List blobs with optional filters.
 
         Args:
             tier: Filter by tier
-            status: Filter by status
+            status: Filter by status (overrides include_quarantined filter)
             consent_id: Filter by consent
             tags: Filter by tags (any match)
+            include_quarantined: If True, include quarantined blobs in results.
+                                 Ignored when status filter is explicitly set.
 
         Returns:
             List of matching blob metadata
@@ -806,6 +887,9 @@ class BlobStorage:
 
         if status:
             blobs = [b for b in blobs if b.status == status]
+        elif not include_quarantined:
+            # V2-2: Exclude quarantined blobs by default
+            blobs = [b for b in blobs if b.status != BlobStatus.QUARANTINED]
 
         if consent_id:
             blobs = [b for b in blobs if b.consent_id == consent_id]
@@ -815,6 +899,43 @@ class BlobStorage:
             blobs = [b for b in blobs if tag_set & set(b.tags)]
 
         return blobs
+
+    def promote_from_quarantine(self, blob_id: str) -> Optional[BlobMetadata]:
+        """
+        Promote a quarantined blob to active status after human review.
+
+        V2-2: Only quarantined blobs can be promoted. This is the explicit
+        opt-in mechanism for content from untrusted sources.
+
+        Args:
+            blob_id: Blob identifier
+
+        Returns:
+            Updated BlobMetadata if promoted, None if blob not found or not quarantined
+        """
+        with self._lock:
+            metadata = self._cache.get(blob_id)
+            if not metadata:
+                logger.warning(f"Cannot promote: blob not found: {blob_id}")
+                return None
+
+            if metadata.status != BlobStatus.QUARANTINED:
+                logger.warning(
+                    f"Cannot promote: blob {blob_id} is not quarantined "
+                    f"(status={metadata.status.name})"
+                )
+                return None
+
+            metadata.status = BlobStatus.ACTIVE
+            metadata.modified_at = datetime.now()
+            self._persist_metadata(metadata)
+
+            logger.info(
+                f"Promoted blob {blob_id} from quarantine to active "
+                f"(source={metadata.source_agent}, "
+                f"trust_level={metadata.source_trust_level.name})"
+            )
+            return metadata
 
     def get_storage_stats(self) -> Dict[str, Any]:
         """Get storage statistics."""
