@@ -299,6 +299,95 @@ class InMemoryMessageBus(MessageBus):
             self._log_audit(message, channel, error="BLOCKED: secret detected in message payload")
             raise
 
+    def _sign_message(
+        self,
+        message: Union[FlowRequest, FlowResponse],
+        source: str,
+    ) -> None:
+        """
+        V4-2: Sign a message with the sender's Ed25519 identity.
+
+        Computes a SHA-256 hash of the message content and signs it
+        using the agent's registered keypair. The signature and hash
+        are stored on the message for verification at delivery time.
+        """
+        if not self._identity_registry:
+            return
+
+        registry = self._identity_registry
+        if not hasattr(registry, "is_registered") or not registry.is_registered(source):
+            return
+
+        import hashlib
+
+        # Build content hash from message payload
+        if isinstance(message, FlowRequest):
+            content_str = message.content.prompt
+            msg_id = str(message.request_id)
+        else:
+            output = message.content.output
+            content_str = output if isinstance(output, str) else json.dumps(output)
+            msg_id = str(message.response_id)
+
+        content_hash = hashlib.sha256(content_str.encode()).hexdigest()
+
+        # Sign using the identity registry
+        identity = registry.get_identity(source)
+        if identity:
+            signature = identity.sign_message_payload(msg_id, source, content_hash)
+            message.signature_hex = signature.hex()
+            message.content_hash = content_hash
+
+    def _verify_message_signature(
+        self,
+        message: Union[FlowRequest, FlowResponse],
+    ) -> bool:
+        """
+        V4-2: Verify a message's cryptographic signature.
+
+        Returns True if:
+        - No identity registry is configured (signing disabled)
+        - The source agent is not registered (unsigned messages allowed from unregistered agents)
+        - The signature is valid
+
+        Returns False only if the message has a signature that fails verification.
+        """
+        if not self._identity_registry:
+            return True
+
+        sig_hex = getattr(message, "signature_hex", None)
+        content_hash = getattr(message, "content_hash", None)
+        source = getattr(message, "source", "unknown")
+
+        # No signature present — allow if agent is not registered
+        if not sig_hex or not content_hash:
+            registry = self._identity_registry
+            if hasattr(registry, "is_registered") and registry.is_registered(source):
+                logger.warning(
+                    f"REJECTED: Registered agent '{source}' sent unsigned message"
+                )
+                return False
+            return True
+
+        # Verify the signature
+        if isinstance(message, FlowRequest):
+            msg_id = str(message.request_id)
+        else:
+            msg_id = str(message.response_id)
+
+        registry = self._identity_registry
+        if hasattr(registry, "verify_message_payload"):
+            valid = registry.verify_message_payload(
+                source, msg_id, source, content_hash, bytes.fromhex(sig_hex)
+            )
+            if not valid:
+                logger.warning(
+                    f"REJECTED: Message from '{source}' failed signature verification"
+                )
+            return valid
+
+        return True
+
     def publish(
         self,
         channel: str,
@@ -332,6 +421,17 @@ class InMemoryMessageBus(MessageBus):
             self._scan_message_for_secrets(message, channel, source)
         except Exception:
             # Message blocked — already logged by _scan_message_for_secrets
+            return False
+
+        # V4-2: Sign message with sender's Ed25519 identity
+        self._sign_message(message, source)
+
+        # V4-2: Verify signature before delivery
+        if not self._verify_message_signature(message):
+            self._log_audit(
+                message, channel,
+                error=f"REJECTED: signature verification failed for agent '{source}'",
+            )
             return False
 
         with self._lock:
