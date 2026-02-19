@@ -6,6 +6,7 @@ All tools must be registered before use.
 """
 
 import hashlib
+import hmac as hmac_module
 import json
 import logging
 import secrets
@@ -419,8 +420,19 @@ class ToolRegistry:
             except Exception as e:
                 logger.warning(f"Event handler error: {e}")
 
+    def _get_registry_hmac_key(self) -> bytes:
+        """Derive an HMAC key for registry state integrity verification."""
+        # Use a deterministic key derived from the storage path
+        key_material = f"agent-os-registry-v1:{self._storage_path}".encode()
+        return hashlib.sha256(key_material).digest()
+
+    def _compute_state_hmac(self, state_json: str) -> str:
+        """Compute HMAC-SHA256 of the serialized state."""
+        key = self._get_registry_hmac_key()
+        return hmac_module.new(key, state_json.encode(), hashlib.sha256).hexdigest()
+
     def _save_state(self) -> None:
-        """Save registry state to disk."""
+        """Save registry state to disk with HMAC integrity verification."""
         if not self._storage_path:
             return
 
@@ -446,14 +458,22 @@ class ToolRegistry:
                 "saved_at": datetime.now().isoformat(),
             }
 
+            state_json = json.dumps(state, sort_keys=True)
+            state_hmac = self._compute_state_hmac(state_json)
+
+            signed_state = {
+                "state": state,
+                "hmac": state_hmac,
+            }
+
             with open(state_file, "w") as f:
-                json.dump(state, f, indent=2)
+                json.dump(signed_state, f, indent=2)
 
         except Exception as e:
             logger.error(f"Failed to save registry state: {e}")
 
     def _load_state(self) -> None:
-        """Load registry state from disk."""
+        """Load registry state from disk with HMAC integrity verification."""
         if not self._storage_path:
             return
 
@@ -463,7 +483,28 @@ class ToolRegistry:
 
         try:
             with open(state_file, "r") as f:
-                state = json.load(f)
+                raw = json.load(f)
+
+            # Handle both signed (new) and unsigned (legacy) formats
+            if "hmac" in raw and "state" in raw:
+                state = raw["state"]
+                stored_hmac = raw["hmac"]
+                # Verify HMAC
+                state_json = json.dumps(state, sort_keys=True)
+                expected_hmac = self._compute_state_hmac(state_json)
+                if not hmac_module.compare_digest(stored_hmac, expected_hmac):
+                    logger.error(
+                        "Registry state HMAC verification failed — possible tampering. "
+                        "State file will not be loaded."
+                    )
+                    return
+            else:
+                # Legacy unsigned format — load but log warning
+                state = raw
+                logger.warning(
+                    "Registry state file has no HMAC signature. "
+                    "It will be re-signed on next save."
+                )
 
             # Restore name index
             self._by_name = state.get("name_index", {})

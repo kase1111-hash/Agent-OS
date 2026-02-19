@@ -262,6 +262,12 @@ Real-time streaming is available via WebSocket:
         allow_headers=config.cors_headers,
     )
 
+    # Security headers middleware (CSP, X-Frame-Options, etc.)
+    from .middleware import SecurityHeadersMiddleware
+
+    app.add_middleware(SecurityHeadersMiddleware)
+    logger.info("Security headers middleware enabled (CSP, X-Frame-Options, X-Content-Type-Options)")
+
     # HTTPS enforcement and HSTS middleware
     if config.force_https or config.hsts_enabled:
         from .middleware import HTTPSRedirectMiddleware
@@ -361,8 +367,28 @@ Real-time streaming is available via WebSocket:
 
     # Health check
     @app.get("/health")
-    async def health_check():
-        """Health check endpoint — actually checks component health."""
+    async def health_check(request: Request):
+        """Health check endpoint — returns minimal info unless authenticated."""
+        # Check if the caller is authenticated for detailed health info
+        is_authenticated = False
+        if config.require_auth:
+            try:
+                from .auth import get_user_store
+
+                token = request.cookies.get("session_token")
+                if not token:
+                    auth_header = request.headers.get("authorization")
+                    if auth_header and auth_header.startswith("Bearer "):
+                        token = auth_header[7:]
+                if token:
+                    store = get_user_store()
+                    user = store.validate_session(token)
+                    is_authenticated = user is not None
+            except Exception:
+                pass
+        else:
+            is_authenticated = True
+
         components = {}
 
         # API is up if we're responding
@@ -407,6 +433,13 @@ Real-time streaming is available via WebSocket:
             overall = "unhealthy"
         else:
             overall = "degraded"
+
+        # Return minimal info for unauthenticated requests
+        if not is_authenticated:
+            return {
+                "status": overall,
+                "version": API_VERSION,
+            }
 
         return {
             "status": overall,

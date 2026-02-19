@@ -21,6 +21,10 @@ services:
       - AGENT_OS_WEB_HOST=0.0.0.0
       - AGENT_OS_WEB_PORT=8080
       - AGENT_OS_DATA_DIR=/app/data
+      # SECURITY: Authentication required - API key must be set
+      - AGENT_OS_REQUIRE_AUTH=${AGENT_OS_REQUIRE_AUTH:-true}
+      - AGENT_OS_API_KEY=${AGENT_OS_API_KEY:?AGENT_OS_API_KEY must be set - generate with: python -c "import secrets; print(secrets.token_urlsafe(32))"}
+      - AGENT_OS_FORCE_HTTPS=${AGENT_OS_FORCE_HTTPS:-true}
       - AGENT_OS_RATE_LIMIT_ENABLED=${AGENT_OS_RATE_LIMIT_ENABLED:-true}
       - AGENT_OS_RATE_LIMIT_REDIS=${AGENT_OS_RATE_LIMIT_REDIS:-true}
       - AGENT_OS_REDIS_URL=redis://redis:6379

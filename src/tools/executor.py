@@ -7,6 +7,7 @@ Supports subprocess, container, and in-process execution modes.
 
 import json
 import logging
+import os
 import secrets
 import subprocess
 import threading
@@ -477,6 +478,25 @@ class ToolExecutor:
             error="No result returned",
         )
 
+    def _get_restricted_env(self) -> Dict[str, str]:
+        """Get a restricted environment for subprocess execution.
+
+        Strips sensitive environment variables to prevent credential leakage.
+        """
+        env = dict(os.environ)
+        sensitive_prefixes = [
+            "AGENT_OS_API_KEY", "AGENT_OS_ENCRYPTION_KEY", "AGENT_OS_SESSION_SECRET",
+            "AWS_", "OPENAI_", "ANTHROPIC_", "HF_TOKEN", "GITHUB_TOKEN",
+            "DATABASE_URL",
+        ]
+        for key in list(env.keys()):
+            for prefix in sensitive_prefixes:
+                if key.startswith(prefix):
+                    del env[key]
+                    break
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
+        return env
+
     def _execute_subprocess(
         self,
         tool: ToolInterface,
@@ -484,44 +504,65 @@ class ToolExecutor:
         timeout: int,
         context: ExecutionContext,
     ) -> ToolResult:
-        """Execute tool in isolated subprocess."""
-        context.log("Executing in subprocess")
+        """Execute tool in isolated subprocess with real process isolation."""
+        import json as json_module
+        import sys
+        import tempfile
 
-        # Build subprocess command
-        wrapper_code = f"""
-import json
-import sys
+        context.log("Executing in subprocess isolation")
 
-# Tool execution wrapper
-try:
-    # Import and execute
-    from {tool.__class__.__module__} import {tool.__class__.__name__}
-
-    params = json.loads(sys.argv[1])
-    tool_instance = {tool.__class__.__name__}("{tool.name}")
-
-    result = tool_instance.invoke(params)
-
-    # Output result
-    print(json.dumps({{
-        "success": True,
-        "result": result.result.name,
-        "output": result.output,
-        "error": result.error,
-        "execution_time_ms": result.execution_time_ms,
-    }}))
-
-except Exception as e:
-    print(json.dumps({{
-        "success": False,
-        "error": str(e),
-    }}))
-"""
-
+        params_file = None
         try:
-            # For simplicity, execute in-process with thread isolation
-            # Full subprocess implementation would serialize the tool
-            return self._execute_in_process(tool, parameters, timeout)
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".json", delete=False, prefix="agentos_tool_"
+            ) as f:
+                json_module.dump(parameters, f)
+                params_file = f.name
+
+            cmd = [
+                sys.executable, "-m", "src.tools.subprocess_runner",
+                "--tool-module", tool.__class__.__module__,
+                "--tool-class", tool.__class__.__name__,
+                "--tool-name", tool.name,
+                "--params-file", params_file,
+            ]
+
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                timeout=timeout,
+                text=True,
+                env=self._get_restricted_env(),
+            )
+
+            if result.returncode != 0:
+                stderr = result.stderr[:500] if result.stderr else ""
+                logger.warning(
+                    "Subprocess execution failed for tool '%s' (exit=%d), "
+                    "falling back to in-process execution: %s",
+                    tool.name, result.returncode, stderr,
+                )
+                return self._execute_in_process(tool, parameters, timeout)
+
+            try:
+                output = json_module.loads(result.stdout)
+            except json_module.JSONDecodeError:
+                return ToolResult(
+                    result=InvocationResult.SANDBOX_ERROR,
+                    error="Failed to parse subprocess output",
+                )
+
+            if output.get("success"):
+                return ToolResult(
+                    result=InvocationResult.SUCCESS,
+                    output=output.get("output"),
+                    execution_time_ms=output.get("execution_time_ms", 0),
+                )
+            else:
+                return ToolResult(
+                    result=InvocationResult.ERROR,
+                    error=output.get("error", "Unknown subprocess error"),
+                )
 
         except subprocess.TimeoutExpired:
             return ToolResult(
@@ -529,10 +570,17 @@ except Exception as e:
                 error=f"Subprocess timed out after {timeout}s",
             )
         except Exception as e:
+            logger.error(f"Subprocess execution error: {e}")
             return ToolResult(
                 result=InvocationResult.SANDBOX_ERROR,
-                error=f"Subprocess error: {e}",
+                error="Subprocess execution failed",
             )
+        finally:
+            if params_file:
+                try:
+                    os.unlink(params_file)
+                except OSError:
+                    pass
 
     def _execute_container(
         self,
@@ -556,7 +604,14 @@ except Exception as e:
             if result.returncode != 0:
                 raise FileNotFoundError(f"{runtime} not available")
         except (subprocess.SubprocessError, FileNotFoundError, OSError):
-            context.log(f"Container runtime not available, using subprocess")
+            logger.warning(
+                "SECURITY: Container runtime '%s' not available. Tool '%s' "
+                "executing in subprocess mode instead of container isolation. "
+                "Install Docker or Podman for full container sandboxing.",
+                runtime,
+                tool.name,
+            )
+            context.log(f"Container runtime not available, falling back to subprocess")
             return self._execute_subprocess(tool, parameters, timeout, context)
 
         # For full implementation, would build and run container

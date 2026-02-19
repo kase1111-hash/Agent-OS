@@ -124,10 +124,20 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     - Content-Security-Policy (optional)
     """
 
+    # Default CSP that allows self-hosted resources and WebSocket connections
+    DEFAULT_CSP = (
+        "default-src 'self'; "
+        "script-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "connect-src 'self' ws: wss:; "
+        "frame-ancestors 'none'"
+    )
+
     def __init__(
         self,
         app: Callable,
-        content_security_policy: Optional[str] = None,
+        content_security_policy: Optional[str] = DEFAULT_CSP,
         x_frame_options: str = "DENY",
         referrer_policy: str = "strict-origin-when-cross-origin",
     ):

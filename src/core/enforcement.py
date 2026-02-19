@@ -145,16 +145,31 @@ class StructuralChecker:
         return StructuralResult(allowed=True)
 
     def _check_explicit_denials(self, context: Any) -> StructuralResult:
-        """Check for explicit prompt injection / jailbreak patterns."""
+        """Check for explicit prompt injection / jailbreak patterns.
+
+        V1-2: Applies Unicode normalization before pattern matching to catch
+        obfuscated variants using homoglyphs, zero-width chars, or encoding tricks.
+        """
         content = context.content
-        for pattern in self.DENY_PATTERNS:
-            match = pattern.search(content)
-            if match:
-                return StructuralResult(
-                    allowed=False,
-                    reason=f"Request matches explicit denial pattern: suspected prompt injection",
-                    definitive=True,
-                )
+
+        # Normalize content to defeat obfuscation (V1-2)
+        try:
+            from .input_classifier import TextNormalizer
+
+            normalized_content = TextNormalizer.normalize(content)
+        except ImportError:
+            normalized_content = content.lower()
+
+        # Check both raw and normalized content
+        for check_content in (content, normalized_content):
+            for pattern in self.DENY_PATTERNS:
+                match = pattern.search(check_content)
+                if match:
+                    return StructuralResult(
+                        allowed=False,
+                        reason="Request matches explicit denial pattern: suspected prompt injection",
+                        definitive=True,
+                    )
         return StructuralResult(allowed=True)
 
     def _filter_by_scope(self, rules: List[Rule], context: Any) -> List[Rule]:
@@ -213,7 +228,8 @@ class SemanticMatcher:
     """
 
     DEFAULT_MODEL = "nomic-embed-text"
-    DEFAULT_THRESHOLD = 0.45
+    # V1-4: Raised from 0.45 to 0.55 to reduce false matches while catching violations
+    DEFAULT_THRESHOLD = 0.55
 
     def __init__(
         self,

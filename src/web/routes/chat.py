@@ -639,10 +639,10 @@ class ConnectionManager:
                 dreaming.complete("Chat request failed")
             model = get_model_manager().get_current_model()
             return (
-                f"I'm sorry, I encountered an error connecting to Ollama: {str(e)}\n\n"
+                "I'm sorry, I encountered an error connecting to the AI backend.\n\n"
                 "Please make sure Ollama is running (`ollama serve`) and you have a model pulled "
                 f"(`ollama pull {model}`).",
-                {"model": model, "error": str(e)},
+                {"model": model, "error": "ollama_connection_error"},
             )
 
     def _call_ollama(self, messages: List[Dict[str, str]]) -> Tuple[str, Dict[str, Any]]:
@@ -773,7 +773,21 @@ async def chat_websocket(
     - Receive: {"type": "stream", "chunk": {...}}  # For streaming
     - Receive: {"type": "error", "message": "..."}
     """
-    # SECURITY FIX: Authenticate before accepting the WebSocket connection
+    # SECURITY: Validate Origin header to prevent cross-site WebSocket hijacking (CSWSH)
+    origin = websocket.headers.get("origin")
+    if origin:
+        from src.web.config import get_config
+
+        config = get_config()
+        allowed_origins = set(config.cors_origins)
+        if origin not in allowed_origins:
+            logger.warning(
+                f"WebSocket connection rejected: origin '{origin}' not in allowed origins"
+            )
+            await websocket.close(code=4003, reason="Origin not allowed")
+            return
+
+    # SECURITY: Authenticate before accepting the WebSocket connection
     user_id = await _authenticate_websocket(websocket)
     if not user_id:
         # Reject unauthenticated connections
@@ -837,7 +851,7 @@ async def chat_websocket(
                     logger.error(f"Error processing message: {e}")
                     await manager.send_message(
                         connection.id,
-                        {"type": "error", "message": str(e)},
+                        {"type": "error", "message": "An error occurred processing your message"},
                     )
 
             elif msg_type == "ping":
@@ -948,7 +962,9 @@ async def send_message(
 async def list_conversations(
     limit: int = 20,
     search: Optional[str] = None,
+    http_request: Request = None,
     manager: ConnectionManager = Depends(get_manager),
+    user_id: str = Depends(_authenticate_rest_request),
 ) -> List[ConversationSummary]:
     """List recent conversations from persistent storage."""
     try:
@@ -991,7 +1007,9 @@ async def list_conversations(
 @router.get("/conversations/{conversation_id}", response_model=List[ChatMessage])
 async def get_conversation(
     conversation_id: str,
+    http_request: Request = None,
     manager: ConnectionManager = Depends(get_manager),
+    user_id: str = Depends(_authenticate_rest_request),
 ) -> List[ChatMessage]:
     """Get messages from a conversation."""
     messages = manager.get_conversation(conversation_id)
@@ -1021,7 +1039,9 @@ async def delete_conversation(
 
 @router.get("/status")
 async def get_chat_status(
+    http_request: Request = None,
     manager: ConnectionManager = Depends(get_manager),
+    user_id: str = Depends(_authenticate_rest_request),
 ) -> Dict[str, Any]:
     """Get chat system status including Ollama connectivity."""
     # Check Ollama status
@@ -1040,7 +1060,8 @@ async def get_chat_status(
             ollama_status = "disconnected"
         client.close()
     except Exception as e:
-        ollama_status = f"error: {str(e)}"
+        logger.error(f"Ollama health check failed: {e}")
+        ollama_status = "error"
 
     model_manager = get_model_manager()
     return {
@@ -1068,7 +1089,10 @@ class ModelSwitchRequest(BaseModel):
 
 
 @router.get("/models")
-async def list_models() -> Dict[str, Any]:
+async def list_models(
+    http_request: Request = None,
+    user_id: str = Depends(_authenticate_rest_request),
+) -> Dict[str, Any]:
     """List available Ollama models."""
     model_manager = get_model_manager()
     models = model_manager.get_available_models()
@@ -1081,14 +1105,21 @@ async def list_models() -> Dict[str, Any]:
 
 
 @router.get("/models/current")
-async def get_current_model() -> Dict[str, str]:
+async def get_current_model(
+    http_request: Request = None,
+    user_id: str = Depends(_authenticate_rest_request),
+) -> Dict[str, str]:
     """Get the currently active model."""
     model_manager = get_model_manager()
     return {"model": model_manager.get_current_model()}
 
 
 @router.post("/models/switch")
-async def switch_model(request: ModelSwitchRequest) -> Dict[str, Any]:
+async def switch_model(
+    request: ModelSwitchRequest,
+    http_request: Request = None,
+    user_id: str = Depends(_authenticate_rest_request),
+) -> Dict[str, Any]:
     """Switch to a different model."""
     model_manager = get_model_manager()
     found_model = model_manager.find_model(request.model)
@@ -1126,7 +1157,9 @@ class ImportRequest(BaseModel):
 @router.get("/conversations/{conversation_id}/export")
 async def export_conversation(
     conversation_id: str,
+    http_request: Request = None,
     manager: ConnectionManager = Depends(get_manager),
+    user_id: str = Depends(_authenticate_rest_request),
 ) -> Dict[str, Any]:
     """Export a single conversation with all messages."""
     try:
@@ -1135,27 +1168,31 @@ async def export_conversation(
             return export_data
     except Exception as e:
         logger.error(f"Failed to export conversation: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
     raise HTTPException(status_code=404, detail="Conversation not found")
 
 
 @router.get("/export")
 async def export_all_conversations(
+    http_request: Request = None,
     manager: ConnectionManager = Depends(get_manager),
+    user_id: str = Depends(_authenticate_rest_request),
 ) -> Dict[str, Any]:
     """Export all conversations for backup."""
     try:
         return manager.store.export_all()
     except Exception as e:
         logger.error(f"Failed to export conversations: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/import")
 async def import_conversations(
     request: ImportRequest,
+    http_request: Request = None,
     manager: ConnectionManager = Depends(get_manager),
+    user_id: str = Depends(_authenticate_rest_request),
 ) -> Dict[str, Any]:
     """Import conversations from backup."""
     try:
@@ -1187,25 +1224,29 @@ async def import_conversations(
         }
     except Exception as e:
         logger.error(f"Failed to import conversations: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/storage/stats")
 async def get_storage_stats(
+    http_request: Request = None,
     manager: ConnectionManager = Depends(get_manager),
+    user_id: str = Depends(_authenticate_rest_request),
 ) -> Dict[str, Any]:
     """Get conversation storage statistics."""
     try:
         return manager.store.get_statistics()
     except Exception as e:
         logger.error(f"Failed to get storage stats: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/conversations/{conversation_id}/archive")
 async def archive_conversation(
     conversation_id: str,
+    http_request: Request = None,
     manager: ConnectionManager = Depends(get_manager),
+    user_id: str = Depends(_authenticate_rest_request),
 ) -> Dict[str, str]:
     """Archive a conversation."""
     try:
@@ -1217,7 +1258,7 @@ async def archive_conversation(
             return {"status": "archived", "conversation_id": conversation_id}
     except Exception as e:
         logger.error(f"Failed to archive conversation: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
     raise HTTPException(status_code=404, detail="Conversation not found")
 
@@ -1225,7 +1266,9 @@ async def archive_conversation(
 @router.post("/conversations/{conversation_id}/unarchive")
 async def unarchive_conversation(
     conversation_id: str,
+    http_request: Request = None,
     manager: ConnectionManager = Depends(get_manager),
+    user_id: str = Depends(_authenticate_rest_request),
 ) -> Dict[str, str]:
     """Unarchive a conversation."""
     try:
@@ -1234,7 +1277,7 @@ async def unarchive_conversation(
             return {"status": "unarchived", "conversation_id": conversation_id}
     except Exception as e:
         logger.error(f"Failed to unarchive conversation: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
     raise HTTPException(status_code=404, detail="Conversation not found")
 
@@ -1244,7 +1287,9 @@ async def search_messages(
     q: str,
     conversation_id: Optional[str] = None,
     limit: int = 20,
+    http_request: Request = None,
     manager: ConnectionManager = Depends(get_manager),
+    user_id: str = Depends(_authenticate_rest_request),
 ) -> List[Dict[str, Any]]:
     """Search messages across conversations."""
     try:
@@ -1256,4 +1301,4 @@ async def search_messages(
         return [m.to_dict() for m in messages]
     except Exception as e:
         logger.error(f"Failed to search messages: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
