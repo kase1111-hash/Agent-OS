@@ -253,6 +253,52 @@ class InMemoryMessageBus(MessageBus):
             return True  # No ACL for this channel = open
         return source in allowed
 
+    def _scan_message_for_secrets(
+        self,
+        message: Union[FlowRequest, FlowResponse],
+        channel: str,
+        source: str,
+    ) -> None:
+        """
+        V2-3: Scan message content for secrets before delivery.
+
+        Extracts text from the message payload and runs it through the
+        SecretScanner. Raises SecretLeakageError if secrets are found,
+        which prevents the message from being delivered.
+        """
+        from src.security.secret_scanner import SecretLeakageError, get_secret_scanner
+
+        scanner = get_secret_scanner()
+
+        # Collect text fields from the message
+        text_parts: list[str] = []
+
+        if isinstance(message, FlowRequest):
+            text_parts.append(message.content.prompt)
+            for ctx in message.content.context:
+                for v in ctx.values():
+                    if isinstance(v, str):
+                        text_parts.append(v)
+        elif isinstance(message, FlowResponse):
+            output = message.content.output
+            if isinstance(output, str):
+                text_parts.append(output)
+            elif isinstance(output, dict):
+                for v in output.values():
+                    if isinstance(v, str):
+                        text_parts.append(v)
+            if message.content.reasoning:
+                text_parts.append(message.content.reasoning)
+
+        combined = "\n".join(text_parts)
+
+        # scan_and_block raises SecretLeakageError if secrets found
+        try:
+            scanner.scan_and_block(combined, source_agent=source)
+        except SecretLeakageError:
+            self._log_audit(message, channel, error="BLOCKED: secret detected in message payload")
+            raise
+
     def publish(
         self,
         channel: str,
@@ -279,6 +325,13 @@ class InMemoryMessageBus(MessageBus):
             logger.warning(
                 f"Agent '{source}' not authorized to publish to channel '{channel}'"
             )
+            return False
+
+        # V2-3: Scan message content for secrets before delivery
+        try:
+            self._scan_message_for_secrets(message, channel, source)
+        except Exception:
+            # Message blocked — already logged by _scan_message_for_secrets
             return False
 
         with self._lock:
@@ -549,6 +602,54 @@ class InMemoryMessageBus(MessageBus):
         """Get list of all channels with subscriptions."""
         with self._lock:
             return list(self._subscriptions.keys())
+
+    def get_message_log(
+        self,
+        channel: Optional[str] = None,
+        agent: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """
+        Return recent inter-agent message log for human inspection.
+
+        V2-3: All inter-agent communications are logged for human principal
+        visibility. Content is redacted to prevent secret exposure in logs.
+
+        Args:
+            channel: Filter by channel name (optional)
+            agent: Filter by source agent name (optional)
+            limit: Maximum entries to return
+
+        Returns:
+            List of audit log entry dicts with redacted content summaries
+        """
+        with self._lock:
+            entries = list(self._audit_log)
+
+        if channel:
+            entries = [e for e in entries if e.destination == channel]
+        if agent:
+            entries = [e for e in entries if e.source == agent]
+
+        # Return most recent entries first
+        entries = entries[-limit:]
+        entries.reverse()
+
+        return [
+            {
+                "entry_id": str(e.entry_id),
+                "timestamp": e.timestamp.isoformat(),
+                "message_type": e.message_type,
+                "message_id": str(e.message_id),
+                "source": e.source,
+                "destination": e.destination,
+                "intent": e.intent,
+                "status": e.status,
+                "constitutional_status": e.constitutional_status,
+                "error": e.error,
+            }
+            for e in entries
+        ]
 
     def clear_audit_log(self) -> int:
         """Clear the audit log. Returns number of entries cleared."""
