@@ -18,53 +18,10 @@ from pydantic import BaseModel, Field
 
 from src import __version__ as PKG_VERSION
 
+from ..auth_helpers import require_admin_user, require_authenticated_user
 
-def require_admin_auth(
-    request: Request,
-    session_token: Optional[str] = Cookie(None),
-) -> str:
-    """
-    Dependency to require admin authentication for protected endpoints.
-
-    Returns the user_id if authenticated and authorized.
-    Raises HTTPException if not authenticated or not admin.
-
-    This uses the dependency injection system for the user store,
-    making it easy to mock in tests.
-    """
-    from ..auth import UserRole
-    from ..dependencies import get_user_store
-
-    # Get token from cookie or Authorization header
-    token = session_token
-    if not token:
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-
-    if not token:
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication required for admin operations"
-        )
-
-    store = get_user_store()
-    user = store.validate_session(token)
-
-    if not user:
-        raise HTTPException(
-            status_code=401,
-            detail="Session expired or invalid"
-        )
-
-    # Check for admin role
-    if user.role != UserRole.ADMIN:
-        raise HTTPException(
-            status_code=403,
-            detail="Admin privileges required for this operation"
-        )
-
-    return user.user_id
+# Backward compatibility alias
+require_admin_auth = require_admin_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -419,22 +376,31 @@ async def get_component_health() -> List[ComponentHealth]:
 
 
 @router.get("/settings", response_model=List[SettingValue])
-async def list_settings() -> List[SettingValue]:
-    """List all configuration settings."""
+async def list_settings(
+    admin_id: str = Depends(require_admin_user),
+) -> List[SettingValue]:
+    """List all configuration settings (admin only)."""
     return list(_settings.values())
 
 
 @router.get("/settings/{key}", response_model=SettingValue)
-async def get_setting(key: str) -> SettingValue:
-    """Get a specific setting."""
+async def get_setting(
+    key: str,
+    admin_id: str = Depends(require_admin_user),
+) -> SettingValue:
+    """Get a specific setting (admin only)."""
     if key not in _settings:
         raise HTTPException(status_code=404, detail=f"Setting not found: {key}")
     return _settings[key]
 
 
 @router.put("/settings/{key}", response_model=SettingValue)
-async def update_setting(key: str, request: UpdateSettingRequest) -> SettingValue:
-    """Update a setting."""
+async def update_setting(
+    key: str,
+    request: UpdateSettingRequest,
+    admin_id: str = Depends(require_admin_user),
+) -> SettingValue:
+    """Update a setting (admin only)."""
     if key not in _settings:
         raise HTTPException(status_code=404, detail=f"Setting not found: {key}")
 
@@ -463,8 +429,9 @@ async def get_logs(
     level: Optional[str] = None,
     logger_name: Optional[str] = None,
     limit: int = 100,
+    admin_id: str = Depends(require_admin_user),
 ) -> List[LogEntry]:
-    """Get system logs."""
+    """Get system logs (admin only)."""
     global _logs
 
     # Generate some mock logs if empty
@@ -585,7 +552,9 @@ async def get_dreaming_status() -> Dict[str, Any]:
 
 
 @router.get("/metrics")
-async def get_metrics() -> Dict[str, Any]:
+async def get_metrics(
+    user_id: str = Depends(require_authenticated_user),
+) -> Dict[str, Any]:
     """Get system metrics."""
     return {
         "uptime_seconds": _get_uptime_seconds(),

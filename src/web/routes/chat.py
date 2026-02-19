@@ -1020,6 +1020,7 @@ async def get_conversation(
 async def delete_conversation(
     conversation_id: str,
     manager: ConnectionManager = Depends(get_manager),
+    user_id: str = Depends(_authenticate_rest_request),
 ) -> Dict[str, str]:
     """Delete a conversation from both cache and persistent storage."""
     # Remove from cache

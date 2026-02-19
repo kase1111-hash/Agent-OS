@@ -10,8 +10,10 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+
+from ..auth_helpers import require_admin_user, require_authenticated_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -484,7 +486,9 @@ def get_store() -> ConstitutionStore:
 
 
 @router.get("/overview", response_model=ConstitutionOverview)
-async def get_overview() -> ConstitutionOverview:
+async def get_overview(
+    user_id: str = Depends(require_authenticated_user),
+) -> ConstitutionOverview:
     """Get an overview of the constitution."""
     store = get_store()
     rules = store.get_all_rules()
@@ -509,7 +513,9 @@ async def get_overview() -> ConstitutionOverview:
 
 
 @router.get("/sections", response_model=List[ConstitutionSection])
-async def list_sections() -> List[ConstitutionSection]:
+async def list_sections(
+    user_id: str = Depends(require_authenticated_user),
+) -> List[ConstitutionSection]:
     """List all constitution sections."""
     store = get_store()
     return store.get_sections()
@@ -520,6 +526,7 @@ async def list_rules(
     rule_type: Optional[RuleType] = None,
     authority: Optional[RuleAuthority] = None,
     agent_scope: Optional[str] = None,
+    user_id: str = Depends(require_authenticated_user),
 ) -> List[Rule]:
     """List all constitutional rules with optional filtering."""
     store = get_store()
@@ -538,7 +545,10 @@ async def list_rules(
 
 
 @router.get("/rules/{rule_id}", response_model=Rule)
-async def get_rule(rule_id: str) -> Rule:
+async def get_rule(
+    rule_id: str,
+    user_id: str = Depends(require_authenticated_user),
+) -> Rule:
     """Get a specific rule by ID."""
     store = get_store()
     rule = store.get_rule(rule_id)
@@ -550,7 +560,10 @@ async def get_rule(rule_id: str) -> Rule:
 
 
 @router.post("/rules", response_model=Rule)
-async def create_rule(request: RuleCreate) -> Rule:
+async def create_rule(
+    request: RuleCreate,
+    admin_id: str = Depends(require_admin_user),
+) -> Rule:
     """
     Create a new constitutional rule.
 
@@ -569,7 +582,11 @@ async def create_rule(request: RuleCreate) -> Rule:
 
 
 @router.put("/rules/{rule_id}", response_model=Rule)
-async def update_rule(rule_id: str, request: RuleUpdate) -> Rule:
+async def update_rule(
+    rule_id: str,
+    request: RuleUpdate,
+    admin_id: str = Depends(require_admin_user),
+) -> Rule:
     """Update an existing rule."""
     store = get_store()
 
@@ -583,7 +600,10 @@ async def update_rule(rule_id: str, request: RuleUpdate) -> Rule:
 
 
 @router.delete("/rules/{rule_id}")
-async def delete_rule(rule_id: str) -> Dict[str, str]:
+async def delete_rule(
+    rule_id: str,
+    admin_id: str = Depends(require_admin_user),
+) -> Dict[str, str]:
     """Delete a rule."""
     store = get_store()
 
@@ -596,7 +616,10 @@ async def delete_rule(rule_id: str) -> Dict[str, str]:
 
 
 @router.post("/validate", response_model=ValidationResult)
-async def validate_content(request: ValidationRequest) -> ValidationResult:
+async def validate_content(
+    request: ValidationRequest,
+    user_id: str = Depends(require_authenticated_user),
+) -> ValidationResult:
     """
     Validate content against the constitution.
 
@@ -610,6 +633,7 @@ async def validate_content(request: ValidationRequest) -> ValidationResult:
 async def search_rules(
     query: str,
     limit: int = 10,
+    user_id: str = Depends(require_authenticated_user),
 ) -> List[Rule]:
     """Search for rules matching a query."""
     store = get_store()

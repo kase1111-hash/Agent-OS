@@ -208,11 +208,9 @@ class SmithClient:
         if not self.is_connected:
             if not self.connect():
                 logger.warning("Cannot connect to Smith daemon")
-                if self.config.fail_closed:
-                    with self._lock:
-                        self._denied_count += 1
-                    return False
-                return True  # Fail open (dangerous!)
+                with self._lock:
+                    self._denied_count += 1
+                return False  # Always fail closed when daemon is unreachable
 
         try:
             allowed = self._daemon.request_permission(
