@@ -191,6 +191,15 @@ def create_app(config: Optional[WebConfig] = None) -> Any:
                 pass
             _cleanup_task = None
 
+        # Close UserStore SQLite connection
+        try:
+            from .dependencies import get_user_store
+            user_store = get_user_store()
+            user_store.close()
+            logger.info("UserStore closed")
+        except Exception:
+            logger.warning("Failed to close UserStore", exc_info=True)
+
         # Clean up WebSocket connections
         for conn_id in list(_app_state.active_connections.keys()):
             try:
@@ -385,7 +394,7 @@ Real-time streaming is available via WebSocket:
                     user = store.validate_session(token)
                     is_authenticated = user is not None
             except Exception:
-                pass
+                logger.warning("Session validation failed during status check", exc_info=True)
         else:
             is_authenticated = True
 

@@ -122,7 +122,9 @@ def _get_uptime_seconds() -> float:
     return (datetime.utcnow() - _start_time).total_seconds()
 
 
-# Mock settings store
+# NOTE: These settings are stored in-memory but NOT wired to any consumers.
+# Changing these values via the API has no runtime effect.
+# TODO: Wire settings to their respective systems or remove this endpoint.
 _settings: Dict[str, SettingValue] = {
     "chat.max_history": SettingValue(
         key="chat.max_history",
@@ -183,7 +185,7 @@ async def get_system_info(
 ) -> SystemInfo:
     """Get system information."""
     return SystemInfo(
-        version="1.0.0",
+        version=PKG_VERSION,
         python_version=sys.version,
         platform=f"{platform.system()} {platform.release()}",
         hostname=platform.node(),

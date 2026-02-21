@@ -1512,7 +1512,7 @@ class SQLiteStorage(AttackStorage):
             try:
                 self._local.connection.close()
             except Exception:
-                pass
+                logger.debug("Error closing SQLite connection", exc_info=True)
             delattr(self._local, "connection")
         logger.info("SQLite storage closed")
 

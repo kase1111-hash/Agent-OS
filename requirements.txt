@@ -15,9 +15,6 @@ redis>=5.0,<6.0
 # HTTP client for Ollama integration (optional)
 httpx>=0.28,<1.0
 
-# Secure XML parsing (prevents XXE attacks)
-defusedxml>=0.7,<1.0
-
 # Cryptography (AES-256-GCM encryption, key derivation, signing)
 cryptography>=42.0,<44.0
 

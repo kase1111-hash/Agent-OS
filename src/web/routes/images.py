@@ -11,6 +11,7 @@ import io
 import json
 import logging
 import os
+import threading
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -280,6 +281,7 @@ class ImageStore:
     """In-memory store for image generation jobs and gallery."""
 
     def __init__(self):
+        self._lock = threading.Lock()
         self.jobs: Dict[str, ImageGenerationJob] = {}
         self.gallery: List[GalleryImage] = []
         self.output_dir = Path(os.environ.get("IMAGE_OUTPUT_DIR", "./generated_images"))
@@ -302,46 +304,53 @@ class ImageStore:
             num_images=request.num_images,
             scheduler=request.scheduler,
         )
-        self.jobs[job.id] = job
+        with self._lock:
+            self.jobs[job.id] = job
         return job
 
     def get_job(self, job_id: str) -> Optional[ImageGenerationJob]:
         """Get a job by ID."""
-        return self.jobs.get(job_id)
+        with self._lock:
+            return self.jobs.get(job_id)
 
     def update_job(self, job_id: str, **kwargs) -> Optional[ImageGenerationJob]:
         """Update a job."""
-        job = self.jobs.get(job_id)
-        if job:
-            for key, value in kwargs.items():
-                if hasattr(job, key):
-                    setattr(job, key, value)
+        with self._lock:
+            job = self.jobs.get(job_id)
+            if job:
+                for key, value in kwargs.items():
+                    if hasattr(job, key):
+                        setattr(job, key, value)
         return job
 
     def list_jobs(self, limit: int = 50) -> List[ImageGenerationJob]:
         """List recent jobs."""
-        jobs = list(self.jobs.values())
+        with self._lock:
+            jobs = list(self.jobs.values())
         jobs.sort(key=lambda j: j.created_at, reverse=True)
         return jobs[:limit]
 
     def add_to_gallery(self, image: GalleryImage) -> None:
         """Add an image to the gallery."""
-        self.gallery.insert(0, image)
-        # Keep gallery limited to last 100 images
-        if len(self.gallery) > 100:
-            self.gallery = self.gallery[:100]
+        with self._lock:
+            self.gallery.insert(0, image)
+            # Keep gallery limited to last 100 images
+            if len(self.gallery) > 100:
+                self.gallery = self.gallery[:100]
 
     def get_gallery(self, limit: int = 50, offset: int = 0) -> List[GalleryImage]:
         """Get gallery images."""
-        return self.gallery[offset : offset + limit]
+        with self._lock:
+            return self.gallery[offset : offset + limit]
 
     def delete_from_gallery(self, image_id: str) -> bool:
         """Delete an image from gallery."""
-        for i, img in enumerate(self.gallery):
-            if img.id == image_id:
-                del self.gallery[i]
-                return True
-        return False
+        with self._lock:
+            for i, img in enumerate(self.gallery):
+                if img.id == image_id:
+                    del self.gallery[i]
+                    return True
+            return False
 
 
 # Global store instance
@@ -730,11 +739,10 @@ class ImageGenerator:
             image_id = str(uuid.uuid4())
             filename = f"{image_id}.png"
 
-            # Decode and save
+            # Decode and save (off the event loop)
             img_data = base64.b64decode(img_base64)
             filepath = store.output_dir / filename
-            with open(filepath, "wb") as f:
-                f.write(img_data)
+            await asyncio.to_thread(filepath.write_bytes, img_data)
 
             images.append(
                 {
