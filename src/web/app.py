@@ -95,6 +95,8 @@ class AppState:
         self.memory_store = None
         self.constitution_registry = None
         self.active_connections: Dict[str, Any] = {}
+        self.request_count: int = 0
+        self.request_errors: int = 0
 
 
 _app_state = AppState()
@@ -276,6 +278,20 @@ Real-time streaming is available via WebSocket:
 
     app.add_middleware(SecurityHeadersMiddleware)
     logger.info("Security headers middleware enabled (CSP, X-Frame-Options, X-Content-Type-Options)")
+
+    # Request counting middleware
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.responses import Response
+
+    class RequestCounterMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request: Request, call_next):
+            _app_state.request_count += 1
+            response: Response = await call_next(request)
+            if response.status_code >= 500:
+                _app_state.request_errors += 1
+            return response
+
+    app.add_middleware(RequestCounterMiddleware)
 
     # HTTPS enforcement and HSTS middleware
     if config.force_https or config.hsts_enabled:
