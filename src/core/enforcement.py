@@ -450,8 +450,18 @@ Respond ONLY with valid JSON (no markdown, no explanation outside the JSON):
         Returns:
             ComplianceJudgment with structured decision
         """
-        if not self._client or not matched_rules:
-            return ComplianceJudgment(allowed=True, confidence=0.0)
+        if not self._client:
+            return ComplianceJudgment(
+                allowed=False,
+                confidence=0.0,
+                reasoning="LLM client unavailable — conservative denial",
+            )
+        if not matched_rules:
+            return ComplianceJudgment(
+                allowed=False,
+                confidence=0.0,
+                reasoning="No applicable rules found — conservative denial",
+            )
 
         rules = [m.rule for m in matched_rules]
 
@@ -649,12 +659,27 @@ class EnforcementEngine:
             semantic_matches = self.semantic.match(context, applicable_rules)
 
             if not semantic_matches:
-                # No rules semantically match — allow
+                # No rules semantically match — conservative denial.
+                # The absence of matching rules does NOT mean the request is
+                # safe; it means the rules don't cover this case. Fall through
+                # to LLM judge if available, otherwise deny conservatively.
+                if self.llm_judge.available:
+                    judgment = self.llm_judge.judge(context, [])
+                    return EnforcementDecision(
+                        allowed=judgment.allowed,
+                        tier="llm_judge",
+                        reason=judgment.reasoning or "LLM judge evaluated unmatched request",
+                        matched_rules=judgment.violated_rules,
+                        suggestions=judgment.suggestions,
+                        confidence=judgment.confidence,
+                        escalate_to_human=True,
+                    )
                 return EnforcementDecision(
-                    allowed=True,
+                    allowed=False,
                     tier="semantic",
-                    reason="No rules semantically match this request",
+                    reason="No applicable rules found — conservative denial",
                     matched_rules=[],
+                    escalate_to_human=True,
                 )
 
             # --- Tier 3: LLM judgment ---

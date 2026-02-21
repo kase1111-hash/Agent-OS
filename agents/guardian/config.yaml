@@ -15,6 +15,9 @@ repeat_penalty: 1.1
 # Output limits
 max_tokens: 3072          # Allow longer responses for detailed safety analysis
 
+# Guardian can escalate safety concerns to human operators
+can_escalate: true
+
 # Allowed tools - Guardian has no direct tool access by design
 tools: []
 

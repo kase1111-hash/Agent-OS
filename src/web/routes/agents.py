@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-from ..auth_helpers import require_admin_user
+from ..auth_helpers import require_admin_user, require_authenticated_user
 from ..models import NOT_FOUND_RESPONSE, AgentControlResponse, AgentsOverviewResponse
 
 # Backward compatibility alias
@@ -406,6 +406,7 @@ def get_store() -> AgentStore:
 @router.get("/", response_model=List[AgentSummary])
 async def list_agents(
     status: Optional[AgentStatus] = None,
+    user_id: str = Depends(require_authenticated_user),
 ) -> List[AgentSummary]:
     """
     List all registered agents.
@@ -431,7 +432,7 @@ async def list_agents(
 
 
 @router.get("/{agent_name}", response_model=AgentInfo, responses={**NOT_FOUND_RESPONSE})
-async def get_agent(agent_name: str) -> AgentInfo:
+async def get_agent(agent_name: str, user_id: str = Depends(require_authenticated_user)) -> AgentInfo:
     """
     Get detailed information about a specific agent.
 
@@ -457,7 +458,7 @@ async def get_agent(agent_name: str) -> AgentInfo:
 
 
 @router.get("/{agent_name}/metrics", response_model=AgentMetrics)
-async def get_agent_metrics(agent_name: str) -> AgentMetrics:
+async def get_agent_metrics(agent_name: str, user_id: str = Depends(require_authenticated_user)) -> AgentMetrics:
     """Get performance metrics for an agent."""
     store = get_store()
     agent = store.get(agent_name)
@@ -615,7 +616,7 @@ async def get_all_logs(
 
 
 @router.get("/stats/overview", response_model=AgentsOverviewResponse)
-async def get_agents_overview() -> AgentsOverviewResponse:
+async def get_agents_overview(user_id: str = Depends(require_authenticated_user)) -> AgentsOverviewResponse:
     """
     Get overview statistics for all agents.
 

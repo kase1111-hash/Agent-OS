@@ -17,6 +17,22 @@ except ImportError:
     FASTAPI_AVAILABLE = False
 
 
+def _override_auth(app):
+    """Override auth dependencies so tests don't need real tokens."""
+    try:
+        from src.web.auth_helpers import require_admin_user, require_authenticated_user
+        app.dependency_overrides[require_admin_user] = lambda: "test-admin"
+        app.dependency_overrides[require_authenticated_user] = lambda: "test-user"
+    except ImportError:
+        pass
+    try:
+        from src.web.routes.chat import _authenticate_rest_request
+        app.dependency_overrides[_authenticate_rest_request] = lambda: "test-user"
+    except ImportError:
+        pass
+    return app
+
+
 # =============================================================================
 # Configuration Tests
 # =============================================================================
@@ -33,7 +49,7 @@ class TestWebConfig:
         assert config.host == "127.0.0.1"
         assert config.port == 8080
         assert config.debug is False
-        assert config.require_auth is False
+        assert config.require_auth is True
 
     def test_config_from_env(self):
         """Test configuration from environment variables."""
@@ -71,7 +87,7 @@ class TestChatAPI:
     def client(self):
         """Create test client."""
         from src.web.app import create_app
-        app = create_app()
+        app = _override_auth(create_app())
         return TestClient(app)
 
     def test_chat_status(self, client):
@@ -128,7 +144,7 @@ class TestAgentsAPI:
             import src.web.routes.agents as agents_module
             agents_module._store = None
 
-            app = create_app()
+            app = _override_auth(create_app())
             yield TestClient(app)
 
             # Clean up
@@ -196,7 +212,7 @@ class TestConstitutionAPI:
     def client(self):
         """Create test client."""
         from src.web.app import create_app
-        app = create_app()
+        app = _override_auth(create_app())
         return TestClient(app)
 
     def test_get_overview(self, client):
@@ -369,7 +385,7 @@ class TestSystemAPI:
     def client(self):
         """Create test client."""
         from src.web.app import create_app
-        app = create_app()
+        app = _override_auth(create_app())
         return TestClient(app)
 
     def test_system_info(self, client):
@@ -1178,7 +1194,7 @@ class TestSecurityAPI:
         # Patch the module's get_smith to return our mock
         with patch.object(security_module, "_smith_instance", mock_smith):
             with patch.object(security_module, "get_smith", return_value=mock_smith):
-                app = create_app()
+                app = _override_auth(create_app())
                 yield TestClient(app)
 
     def test_list_attacks(self, client):

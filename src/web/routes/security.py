@@ -9,8 +9,10 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from pydantic import BaseModel, Field
+
+from ..auth_helpers import require_admin_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -199,6 +201,7 @@ async def list_attacks(
     since: Optional[datetime] = Query(None, description="Only attacks after this time"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum results"),
     offset: int = Query(0, ge=0, description="Skip first N results"),
+    admin_id: str = Depends(require_admin_user),
 ) -> List[AttackSummary]:
     """
     List detected attacks.
@@ -243,7 +246,7 @@ async def list_attacks(
 
 
 @router.get("/attacks/{attack_id}", response_model=AttackDetail)
-async def get_attack(attack_id: str) -> AttackDetail:
+async def get_attack(attack_id: str, admin_id: str = Depends(require_admin_user)) -> AttackDetail:
     """
     Get detailed information about a specific attack.
     """
@@ -283,6 +286,7 @@ async def get_attack(attack_id: str) -> AttackDetail:
 async def mark_attack_false_positive(
     attack_id: str,
     request: MarkFalsePositiveRequest,
+    admin_id: str = Depends(require_admin_user),
 ) -> Dict[str, Any]:
     """
     Mark an attack as a false positive.
@@ -329,6 +333,7 @@ async def list_recommendations(
     status: Optional[str] = Query(None, description="Filter by status"),
     priority: Optional[str] = Query(None, description="Filter by priority"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum results"),
+    admin_id: str = Depends(require_admin_user),
 ) -> List[RecommendationSummary]:
     """
     List fix recommendations.
@@ -383,7 +388,7 @@ async def list_recommendations(
 
 
 @router.get("/recommendations/{recommendation_id}", response_model=RecommendationDetail)
-async def get_recommendation(recommendation_id: str) -> RecommendationDetail:
+async def get_recommendation(recommendation_id: str, admin_id: str = Depends(require_admin_user)) -> RecommendationDetail:
     """
     Get detailed information about a fix recommendation.
 
@@ -430,7 +435,7 @@ async def get_recommendation(recommendation_id: str) -> RecommendationDetail:
 
 
 @router.get("/recommendations/{recommendation_id}/markdown")
-async def get_recommendation_markdown(recommendation_id: str) -> Dict[str, str]:
+async def get_recommendation_markdown(recommendation_id: str, admin_id: str = Depends(require_admin_user)) -> Dict[str, str]:
     """
     Get recommendation formatted as markdown for human review.
 
@@ -468,6 +473,7 @@ async def get_recommendation_markdown(recommendation_id: str) -> Dict[str, str]:
 async def approve_recommendation(
     recommendation_id: str,
     request: ApproveRecommendationRequest,
+    admin_id: str = Depends(require_admin_user),
 ) -> Dict[str, Any]:
     """
     Approve a fix recommendation.
@@ -507,6 +513,7 @@ async def approve_recommendation(
 async def reject_recommendation(
     recommendation_id: str,
     request: RejectRecommendationRequest,
+    admin_id: str = Depends(require_admin_user),
 ) -> Dict[str, Any]:
     """
     Reject a fix recommendation.
@@ -552,6 +559,7 @@ async def reject_recommendation(
 async def add_recommendation_comment(
     recommendation_id: str,
     request: AddCommentRequest,
+    admin_id: str = Depends(require_admin_user),
 ) -> Dict[str, Any]:
     """
     Add a comment to a recommendation.
@@ -597,6 +605,7 @@ async def add_recommendation_comment(
 async def assign_reviewers(
     recommendation_id: str,
     reviewers: List[str],
+    admin_id: str = Depends(require_admin_user),
 ) -> Dict[str, Any]:
     """
     Assign reviewers to a recommendation.
@@ -637,7 +646,7 @@ async def assign_reviewers(
 
 
 @router.get("/status", response_model=AttackDetectionStatus)
-async def get_attack_detection_status() -> AttackDetectionStatus:
+async def get_attack_detection_status(admin_id: str = Depends(require_admin_user)) -> AttackDetectionStatus:
     """
     Get attack detection system status.
 
@@ -670,6 +679,7 @@ async def get_attack_detection_status() -> AttackDetectionStatus:
 async def control_pipeline(
     request: PipelineControlRequest,
     background_tasks: BackgroundTasks,
+    admin_id: str = Depends(require_admin_user),
 ) -> Dict[str, Any]:
     """
     Control the attack detection pipeline.
@@ -709,7 +719,7 @@ async def control_pipeline(
 
 
 @router.get("/patterns")
-async def list_attack_patterns() -> Dict[str, Any]:
+async def list_attack_patterns(admin_id: str = Depends(require_admin_user)) -> Dict[str, Any]:
     """
     List available attack detection patterns.
 
@@ -750,7 +760,7 @@ async def list_attack_patterns() -> Dict[str, Any]:
 
 
 @router.post("/patterns/{pattern_id}/enable")
-async def enable_pattern(pattern_id: str) -> Dict[str, str]:
+async def enable_pattern(pattern_id: str, admin_id: str = Depends(require_admin_user)) -> Dict[str, str]:
     """Enable an attack detection pattern."""
     try:
         smith = get_smith()
@@ -777,7 +787,7 @@ async def enable_pattern(pattern_id: str) -> Dict[str, str]:
 
 
 @router.post("/patterns/{pattern_id}/disable")
-async def disable_pattern(pattern_id: str) -> Dict[str, str]:
+async def disable_pattern(pattern_id: str, admin_id: str = Depends(require_admin_user)) -> Dict[str, str]:
     """Disable an attack detection pattern."""
     try:
         smith = get_smith()

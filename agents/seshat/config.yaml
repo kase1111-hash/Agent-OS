@@ -22,6 +22,11 @@ tools:
   # - embedding_local       # Sentence transformers
   # - file_read_local       # Local document access
 
+# File system sandboxing — Seshat only needs access to memory vault
+allowed_paths:
+  - "./homestead_memory/seshat/"
+  - "./data/memory/"
+
 # Memory and persistence
 persistent_memory: true    # Seshat maintains persistent memory by design
 memory_path: "./homestead_memory/seshat/"
