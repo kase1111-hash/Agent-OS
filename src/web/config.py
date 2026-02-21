@@ -20,6 +20,13 @@ class ConfigurationError(Exception):
     pass
 
 
+def _parse_cors_origins(value: str) -> List[str]:
+    """Parse CORS origins from comma-separated env var. Returns default if empty."""
+    if not value or not value.strip():
+        return ["http://localhost:8080"]
+    return [origin.strip() for origin in value.split(",") if origin.strip()]
+
+
 @dataclass
 class WebConfig:
     """Configuration for the web interface."""
@@ -145,6 +152,7 @@ class WebConfig:
             rate_limit_use_redis=os.getenv("AGENT_OS_RATE_LIMIT_REDIS", "").lower()
             in ("1", "true", "yes"),
             rate_limit_redis_url=os.getenv("AGENT_OS_REDIS_URL", "redis://localhost:6379"),
+            cors_origins=_parse_cors_origins(os.getenv("AGENT_OS_CORS_ORIGINS", "")),
         )
 
         if validate:

@@ -228,6 +228,16 @@ class ToolExecutor:
                     permission_result.reason,
                 )
 
+            # Step 2b: File system path allowlist check
+            path_violation = self._check_path_allowlist(parameters, agent_id)
+            if path_violation:
+                context.log(f"Path access denied: {path_violation}")
+                return self._fail_execution(
+                    context,
+                    InvocationResult.PERMISSION_DENIED,
+                    path_violation,
+                )
+
             # Step 3: Smith approval validation
             approval_result = self.validator.validate(
                 registration=registration,
@@ -385,6 +395,52 @@ class ToolExecutor:
 
         self._audit(context)
         return result
+
+    def _check_path_allowlist(
+        self,
+        parameters: Dict[str, Any],
+        agent_id: Optional[str],
+    ) -> Optional[str]:
+        """
+        Check if file paths in tool parameters are within the agent's allowed_paths.
+
+        Returns None if allowed, or an error message string if denied.
+        """
+        if not agent_id:
+            return None
+
+        # Try to load the agent config to get allowed_paths
+        try:
+            from src.agents.config import AgentConfig
+            from src.agents.loader import create_loader
+
+            loader = create_loader(Path.cwd())
+            registered = loader.registry.get(agent_id)
+            if not registered or not hasattr(registered, "config"):
+                return None
+            config = registered.config
+            allowed_paths = getattr(config, "allowed_paths", None)
+            if allowed_paths is None:
+                return None
+            if not allowed_paths:
+                # Empty list means no file access — check if any paths in params
+                pass
+        except Exception:
+            # If we can't load the config, skip the check
+            return None
+
+        # Extract file-like paths from parameters
+        path_keys = {"path", "file", "filepath", "file_path", "filename", "directory", "dir"}
+        for key, value in parameters.items():
+            if key.lower() in path_keys and isinstance(value, str):
+                resolved = str(Path(value).resolve())
+                if not any(resolved.startswith(str(Path(ap).resolve())) for ap in allowed_paths):
+                    return (
+                        f"Agent '{agent_id}' denied access to path '{value}' — "
+                        f"not in allowed_paths: {allowed_paths}"
+                    )
+
+        return None
 
     def _determine_execution_mode(
         self,

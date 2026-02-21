@@ -183,11 +183,10 @@ jobs:
           pip install bandit[toml] safety
 
       - name: Run bandit security linter
-        run: bandit -r src/ -c pyproject.toml || true
+        run: bandit -r src/ -c pyproject.toml
 
       - name: Check dependencies for vulnerabilities
-        run: safety check || true
-        continue-on-error: true
+        run: safety check
 
   build:
     name: Build Package

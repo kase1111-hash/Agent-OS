@@ -59,10 +59,6 @@ class BlobStatus(Enum):
     CORRUPTED = auto()
 
 
-# V2-2: Trust levels that trigger automatic quarantine
-QUARANTINE_TRUST_LEVELS = {SourceTrustLevel.EXTERNAL_DOCUMENT, SourceTrustLevel.LLM_OUTPUT}
-
-
 class SourceTrustLevel(Enum):
     """Trust level of the content source (V2-1: provenance tracking)."""
 
@@ -71,6 +67,10 @@ class SourceTrustLevel(Enum):
     EXTERNAL_DOCUMENT = auto()  # From an external file/URL
     LLM_OUTPUT = auto()  # LLM-generated content
     SYSTEM = auto()  # System-generated
+
+
+# V2-2: Trust levels that trigger automatic quarantine
+QUARANTINE_TRUST_LEVELS = {SourceTrustLevel.EXTERNAL_DOCUMENT, SourceTrustLevel.LLM_OUTPUT}
 
 
 @dataclass

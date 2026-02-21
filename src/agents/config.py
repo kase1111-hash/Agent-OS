@@ -206,11 +206,14 @@ class AgentConfig:
     # Runtime settings
     requires_memory: bool = False  # Uses memory system
     requires_smith: bool = True  # Requires Smith validation
-    can_escalate: bool = True  # Can escalate to human
+    can_escalate: bool = False  # Deny by default; agents must explicitly opt-in
 
     # Process isolation
     isolation_level: str = "none"  # none, process, container
     resource_limits: Dict[str, Any] = field(default_factory=dict)
+
+    # File system sandboxing — empty list = no file access allowed
+    allowed_paths: List[str] = field(default_factory=list)
 
     # Communication
     message_bus_channel: Optional[str] = None  # Custom channel name
@@ -276,9 +279,10 @@ class AgentConfig:
                 supported_intents=data.get("supported_intents", []),
                 requires_memory=data.get("requires_memory", False),
                 requires_smith=data.get("requires_smith", True),
-                can_escalate=data.get("can_escalate", True),
+                can_escalate=data.get("can_escalate", False),
                 isolation_level=data.get("isolation_level", "none"),
                 resource_limits=data.get("resource_limits", {}),
+                allowed_paths=data.get("allowed_paths", []),
                 message_bus_channel=data.get("message_bus_channel"),
                 log_level=data.get("log_level", "INFO"),
                 metrics_enabled=data.get("metrics_enabled", True),
@@ -300,6 +304,7 @@ class AgentConfig:
             "can_escalate": self.can_escalate,
             "isolation_level": self.isolation_level,
             "resource_limits": self.resource_limits,
+            "allowed_paths": self.allowed_paths,
             "log_level": self.log_level,
             "metrics_enabled": self.metrics_enabled,
             "custom": self.custom,

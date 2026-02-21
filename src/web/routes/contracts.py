@@ -9,8 +9,10 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Cookie, HTTPException, Query, Request
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
+
+from ..auth_helpers import require_authenticated_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -672,21 +674,25 @@ async def get_contracts_stats(
 
 
 @router.get("/types", response_model=List[ContractTypeModel])
-async def get_contract_types() -> List[ContractTypeModel]:
+async def get_contract_types(
+    user_id: str = Depends(require_authenticated_user),
+) -> List[ContractTypeModel]:
     """Get available contract types with their permissions."""
     store = get_store()
     return store.get_contract_types()
 
 
 @router.get("/templates", response_model=List[ContractTemplateModel])
-async def get_templates() -> List[ContractTemplateModel]:
+async def get_templates(
+    user_id: str = Depends(require_authenticated_user),
+) -> List[ContractTemplateModel]:
     """Get all available contract templates."""
     store = get_store()
     return store.get_templates()
 
 
 @router.get("/templates/{template_id}", response_model=ContractTemplateModel)
-async def get_template_by_id(template_id: str) -> ContractTemplateModel:
+async def get_template_by_id(template_id: str, user_id: str = Depends(require_authenticated_user)) -> ContractTemplateModel:
     """Get a specific template by ID."""
     store = get_store()
     template = store.get_template(template_id)

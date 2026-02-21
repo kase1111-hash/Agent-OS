@@ -9,8 +9,10 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Cookie, HTTPException, Query, Request
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
+
+from ..auth_helpers import require_authenticated_user
 
 from ..intent_log import (
     IntentLogEntry,
@@ -197,7 +199,9 @@ async def get_intent_log_stats(
 
 
 @router.get("/types")
-async def list_intent_types() -> Dict[str, List[str]]:
+async def list_intent_types(
+    user_id: str = Depends(require_authenticated_user),
+) -> Dict[str, List[str]]:
     """List all available intent types."""
     return {"intent_types": [t.name for t in IntentType]}
 

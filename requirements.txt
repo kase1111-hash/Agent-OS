@@ -1,43 +1,43 @@
 # Agent OS Core Dependencies
 
 # YAML parsing for constitutional frontmatter
-PyYAML>=6.0.2
+PyYAML>=6.0.2,<7.0
 
 # File system watching for hot-reload
-watchdog>=5.0
+watchdog>=5.0,<6.0
 
 # Message protocol models
-pydantic>=2.10
+pydantic>=2.10,<3.0
 
 # Message bus (optional - for Redis backend)
-redis>=5.0
+redis>=5.0,<6.0
 
 # HTTP client for Ollama integration (optional)
-httpx>=0.28
+httpx>=0.28,<1.0
 
 # Secure XML parsing (prevents XXE attacks)
-defusedxml>=0.7
+defusedxml>=0.7,<1.0
 
 # Cryptography (AES-256-GCM encryption, key derivation, signing)
-cryptography>=42.0
+cryptography>=42.0,<44.0
 
 # Web interface (UC-017)
-fastapi>=0.115
-uvicorn[standard]>=0.32
-jinja2>=3.1
-python-multipart>=0.0.17
-websockets>=14.0
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.32,<1.0
+jinja2>=3.1,<4.0
+python-multipart>=0.0.17,<1.0
+websockets>=14.0,<15.0
 
 # Testing
-pytest>=8.0
-pytest-cov>=6.0
+pytest>=8.0,<9.0
+pytest-cov>=6.0,<7.0
 
 # Type checking (optional)
-mypy>=1.13
+mypy>=1.13,<2.0
 
 # Code formatting (optional)
-black>=24.0
-isort>=5.13
+black>=24.0,<25.0
+isort>=5.13,<6.0
 
 # Development
-ipython>=8.29
+ipython>=8.29,<9.0

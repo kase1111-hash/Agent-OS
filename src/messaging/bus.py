@@ -219,6 +219,12 @@ class InMemoryMessageBus(MessageBus):
 
         # V4-2: Agent identity verification
         self._identity_registry = identity_registry
+        if identity_registry is None:
+            logger.warning(
+                "InMemoryMessageBus created WITHOUT identity_registry — "
+                "message signing and verification is DISABLED. "
+                "Provide an AgentIdentityRegistry for production use."
+            )
 
         # V4-4: Channel-level access control lists
         # Maps channel name -> set of agent names allowed to publish
@@ -312,10 +318,14 @@ class InMemoryMessageBus(MessageBus):
         are stored on the message for verification at delivery time.
         """
         if not self._identity_registry:
-            return
+            return  # No registry — signing disabled (warned at init)
 
         registry = self._identity_registry
         if not hasattr(registry, "is_registered") or not registry.is_registered(source):
+            logger.warning(
+                f"Agent '{source}' is not registered in identity registry — "
+                f"message will be unsigned"
+            )
             return
 
         import hashlib

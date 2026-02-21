@@ -501,11 +501,13 @@ class TestLLMJudge:
         assert not result.allowed
         assert "failed" in result.reasoning.lower()
 
-    def test_judge_empty_matches_returns_allowed(self):
+    def test_judge_empty_matches_returns_denied(self):
+        """Empty matched rules should conservatively deny (not auto-allow)."""
         judge = LLMJudge(ollama_client=make_mock_ollama())
         ctx = FakeRequestContext()
         result = judge.judge(ctx, [])
-        assert result.allowed
+        assert not result.allowed
+        assert "conservative" in result.reasoning.lower()
 
     def test_cache_clear(self):
         mock = make_mock_ollama()
@@ -581,8 +583,8 @@ class TestEnforcementEngine:
         result = engine.evaluate(ctx, rules)
         assert result.allowed
 
-    def test_semantic_no_match_allows(self):
-        """If no rules match semantically, request is allowed."""
+    def test_semantic_no_match_denies_conservatively(self):
+        """If no rules match semantically, request is conservatively denied."""
         def embed_fn(model, text):
             if "weather" in text.lower():
                 return [1.0, 0.0, 0.0]
@@ -601,8 +603,8 @@ class TestEnforcementEngine:
         ]
         ctx = FakeRequestContext(content="What is the weather like?")
         result = engine.evaluate(ctx, rules)
-        assert result.allowed
-        assert result.tier == "semantic"
+        assert not result.allowed
+        assert result.escalate_to_human
 
     def test_full_pipeline_llm_allows(self):
         """Full pipeline: structural pass -> semantic match -> LLM allows."""

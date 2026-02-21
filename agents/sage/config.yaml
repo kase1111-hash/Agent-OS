@@ -16,6 +16,9 @@ repeat_penalty: 1.1
 # Output limits
 max_tokens: 8192          # Allow very long outputs for extended reasoning chains
 
+# File system sandboxing — Sage has no file access
+allowed_paths: []
+
 # Allowed tools - Sage has no direct tool access
 tools: []
 

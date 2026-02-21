@@ -178,7 +178,9 @@ _logs: List[LogEntry] = []
 
 
 @router.get("/info", response_model=SystemInfo)
-async def get_system_info() -> SystemInfo:
+async def get_system_info(
+    user_id: str = Depends(require_authenticated_user),
+) -> SystemInfo:
     """Get system information."""
     return SystemInfo(
         version="1.0.0",
@@ -190,7 +192,9 @@ async def get_system_info() -> SystemInfo:
 
 
 @router.get("/status", response_model=SystemStatus)
-async def get_system_status() -> SystemStatus:
+async def get_system_status(
+    user_id: str = Depends(require_authenticated_user),
+) -> SystemStatus:
     """Get system status."""
     # Check component health
     components = {
@@ -526,7 +530,9 @@ async def get_version() -> Dict[str, str]:
 
 
 @router.get("/dreaming")
-async def get_dreaming_status() -> Dict[str, Any]:
+async def get_dreaming_status(
+    user_id: str = Depends(require_authenticated_user),
+) -> Dict[str, Any]:
     """
     Get the current "dreaming" status.
 
