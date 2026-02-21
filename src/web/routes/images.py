@@ -670,9 +670,31 @@ class ImageGenerator:
         import httpx
 
         # ComfyUI workflow for txt2img
+        model_name = job.model or "v1-5-pruned-emaonly.safetensors"
         workflow = {
             "prompt": {
+                "4": {
+                    "class_type": "CheckpointLoaderSimple",
+                    "inputs": {"ckpt_name": model_name},
+                },
+                "5": {
+                    "class_type": "EmptyLatentImage",
+                    "inputs": {
+                        "width": job.width,
+                        "height": job.height,
+                        "batch_size": job.num_images,
+                    },
+                },
+                "6": {
+                    "class_type": "CLIPTextEncode",
+                    "inputs": {"text": job.prompt, "clip": ["4", 1]},
+                },
+                "7": {
+                    "class_type": "CLIPTextEncode",
+                    "inputs": {"text": job.negative_prompt or "", "clip": ["4", 1]},
+                },
                 "3": {
+                    "class_type": "KSampler",
                     "inputs": {
                         "seed": job.seed,
                         "steps": job.steps,
@@ -685,9 +707,15 @@ class ImageGenerator:
                         "negative": ["7", 0],
                         "latent_image": ["5", 0],
                     },
-                    "class_type": "KSampler",
                 },
-                # Add more workflow nodes...
+                "8": {
+                    "class_type": "VAEDecode",
+                    "inputs": {"samples": ["3", 0], "vae": ["4", 2]},
+                },
+                "9": {
+                    "class_type": "SaveImage",
+                    "inputs": {"images": ["8", 0], "filename_prefix": "agent_os"},
+                },
             }
         }
 
@@ -699,9 +727,62 @@ class ImageGenerator:
             )
             result = response.json()
 
-        # Process ComfyUI response
+            prompt_id = result.get("prompt_id")
+            if not prompt_id:
+                logger.error(f"ComfyUI returned no prompt_id: {result}")
+                return []
+
+            # Poll /history for completion (up to 5 minutes)
+            for _ in range(300):
+                await asyncio.sleep(1)
+                history_resp = await client.get(
+                    f"{self._comfyui_endpoint}/history/{prompt_id}",
+                    timeout=10,
+                )
+                history = history_resp.json()
+                if prompt_id in history:
+                    break
+            else:
+                logger.error(f"ComfyUI prompt {prompt_id} timed out")
+                return []
+
+        # Extract generated images from history output
         images = []
-        # ... parse ComfyUI output
+        store = get_image_store()
+        outputs = history[prompt_id].get("outputs", {})
+
+        async with httpx.AsyncClient() as client:
+            for node_id, node_output in outputs.items():
+                for img_info in node_output.get("images", []):
+                    filename = img_info.get("filename")
+                    if not filename:
+                        continue
+                    subfolder = img_info.get("subfolder", "")
+                    img_resp = await client.get(
+                        f"{self._comfyui_endpoint}/view",
+                        params={"filename": filename, "subfolder": subfolder},
+                        timeout=30,
+                    )
+                    if img_resp.status_code != 200:
+                        continue
+
+                    image_id = str(uuid.uuid4())
+                    out_filename = f"{image_id}.png"
+                    filepath = store.output_dir / out_filename
+                    await asyncio.to_thread(filepath.write_bytes, img_resp.content)
+
+                    img_base64 = base64.b64encode(img_resp.content).decode()
+                    images.append(
+                        {
+                            "id": image_id,
+                            "filename": out_filename,
+                            "base64": img_base64,
+                            "width": job.width,
+                            "height": job.height,
+                            "seed": job.seed,
+                        }
+                    )
+
         return images
 
     async def _generate_a1111(
