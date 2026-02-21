@@ -507,7 +507,11 @@ async def start_agent(
         )
     )
 
-    return AgentControlResponse(status="started", agent=agent_name)
+    return AgentControlResponse(
+        status="started",
+        agent=agent_name,
+        message="Agent marked as active for request routing. Agents are loaded on-demand per request.",
+    )
 
 
 @router.post("/{agent_name}/stop", response_model=AgentControlResponse)
@@ -547,7 +551,11 @@ async def stop_agent(
         )
     )
 
-    return AgentControlResponse(status="stopped", agent=agent_name)
+    return AgentControlResponse(
+        status="stopped",
+        agent=agent_name,
+        message="Agent marked as disabled. Incoming requests will not be routed to this agent.",
+    )
 
 
 @router.post("/{agent_name}/restart", response_model=AgentControlResponse)
@@ -574,7 +582,16 @@ async def restart_agent(
     if not agent:
         raise HTTPException(status_code=404, detail=f"Agent not found: {agent_name}")
 
+    # Cycle through disabled -> active to reset routing state
+    store.update_status(agent_name, AgentStatus.DISABLED)
     store.update_status(agent_name, AgentStatus.ACTIVE)
+
+    # Clear cached agent instance if the loader supports it
+    if hasattr(store, "_loader") and store._loader is not None:
+        cache = getattr(store._loader, "_instance_cache", None)
+        if cache is not None and agent_name in cache:
+            del cache[agent_name]
+
     store.add_log(
         AgentLogEntry(
             timestamp=datetime.utcnow(),
@@ -584,7 +601,11 @@ async def restart_agent(
         )
     )
 
-    return AgentControlResponse(status="restarted", agent=agent_name)
+    return AgentControlResponse(
+        status="restarted",
+        agent=agent_name,
+        message="Agent status reset and cached state cleared.",
+    )
 
 
 @router.get("/{agent_name}/logs", response_model=List[AgentLogEntry])
