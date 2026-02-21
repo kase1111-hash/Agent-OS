@@ -736,36 +736,6 @@ def get_manager() -> ConnectionManager:
 # =============================================================================
 
 
-async def _authenticate_websocket(websocket: WebSocket) -> Optional[str]:
-    """
-    Authenticate a WebSocket connection before accepting it.
-
-    Checks for session token in cookies or query parameters.
-
-    Returns:
-        User ID if authenticated, None otherwise
-    """
-    from ..auth import get_user_store
-
-    # Try to get token from cookies
-    token = websocket.cookies.get("session_token")
-
-    # If not in cookies, try query parameters
-    if not token:
-        token = websocket.query_params.get("token")
-
-    if not token:
-        return None
-
-    store = get_user_store()
-    user = store.validate_session(token)
-
-    if not user:
-        return None
-
-    return user.user_id
-
-
 @router.websocket("/ws")
 async def chat_websocket(
     websocket: WebSocket,
@@ -799,7 +769,9 @@ async def chat_websocket(
             return
 
     # SECURITY: Authenticate before accepting the WebSocket connection
-    user_id = await _authenticate_websocket(websocket)
+    from src.web.auth_helpers import authenticate_websocket
+
+    user_id = await authenticate_websocket(websocket)
     if not user_id:
         # Reject unauthenticated connections
         await websocket.close(code=4001, reason="Authentication required")
@@ -945,33 +917,7 @@ async def chat_websocket(
 # =============================================================================
 
 
-def _authenticate_rest_request(http_request: Request) -> str:
-    """
-    Authenticate a REST request via session token.
-
-    Checks cookies and Authorization header for a valid session token.
-
-    Returns:
-        User ID if authenticated
-
-    Raises:
-        HTTPException 401 if not authenticated
-    """
-    from ..auth import get_user_store
-
-    token = http_request.cookies.get("session_token")
-    if not token:
-        auth_header = http_request.headers.get("authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-
-    if token:
-        store = get_user_store()
-        user = store.validate_session(token)
-        if user:
-            return user.user_id
-
-    raise HTTPException(status_code=401, detail="Authentication required")
+from src.web.auth_helpers import require_authenticated_user as _authenticate_rest_request
 
 
 @router.post("/send", response_model=ChatResponse)

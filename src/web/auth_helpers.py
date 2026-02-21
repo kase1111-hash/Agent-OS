@@ -8,7 +8,7 @@ All route modules should import from here instead of defining their own auth log
 import logging
 from typing import Optional
 
-from fastapi import Cookie, HTTPException, Request
+from fastapi import Cookie, HTTPException, Request, WebSocket
 
 logger = logging.getLogger(__name__)
 
@@ -101,5 +101,42 @@ def require_admin_user(
             status_code=403,
             detail="Admin privileges required for this operation",
         )
+
+    return user.user_id
+
+
+async def authenticate_websocket(websocket: WebSocket) -> Optional[str]:
+    """
+    Authenticate a WebSocket connection before accepting it.
+
+    Checks for a session token in cookies or the ``token`` query parameter.
+
+    Returns:
+        User ID if authenticated, ``None`` otherwise.
+
+    Usage::
+
+        user_id = await authenticate_websocket(websocket)
+        if not user_id:
+            await websocket.close(code=4001, reason="Authentication required")
+            return
+    """
+    from .auth import get_user_store
+
+    # Try to get token from cookies
+    token = websocket.cookies.get("session_token")
+
+    # Fall back to query parameter
+    if not token:
+        token = websocket.query_params.get("token")
+
+    if not token:
+        return None
+
+    store = get_user_store()
+    user = store.validate_session(token)
+
+    if not user:
+        return None
 
     return user.user_id
