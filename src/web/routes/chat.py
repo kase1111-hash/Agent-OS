@@ -287,6 +287,8 @@ class Connection:
 class ConnectionManager:
     """Manages WebSocket connections with persistent conversation storage."""
 
+    MAX_CONNECTIONS = 100
+
     def __init__(
         self,
         store: Optional[ConversationStore] = None,
@@ -334,7 +336,16 @@ class ConnectionManager:
         connection_id: Optional[str] = None,
         user_id: Optional[str] = None,
     ) -> Connection:
-        """Accept a new WebSocket connection."""
+        """Accept a new WebSocket connection.
+
+        Raises:
+            RuntimeError: If the connection limit (MAX_CONNECTIONS) is reached.
+        """
+        if len(self.connections) >= self.MAX_CONNECTIONS:
+            raise RuntimeError(
+                f"Connection limit reached ({self.MAX_CONNECTIONS})"
+            )
+
         await websocket.accept()
 
         conn_id = connection_id or str(uuid.uuid4())
@@ -795,7 +806,13 @@ async def chat_websocket(
         return
 
     manager = get_manager()
-    connection = await manager.connect(websocket, user_id=user_id)
+
+    # Enforce connection limit before accepting
+    try:
+        connection = await manager.connect(websocket, user_id=user_id)
+    except RuntimeError:
+        await websocket.close(code=4029, reason="Too many connections")
+        return
 
     # Use provided conversation_id or create new one
     conv_id = conversation_id or str(uuid.uuid4())
@@ -811,10 +828,43 @@ async def chat_websocket(
         },
     )
 
+    # Server-side heartbeat: send a ping every 30s.
+    # If the client doesn't respond with any message within 90s the
+    # connection is considered stale and will be closed.
+    HEARTBEAT_INTERVAL = 30  # seconds
+
+    async def _heartbeat():
+        try:
+            while True:
+                await asyncio.sleep(HEARTBEAT_INTERVAL)
+                conn = manager.get_connection(connection.id)
+                if conn is None:
+                    break
+                # Check for staleness: no activity for 3 heartbeat intervals
+                idle = (datetime.utcnow() - conn.last_activity).total_seconds()
+                if idle > HEARTBEAT_INTERVAL * 3:
+                    logger.info(f"Closing stale WebSocket {connection.id} (idle {idle:.0f}s)")
+                    await websocket.close(code=4000, reason="Idle timeout")
+                    break
+                await manager.send_message(
+                    connection.id,
+                    {"type": "ping", "timestamp": datetime.utcnow().isoformat()},
+                )
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            pass  # connection already closed
+
+    heartbeat_task = asyncio.create_task(_heartbeat())
+
     try:
         while True:
             # Receive message
             data = await websocket.receive_json()
+
+            # Any incoming message counts as activity
+            connection.last_activity = datetime.utcnow()
+
             msg_type = data.get("type", "message")
 
             if msg_type == "message":
@@ -854,11 +904,13 @@ async def chat_websocket(
                         {"type": "error", "message": "An error occurred processing your message"},
                     )
 
-            elif msg_type == "ping":
-                await manager.send_message(
-                    connection.id,
-                    {"type": "pong", "timestamp": datetime.utcnow().isoformat()},
-                )
+            elif msg_type in ("ping", "pong"):
+                # Client ping → respond with pong; client pong → just update activity
+                if msg_type == "ping":
+                    await manager.send_message(
+                        connection.id,
+                        {"type": "pong", "timestamp": datetime.utcnow().isoformat()},
+                    )
 
             elif msg_type == "history":
                 # Send conversation history
@@ -884,6 +936,7 @@ async def chat_websocket(
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
     finally:
+        heartbeat_task.cancel()
         await manager.disconnect(connection.id)
 
 
