@@ -102,6 +102,7 @@ class SettingValue(BaseModel):
     description: str = ""
     editable: bool = True
     data_type: str = "string"  # string, number, boolean, array, object
+    wired: bool = False  # True if changing this value has a runtime effect
 
 
 class UpdateSettingRequest(BaseModel):
@@ -123,9 +124,8 @@ def _get_uptime_seconds() -> float:
     return (datetime.utcnow() - _start_time).total_seconds()
 
 
-# NOTE: These settings are stored in-memory but NOT wired to any consumers.
-# Changing these values via the API has no runtime effect.
-# TODO: Wire settings to their respective systems or remove this endpoint.
+# Settings store. Settings with wired=True have runtime effect when changed.
+# Settings with wired=False are stored but informational only.
 _settings: Dict[str, SettingValue] = {
     "chat.max_history": SettingValue(
         key="chat.max_history",
@@ -156,6 +156,7 @@ _settings: Dict[str, SettingValue] = {
         value="INFO",
         description="Logging level (DEBUG, INFO, WARNING, ERROR)",
         data_type="string",
+        wired=True,
     ),
     "api.rate_limit": SettingValue(
         key="api.rate_limit",
@@ -476,6 +477,14 @@ async def update_setting(
         raise HTTPException(status_code=400, detail="Value must be a string")
 
     setting.value = value
+
+    # Apply wired settings to their runtime consumers
+    if key == "logging.level":
+        level = getattr(logging, str(value).upper(), None)
+        if level is not None:
+            logging.getLogger("src").setLevel(level)
+            logger.info(f"Logging level changed to {value}")
+
     return setting
 
 
