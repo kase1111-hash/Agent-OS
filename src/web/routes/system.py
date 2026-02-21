@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from src import __version__ as PKG_VERSION
 
+from ..app import _app_state
 from ..auth_helpers import require_admin_user, require_authenticated_user
 
 # Backward compatibility alias
@@ -101,6 +102,7 @@ class SettingValue(BaseModel):
     description: str = ""
     editable: bool = True
     data_type: str = "string"  # string, number, boolean, array, object
+    wired: bool = False  # True if changing this value has a runtime effect
 
 
 class UpdateSettingRequest(BaseModel):
@@ -122,9 +124,8 @@ def _get_uptime_seconds() -> float:
     return (datetime.utcnow() - _start_time).total_seconds()
 
 
-# NOTE: These settings are stored in-memory but NOT wired to any consumers.
-# Changing these values via the API has no runtime effect.
-# TODO: Wire settings to their respective systems or remove this endpoint.
+# Settings store. Settings with wired=True have runtime effect when changed.
+# Settings with wired=False are stored but informational only.
 _settings: Dict[str, SettingValue] = {
     "chat.max_history": SettingValue(
         key="chat.max_history",
@@ -155,6 +156,7 @@ _settings: Dict[str, SettingValue] = {
         value="INFO",
         description="Logging level (DEBUG, INFO, WARNING, ERROR)",
         data_type="string",
+        wired=True,
     ),
     "api.rate_limit": SettingValue(
         key="api.rate_limit",
@@ -170,8 +172,34 @@ _settings: Dict[str, SettingValue] = {
     ),
 }
 
-# Mock logs
+# In-memory log capture — wired to real Python logging
 _logs: List[LogEntry] = []
+_MAX_LOG_ENTRIES = 1000
+
+
+class _InMemoryLogHandler(logging.Handler):
+    """Captures log records into _logs for the /logs endpoint."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            entry = LogEntry(
+                timestamp=datetime.utcfromtimestamp(record.created),
+                level=record.levelname,
+                logger=record.name,
+                message=self.format(record),
+            )
+            _logs.append(entry)
+            if len(_logs) > _MAX_LOG_ENTRIES:
+                del _logs[: len(_logs) - _MAX_LOG_ENTRIES]
+        except Exception:
+            pass  # Never let logging crash the app
+
+
+# Install the handler on the "src" logger so all application logs are captured.
+_mem_handler = _InMemoryLogHandler()
+_mem_handler.setLevel(logging.DEBUG)
+_mem_handler.setFormatter(logging.Formatter("%(message)s"))
+logging.getLogger("src").addHandler(_mem_handler)
 
 
 # =============================================================================
@@ -198,14 +226,36 @@ async def get_system_status(
     user_id: str = Depends(require_authenticated_user),
 ) -> SystemStatus:
     """Get system status."""
-    # Check component health
-    components = {
-        "api": "up",
-        "websocket": "up",
-        "agents": "up",
-        "memory": "up",
-        "constitution": "up",
-    }
+    # Check component health with real availability probes
+    components = {"api": "up", "websocket": "up"}
+
+    if AGENTS_AVAILABLE:
+        try:
+            create_loader(Path.cwd())
+            components["agents"] = "up"
+        except Exception:
+            components["agents"] = "degraded"
+    else:
+        components["agents"] = "degraded"
+
+    if MEMORY_AVAILABLE:
+        try:
+            create_seshat_agent(use_mock=True)
+            components["memory"] = "up"
+        except Exception:
+            components["memory"] = "degraded"
+    else:
+        components["memory"] = "degraded"
+
+    if CONSTITUTION_AVAILABLE:
+        try:
+            kernel = create_kernel(project_root=Path.cwd())
+            result = kernel.initialize()
+            components["constitution"] = "up" if result.is_valid else "degraded"
+        except Exception:
+            components["constitution"] = "degraded"
+    else:
+        components["constitution"] = "degraded"
 
     # Determine overall status
     down_count = sum(1 for s in components.values() if s == "down")
@@ -427,6 +477,14 @@ async def update_setting(
         raise HTTPException(status_code=400, detail="Value must be a string")
 
     setting.value = value
+
+    # Apply wired settings to their runtime consumers
+    if key == "logging.level":
+        level = getattr(logging, str(value).upper(), None)
+        if level is not None:
+            logging.getLogger("src").setLevel(level)
+            logger.info(f"Logging level changed to {value}")
+
     return setting
 
 
@@ -438,31 +496,6 @@ async def get_logs(
     admin_id: str = Depends(require_admin_user),
 ) -> List[LogEntry]:
     """Get system logs (admin only)."""
-    global _logs
-
-    # Generate some mock logs if empty
-    if not _logs:
-        _logs = [
-            LogEntry(
-                timestamp=datetime.utcnow(),
-                level="INFO",
-                logger="system",
-                message="Agent OS Web Interface started",
-            ),
-            LogEntry(
-                timestamp=datetime.utcnow(),
-                level="INFO",
-                logger="agents",
-                message="All agents initialized successfully",
-            ),
-            LogEntry(
-                timestamp=datetime.utcnow(),
-                level="DEBUG",
-                logger="websocket",
-                message="WebSocket server listening on port 8080",
-            ),
-        ]
-
     logs = _logs
 
     if level:
@@ -564,25 +597,29 @@ async def get_metrics(
     user_id: str = Depends(require_authenticated_user),
 ) -> Dict[str, Any]:
     """Get system metrics."""
+    uptime = _get_uptime_seconds()
+    total_requests = _app_state.request_count
+    failed_requests = _app_state.request_errors
+    rate_per_minute = (total_requests / (uptime / 60)) if uptime > 0 else 0.0
+
     return {
-        "uptime_seconds": _get_uptime_seconds(),
+        "uptime_seconds": uptime,
         "memory": {
-            "total_mb": 1024,  # Mock value
+            "total_mb": 1024,  # Requires psutil — kept as placeholder
             "used_mb": 256,
             "available_mb": 768,
         },
         "cpu": {
-            "usage_percent": 15.5,  # Mock value
+            "usage_percent": 15.5,  # Requires psutil — kept as placeholder
             "cores": os.cpu_count() or 1,
         },
         "requests": {
-            "total": 1542,
-            "success": 1520,
-            "failed": 22,
-            "rate_per_minute": 25.7,
+            "total": total_requests,
+            "success": total_requests - failed_requests,
+            "failed": failed_requests,
+            "rate_per_minute": round(rate_per_minute, 2),
         },
         "websocket": {
-            "active_connections": 3,
-            "total_messages": 856,
+            "active_connections": len(_app_state.active_connections),
         },
     }

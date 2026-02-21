@@ -5,8 +5,10 @@ Main application factory for the Agent OS web interface.
 """
 
 import asyncio
+import json
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -73,6 +75,23 @@ OPENAPI_TAGS = [
 logger = logging.getLogger(__name__)
 
 
+class JSONFormatter(logging.Formatter):
+    """Structured JSON log formatter for production use."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        entry: Dict[str, Any] = {
+            "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        if hasattr(record, "request_id"):
+            entry["request_id"] = record.request_id
+        if record.exc_info and record.exc_info[0]:
+            entry["exception"] = self.formatException(record.exc_info)
+        return json.dumps(entry)
+
+
 # Lazy imports to handle missing dependencies gracefully
 def _check_dependencies() -> bool:
     """Check if required dependencies are installed."""
@@ -95,6 +114,8 @@ class AppState:
         self.memory_store = None
         self.constitution_registry = None
         self.active_connections: Dict[str, Any] = {}
+        self.request_count: int = 0
+        self.request_errors: int = 0
 
 
 _app_state = AppState()
@@ -165,6 +186,12 @@ def create_app(config: Optional[WebConfig] = None) -> Any:
         global _cleanup_task
 
         logger.info("Starting Agent OS Web Interface...")
+
+        # Install structured JSON logging in production
+        if not config.debug:
+            handler = logging.StreamHandler()
+            handler.setFormatter(JSONFormatter())
+            logging.getLogger("src").addHandler(handler)
 
         # Security warning for disabled authentication
         if not config.require_auth and not config.debug:
@@ -272,10 +299,27 @@ Real-time streaming is available via WebSocket:
     )
 
     # Security headers middleware (CSP, X-Frame-Options, etc.)
-    from .middleware import SecurityHeadersMiddleware
+    from .middleware import RequestIdMiddleware, SecurityHeadersMiddleware
 
     app.add_middleware(SecurityHeadersMiddleware)
     logger.info("Security headers middleware enabled (CSP, X-Frame-Options, X-Content-Type-Options)")
+
+    # Request correlation ID middleware
+    app.add_middleware(RequestIdMiddleware)
+
+    # Request counting middleware
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.responses import Response
+
+    class RequestCounterMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request: Request, call_next):
+            _app_state.request_count += 1
+            response: Response = await call_next(request)
+            if response.status_code >= 500:
+                _app_state.request_errors += 1
+            return response
+
+    app.add_middleware(RequestCounterMiddleware)
 
     # HTTPS enforcement and HSTS middleware
     if config.force_https or config.hsts_enabled:

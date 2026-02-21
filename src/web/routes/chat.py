@@ -287,6 +287,8 @@ class Connection:
 class ConnectionManager:
     """Manages WebSocket connections with persistent conversation storage."""
 
+    MAX_CONNECTIONS = 100
+
     def __init__(
         self,
         store: Optional[ConversationStore] = None,
@@ -334,7 +336,16 @@ class ConnectionManager:
         connection_id: Optional[str] = None,
         user_id: Optional[str] = None,
     ) -> Connection:
-        """Accept a new WebSocket connection."""
+        """Accept a new WebSocket connection.
+
+        Raises:
+            RuntimeError: If the connection limit (MAX_CONNECTIONS) is reached.
+        """
+        if len(self.connections) >= self.MAX_CONNECTIONS:
+            raise RuntimeError(
+                f"Connection limit reached ({self.MAX_CONNECTIONS})"
+            )
+
         await websocket.accept()
 
         conn_id = connection_id or str(uuid.uuid4())
@@ -725,36 +736,6 @@ def get_manager() -> ConnectionManager:
 # =============================================================================
 
 
-async def _authenticate_websocket(websocket: WebSocket) -> Optional[str]:
-    """
-    Authenticate a WebSocket connection before accepting it.
-
-    Checks for session token in cookies or query parameters.
-
-    Returns:
-        User ID if authenticated, None otherwise
-    """
-    from ..auth import get_user_store
-
-    # Try to get token from cookies
-    token = websocket.cookies.get("session_token")
-
-    # If not in cookies, try query parameters
-    if not token:
-        token = websocket.query_params.get("token")
-
-    if not token:
-        return None
-
-    store = get_user_store()
-    user = store.validate_session(token)
-
-    if not user:
-        return None
-
-    return user.user_id
-
-
 @router.websocket("/ws")
 async def chat_websocket(
     websocket: WebSocket,
@@ -788,14 +769,22 @@ async def chat_websocket(
             return
 
     # SECURITY: Authenticate before accepting the WebSocket connection
-    user_id = await _authenticate_websocket(websocket)
+    from src.web.auth_helpers import authenticate_websocket
+
+    user_id = await authenticate_websocket(websocket)
     if not user_id:
         # Reject unauthenticated connections
         await websocket.close(code=4001, reason="Authentication required")
         return
 
     manager = get_manager()
-    connection = await manager.connect(websocket, user_id=user_id)
+
+    # Enforce connection limit before accepting
+    try:
+        connection = await manager.connect(websocket, user_id=user_id)
+    except RuntimeError:
+        await websocket.close(code=4029, reason="Too many connections")
+        return
 
     # Use provided conversation_id or create new one
     conv_id = conversation_id or str(uuid.uuid4())
@@ -811,10 +800,43 @@ async def chat_websocket(
         },
     )
 
+    # Server-side heartbeat: send a ping every 30s.
+    # If the client doesn't respond with any message within 90s the
+    # connection is considered stale and will be closed.
+    HEARTBEAT_INTERVAL = 30  # seconds
+
+    async def _heartbeat():
+        try:
+            while True:
+                await asyncio.sleep(HEARTBEAT_INTERVAL)
+                conn = manager.get_connection(connection.id)
+                if conn is None:
+                    break
+                # Check for staleness: no activity for 3 heartbeat intervals
+                idle = (datetime.utcnow() - conn.last_activity).total_seconds()
+                if idle > HEARTBEAT_INTERVAL * 3:
+                    logger.info(f"Closing stale WebSocket {connection.id} (idle {idle:.0f}s)")
+                    await websocket.close(code=4000, reason="Idle timeout")
+                    break
+                await manager.send_message(
+                    connection.id,
+                    {"type": "ping", "timestamp": datetime.utcnow().isoformat()},
+                )
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            pass  # connection already closed
+
+    heartbeat_task = asyncio.create_task(_heartbeat())
+
     try:
         while True:
             # Receive message
             data = await websocket.receive_json()
+
+            # Any incoming message counts as activity
+            connection.last_activity = datetime.utcnow()
+
             msg_type = data.get("type", "message")
 
             if msg_type == "message":
@@ -854,11 +876,13 @@ async def chat_websocket(
                         {"type": "error", "message": "An error occurred processing your message"},
                     )
 
-            elif msg_type == "ping":
-                await manager.send_message(
-                    connection.id,
-                    {"type": "pong", "timestamp": datetime.utcnow().isoformat()},
-                )
+            elif msg_type in ("ping", "pong"):
+                # Client ping → respond with pong; client pong → just update activity
+                if msg_type == "ping":
+                    await manager.send_message(
+                        connection.id,
+                        {"type": "pong", "timestamp": datetime.utcnow().isoformat()},
+                    )
 
             elif msg_type == "history":
                 # Send conversation history
@@ -884,6 +908,7 @@ async def chat_websocket(
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
     finally:
+        heartbeat_task.cancel()
         await manager.disconnect(connection.id)
 
 
@@ -892,33 +917,7 @@ async def chat_websocket(
 # =============================================================================
 
 
-def _authenticate_rest_request(http_request: Request) -> str:
-    """
-    Authenticate a REST request via session token.
-
-    Checks cookies and Authorization header for a valid session token.
-
-    Returns:
-        User ID if authenticated
-
-    Raises:
-        HTTPException 401 if not authenticated
-    """
-    from ..auth import get_user_store
-
-    token = http_request.cookies.get("session_token")
-    if not token:
-        auth_header = http_request.headers.get("authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-
-    if token:
-        store = get_user_store()
-        user = store.validate_session(token)
-        if user:
-            return user.user_id
-
-    raise HTTPException(status_code=401, detail="Authentication required")
+from src.web.auth_helpers import require_authenticated_user as _authenticate_rest_request
 
 
 @router.post("/send", response_model=ChatResponse)
