@@ -616,7 +616,7 @@ class ConnectionManager:
                 )
 
             # Run Ollama in thread pool (since httpx client is synchronous)
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
 
             # Update dreaming status to running
             if dreaming:

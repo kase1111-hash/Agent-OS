@@ -59,10 +59,6 @@ class WebConfig:
     templates_dir: Path = field(default_factory=lambda: Path(__file__).parent / "templates")
     data_dir: Path = field(default_factory=lambda: Path(__file__).parent / "data")
 
-    # WebSocket settings
-    ws_heartbeat_interval: int = 30  # seconds
-    ws_max_connections: int = 100
-
     # Rate limiting
     rate_limit_enabled: bool = True
     rate_limit_requests_per_minute: int = 60
@@ -70,9 +66,6 @@ class WebConfig:
     rate_limit_strategy: str = "sliding_window"  # fixed_window, sliding_window, token_bucket
     rate_limit_use_redis: bool = False
     rate_limit_redis_url: str = "redis://localhost:6379"
-
-    # Session
-    session_timeout: int = 3600  # seconds
 
     def validate(self) -> None:
         """
@@ -135,7 +128,7 @@ class WebConfig:
             port=int(os.getenv("AGENT_OS_WEB_PORT", "8080")),
             debug=os.getenv("AGENT_OS_WEB_DEBUG", "").lower() in ("1", "true", "yes"),
             api_key=os.getenv("AGENT_OS_API_KEY"),
-            require_auth=os.getenv("AGENT_OS_REQUIRE_AUTH", "").lower() in ("1", "true", "yes"),
+            require_auth=os.getenv("AGENT_OS_REQUIRE_AUTH", "true").lower() in ("1", "true", "yes"),
             # HTTPS/TLS settings
             force_https=os.getenv("AGENT_OS_FORCE_HTTPS", "").lower() in ("1", "true", "yes"),
             hsts_enabled=os.getenv("AGENT_OS_HSTS_ENABLED", "").lower() in ("1", "true", "yes"),

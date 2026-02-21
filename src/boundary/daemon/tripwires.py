@@ -445,8 +445,8 @@ def create_process_tripwire(
                     except (PermissionError, FileNotFoundError):
                         continue
 
-        except Exception:
-            pass
+        except OSError as e:
+            logger.debug(f"Error scanning /proc for forbidden processes: {e}")
         return False
 
     return Tripwire(

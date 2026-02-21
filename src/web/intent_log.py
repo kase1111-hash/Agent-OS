@@ -189,8 +189,8 @@ class IntentLogStore:
                 row = cursor.fetchone()
                 if row and row[0]:
                     self._latest_hash = row[0]
-            except Exception:
-                pass
+            except (KeyError, sqlite3.Error) as e:
+                logger.warning(f"Failed to read latest hash from intent log: {e}")
 
             logger.info(f"Intent log store initialized: {db_str}")
             return True

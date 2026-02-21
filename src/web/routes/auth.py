@@ -213,10 +213,10 @@ async def login(
 
     try:
         # Authenticate user
-        user = store.authenticate(body.username, body.password)
+        user, error_msg = store.authenticate(body.username, body.password)
 
         if not user:
-            raise HTTPException(status_code=401, detail="Invalid username or password")
+            raise HTTPException(status_code=401, detail=error_msg or "Invalid username or password")
 
         # Create session with longer duration if "remember me" is checked
         duration = 24 * 30 if body.remember_me else 24  # 30 days or 24 hours

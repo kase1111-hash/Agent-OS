@@ -210,11 +210,11 @@ async def list_attacks(
     """
     try:
         smith = get_smith()
-        attacks = smith.get_detected_attacks(since=since, limit=limit + offset)
+        attacks = smith.get_detected_attacks(since=since)
 
-        # Apply filters
+        # Apply filters first, then paginate
         filtered = []
-        for attack in attacks[offset:]:
+        for attack in attacks:
             if severity and attack.get("severity") != severity:
                 continue
             if attack_type and attack.get("attack_type") != attack_type:
@@ -233,8 +233,8 @@ async def list_attacks(
                 source=attack.get("source"),
             ))
 
-            if len(filtered) >= limit:
-                break
+        # Apply pagination after filtering
+        filtered = filtered[offset:offset + limit]
 
         return filtered
 
