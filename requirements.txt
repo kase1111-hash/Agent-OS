@@ -34,7 +34,7 @@ mypy>=1.13,<2.0
 
 # Code formatting (optional)
 black>=24.0,<25.0
-isort>=5.13,<6.0
+isort>=5.13,<9.0
 
 # Development
 ipython>=8.29,<9.0
