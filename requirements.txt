@@ -10,7 +10,7 @@ watchdog>=5.0,<6.0
 pydantic>=2.10,<3.0
 
 # Message bus (optional - for Redis backend)
-redis>=5.0,<6.0
+redis>=5.0,<8.0
 
 # HTTP client for Ollama integration (optional)
 httpx>=0.28,<1.0
