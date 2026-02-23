@@ -27,7 +27,7 @@ websockets>=14.0,<15.0
 
 # Testing
 pytest>=8.0,<9.0
-pytest-cov>=6.0,<7.0
+pytest-cov>=6.0,<8.0
 
 # Type checking (optional)
 mypy>=1.13,<2.0
