@@ -79,15 +79,27 @@ class ToolManifest:
         """
         Verify the manifest signature using the agent identity system.
 
-        Returns True if no signature is present (unsigned manifests are
-        allowed but logged). Returns True/False for signed manifests.
+        Rejects unsigned manifests by default (fail-closed).
+        Set AGENT_OS_ALLOW_UNSIGNED_MANIFESTS=true for dev mode.
         """
         if not self.signature:
-            logger.info(
-                "Manifest for %s is unsigned — accepting without verification",
+            import os
+
+            allow_unsigned = os.getenv(
+                "AGENT_OS_ALLOW_UNSIGNED_MANIFESTS", "false"
+            ).lower() in ("1", "true", "yes")
+            if allow_unsigned:
+                logger.warning(
+                    "Manifest for %s is unsigned — accepting (dev mode)",
+                    self.tool_name,
+                )
+                return True
+            logger.warning(
+                "Manifest for %s is unsigned — REJECTED. "
+                "Set AGENT_OS_ALLOW_UNSIGNED_MANIFESTS=true for dev mode.",
                 self.tool_name,
             )
-            return True
+            return False
 
         try:
             from src.agents.identity import verify_message
@@ -97,11 +109,11 @@ class ToolManifest:
             return verify_message(content, sig_bytes, self.author)
         except ImportError:
             logger.warning(
-                "Agent identity module not available — cannot verify manifest "
-                "signature for %s",
+                "Agent identity module not available — rejecting manifest "
+                "for %s (fail-closed).",
                 self.tool_name,
             )
-            return True
+            return False
         except Exception as e:
             logger.error(
                 "Manifest signature verification failed for %s: %s",

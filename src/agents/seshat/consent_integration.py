@@ -90,6 +90,23 @@ class ConsentBridge:
         """
         return ConsentVerifier(verify_callback=self.verify_access)
 
+    def _validate_accessor(self, accessor: str) -> bool:
+        """
+        Validate that the accessor identity is well-formed and non-empty.
+
+        Rejects empty, whitespace-only, or suspiciously formatted accessor IDs.
+        """
+        if not accessor or not accessor.strip():
+            logger.warning("Memory access denied: empty accessor identity")
+            return False
+        # Accessor must be alphanumeric with hyphens/underscores (no injection)
+        import re
+
+        if not re.match(r"^[a-zA-Z0-9_\-.:]+$", accessor):
+            logger.warning("Memory access denied: invalid accessor format '%s'", accessor)
+            return False
+        return True
+
     def verify_access(
         self,
         consent_id: Optional[str],
@@ -105,6 +122,9 @@ class ConsentBridge:
         Returns:
             True if access is allowed
         """
+        if not self._validate_accessor(accessor):
+            return False
+
         if not consent_id:
             # No consent requirement
             return True
@@ -147,6 +167,9 @@ class ConsentBridge:
         Returns:
             Consent ID if granted, None if denied
         """
+        if not self._validate_accessor(accessor):
+            return None
+
         if not self._config.require_consent_for_store:
             return None  # No consent tracking needed
 
@@ -191,6 +214,9 @@ class ConsentBridge:
         Returns:
             True if deletion is allowed
         """
+        if not self._validate_accessor(accessor):
+            return False
+
         if not consent_id:
             return True
 

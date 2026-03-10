@@ -16,8 +16,10 @@ services:
     container_name: agentos-app
     restart: unless-stopped
     ports:
-      - "${AGENT_OS_WEB_PORT:-8080}:8080"
+      - "127.0.0.1:${AGENT_OS_WEB_PORT:-8080}:8080"
     environment:
+      # SECURITY: Binds to all interfaces inside container (reached via port mapping above).
+      # Host-side binding restricted to 127.0.0.1. Use a reverse proxy for external access.
       - AGENT_OS_WEB_HOST=0.0.0.0
       - AGENT_OS_WEB_PORT=8080
       - AGENT_OS_DATA_DIR=/app/data

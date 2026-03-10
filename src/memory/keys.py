@@ -783,3 +783,101 @@ class KeyManager:
 
         except Exception as e:
             logger.error(f"Failed to persist key metadata: {e}")
+
+
+class KeyRotationScheduler:
+    """
+    Automatic key rotation based on age TTL.
+
+    Periodically checks key ages and rotates keys that have exceeded
+    the configured TTL. Old keys enter a grace period before revocation.
+
+    This addresses Finding #11 (No automatic key rotation policy) from
+    the Agentic Security Audit v3.0.
+    """
+
+    DEFAULT_TTL_DAYS = 90
+    DEFAULT_GRACE_DAYS = 7
+    CHECK_INTERVAL_SECONDS = 3600  # 1 hour
+
+    def __init__(
+        self,
+        key_manager: KeyManager,
+        ttl_days: Optional[int] = None,
+        grace_days: Optional[int] = None,
+    ):
+        self._key_manager = key_manager
+        self._ttl_days = ttl_days or self.DEFAULT_TTL_DAYS
+        self._grace_days = grace_days or self.DEFAULT_GRACE_DAYS
+        self._running = False
+        self._thread: Optional[threading.Thread] = None
+
+    def start(self) -> None:
+        """Start the rotation scheduler in a background thread."""
+        if self._running:
+            return
+        self._running = True
+        self._thread = threading.Thread(
+            target=self._rotation_loop,
+            daemon=True,
+            name="key-rotation-scheduler",
+        )
+        self._thread.start()
+        logger.info(
+            "Key rotation scheduler started: TTL=%d days, grace=%d days",
+            self._ttl_days,
+            self._grace_days,
+        )
+
+    def stop(self) -> None:
+        """Stop the rotation scheduler."""
+        self._running = False
+
+    def _rotation_loop(self) -> None:
+        """Background loop that checks and rotates keys."""
+        import time
+
+        while self._running:
+            try:
+                self._check_and_rotate()
+            except Exception as e:
+                logger.error("Key rotation check failed: %s", e)
+            time.sleep(self.CHECK_INTERVAL_SECONDS)
+
+    def _check_and_rotate(self) -> None:
+        """Check all active keys and rotate those past TTL."""
+        now = datetime.utcnow()
+        ttl = timedelta(days=self._ttl_days)
+        grace = timedelta(days=self._grace_days)
+
+        active_keys = self._key_manager.list_keys(status=KeyStatus.ACTIVE)
+
+        for key_meta in active_keys:
+            age = now - key_meta.created_at
+
+            if age > ttl:
+                logger.warning(
+                    "Key %s has exceeded TTL (%d days old, limit %d). Rotating.",
+                    key_meta.key_id,
+                    age.days,
+                    self._ttl_days,
+                )
+                self._key_manager.rotate_key(key_meta.key_id)
+
+            elif age > ttl - timedelta(days=7):
+                logger.info(
+                    "Key %s approaching rotation (age=%d days, TTL=%d days)",
+                    key_meta.key_id,
+                    age.days,
+                    self._ttl_days,
+                )
+
+        # Revoke keys that have been pending rotation past grace period
+        pending_keys = self._key_manager.list_keys(status=KeyStatus.PENDING_ROTATION)
+        for key_meta in pending_keys:
+            if key_meta.rotation_scheduled and (now - key_meta.rotation_scheduled) > grace:
+                logger.info(
+                    "Revoking old key %s (grace period expired)",
+                    key_meta.key_id,
+                )
+                self._key_manager.revoke_key(key_meta.key_id)

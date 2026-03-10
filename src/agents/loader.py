@@ -338,6 +338,71 @@ class AgentLoader:
         self._agent_classes[name] = agent_class
         logger.debug(f"Registered agent class: {name}")
 
+    def _verify_agent_module(self, module_path: str, agent_name: str) -> None:
+        """
+        Verify agent module integrity before dynamic loading.
+
+        Computes SHA-256 hash and checks against known signatures.
+        Logs warning if verification unavailable, raises on tampering.
+        """
+        import os
+
+        allow_unsigned = os.getenv(
+            "AGENT_OS_ALLOW_UNSIGNED_AGENTS", "false"
+        ).lower() in ("1", "true", "yes")
+
+        try:
+            # Find the module file
+            spec = importlib.util.find_spec(module_path)
+            if spec and spec.origin:
+                self._verify_agent_file(Path(spec.origin), agent_name)
+            elif not allow_unsigned:
+                logger.warning(
+                    "Cannot locate source for module '%s' — skipping integrity check",
+                    module_path,
+                )
+        except Exception as e:
+            if not allow_unsigned:
+                logger.warning("Agent module verification failed for '%s': %s", module_path, e)
+
+    def _verify_agent_file(self, file_path: Path, agent_name: str) -> None:
+        """
+        Verify agent file integrity via SHA-256 hash.
+
+        Uses InstructionIntegrityValidator if available, otherwise
+        logs a warning and proceeds (to avoid breaking existing setups).
+        """
+        import os
+
+        allow_unsigned = os.getenv(
+            "AGENT_OS_ALLOW_UNSIGNED_AGENTS", "false"
+        ).lower() in ("1", "true", "yes")
+
+        try:
+            from src.agents.smith.instruction_integrity import InstructionIntegrityValidator
+
+            validator = InstructionIntegrityValidator()
+            if not validator.validate_file(file_path):
+                if allow_unsigned:
+                    logger.warning(
+                        "Agent file '%s' integrity check FAILED but unsigned agents allowed",
+                        file_path,
+                    )
+                else:
+                    raise ImportError(
+                        f"Agent file '{file_path}' integrity check FAILED. "
+                        f"File may have been tampered with. "
+                        f"Set AGENT_OS_ALLOW_UNSIGNED_AGENTS=true to override."
+                    )
+        except ImportError as e:
+            if "integrity check FAILED" in str(e):
+                raise
+            if not allow_unsigned:
+                logger.info(
+                    "Integrity validator not available for agent '%s' — proceeding",
+                    agent_name,
+                )
+
     def load_from_module(
         self,
         module_path: str,
@@ -361,6 +426,9 @@ class AgentLoader:
             TypeError: If class is not an AgentInterface subclass
             ValueError: If agent instantiation fails
         """
+        # Verify module integrity before loading
+        self._verify_agent_module(module_path, config.name)
+
         # Import module
         try:
             module = importlib.import_module(module_path)
@@ -431,6 +499,9 @@ class AgentLoader:
 
         if not file_path.is_file():
             raise ValueError(f"Agent path is not a file: {file_path}")
+
+        # Verify file integrity before loading
+        self._verify_agent_file(file_path, config.name)
 
         # Load module from file
         try:

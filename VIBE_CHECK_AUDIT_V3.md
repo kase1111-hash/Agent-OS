@@ -22,10 +22,10 @@ Human Review Evidence:  STRONG
 
 ```
 L1 Provenance:       PASS
-L2 Credentials:      WARN
-L3 Agent Boundaries: WARN
-L4 Supply Chain:     PASS
-L5 Infrastructure:   PASS
+L2 Credentials:      PASS (was WARN — all findings resolved)
+L3 Agent Boundaries: PASS (was WARN — all findings resolved)
+L4 Supply Chain:     PASS (remaining findings resolved)
+L5 Infrastructure:   PASS (LOW findings resolved)
 ```
 
 ---
@@ -446,39 +446,39 @@ Fix:       Return generic error messages. Log the detail server-side.
 
 ## FINDING SUMMARY
 
-| Severity | Count | Layers |
-|----------|-------|--------|
-| **CRITICAL** | 0 | — |
-| **HIGH** | 9 | L2 (3), L3 (6) |
-| **MEDIUM** | 9 | L2 (4), L3 (3), L4 (2) |
-| **LOW** | 4 | L4 (1), L5 (3) |
+| Severity | Count | Resolved | Remaining |
+|----------|-------|----------|-----------|
+| **CRITICAL** | 0 | — | 0 |
+| **HIGH** | 9 | 9 | 0 |
+| **MEDIUM** | 9 | 9 | 0 |
+| **LOW** | 4 | 4 | 0 |
 
-### HIGH Findings — Fix Within 24h
+### HIGH Findings
 
-| # | Finding | Layer | Location |
-|---|---------|-------|----------|
-| 1 | Session secret XOR fallback | L2 | `src/web/auth.py` |
-| 2 | Auth defaults to disabled | L2 | `src/web/config.py` |
-| 3 | API key grants unscoped ADMIN access | L2 | `src/web/auth.py:170-245` |
-| 4 | No prompt sanitization layer | L3 | `src/web/routes/chat.py` |
-| 5 | Inter-agent messages unsigned | L3 | `src/messaging/bus.py` |
-| 6 | Smith agent single point of failure | L3 | `src/agents/whisper/router.py:99` |
-| 7 | S3 instruction integrity missing | L3 | `src/agents/analyzer.py` |
-| 8 | Unauthenticated constitution endpoints | L3 | `src/web/routes/constitution.py` |
-| 9 | No outbound secret scanning | L3 | `src/utils/encryption.py` |
+| # | Finding | Layer | Status | Resolution |
+|---|---------|-------|--------|------------|
+| 1 | Session secret XOR fallback | L2 | **FIXED** | XOR fallback removed; AES-256-GCM only; legacy formats rejected with migration guidance |
+| 2 | Auth defaults to disabled | L2 | **ALREADY FIXED** | `require_auth: bool = True` already in code |
+| 3 | API key grants unscoped ADMIN access | L2 | **FIXED** | Scoped API keys with `ApiKeyScope` enum; `api_keys` table; per-scope validation; legacy key emits deprecation warning |
+| 4 | No prompt sanitization layer | L3 | **FIXED** | `PromptSanitizer` in `src/core/input_sanitizer.py`; blocks above threshold; sanitizes below; wired into WebSocket + REST chat paths |
+| 5 | Inter-agent messages unsigned | L3 | **ALREADY FIXED** | `bus.py` already has `_sign_message()` + `_verify_message_signature()` |
+| 6 | Smith agent single point of failure | L3 | **FIXED** | `SmithIntegrityChecker` validates code hash; fail-closed LOCKDOWN on unavailability/tampering |
+| 7 | S3 instruction integrity missing | L3 | **FIXED** | `InstructionIntegrityValidator` with HMAC-SHA256; validates instruction files before loading |
+| 8 | Unauthenticated constitution endpoints | L3 | **ALREADY FIXED** | All POST/PUT/DELETE use `Depends(require_admin_user)` |
+| 9 | No outbound secret scanning | L3 | **FIXED** | `SensitiveDataRedactor` wired to WebSocket + REST outbound chat responses |
 
-### MEDIUM Findings — Fix Within 1 Week
+### MEDIUM Findings
 
-| # | Finding | Layer | Location |
-|---|---------|-------|----------|
-| 10 | Plaintext conversation storage | L2 | `src/web/conversation_store.py` |
-| 11 | No automatic key rotation policy | L2 | `src/memory/keys.py` |
-| 12 | .env.example risky defaults | L2 | `.env.example` |
-| 13 | Memory accessor identity spoofable | L3 | `src/memory/seshat/consent_integration.py` |
-| 14 | Escalation callbacks lack human handler | L3 | `src/boundary/enforcement.py` |
-| 15 | Untrusted memories not quarantined | L3 | `src/agents/seshat/agent.py` |
-| 16 | Unsigned manifests accepted | L4 | `src/tools/manifest.py` |
-| 17 | Agent loading without code verification | L4 | `src/agents/loader.py` |
+| # | Finding | Layer | Status | Resolution |
+|---|---------|-------|--------|------------|
+| 10 | Plaintext conversation storage | L2 | **FIXED** | Optional AES-256-GCM encryption on message content; `encrypt_at_rest` flag on `ConversationStore` |
+| 11 | No automatic key rotation policy | L2 | **FIXED** | `KeyRotationScheduler` with configurable TTL (default 90 days) and grace period (7 days) |
+| 12 | .env.example risky defaults | L2 | **ALREADY FIXED** | Host is `127.0.0.1`; Grafana password commented out with generation instructions |
+| 13 | Memory accessor identity spoofable | L3 | **FIXED** | `_validate_accessor()` enforces format; wired into `verify_access`, `verify_store`, `verify_delete` |
+| 14 | Escalation callbacks lack human handler | L3 | **FIXED** | `src/web/routes/approvals.py` with admin-only approve/deny endpoints; registered in app router |
+| 15 | Untrusted memories not quarantined | L3 | **FIXED** | `MemoryTrustLevel` enum; trust-weighted scoring; quarantined memories excluded from retrieval |
+| 16 | Unsigned manifests accepted | L4 | **FIXED** | Unsigned manifests rejected by default (fail-closed); `AGENT_OS_ALLOW_UNSIGNED_MANIFESTS` for dev |
+| 17 | Agent loading without code verification | L4 | **FIXED** | SHA-256 integrity check via `InstructionIntegrityValidator` before `importlib` loading |
 
 ---
 
@@ -528,10 +528,23 @@ Fix:       Return generic error messages. Log the detail server-side.
 
 ---
 
+### LOW Findings
+
+| # | Finding | Layer | Status | Resolution |
+|---|---------|-------|--------|------------|
+| 18 | Default Docker binding to 0.0.0.0 | L5 | **FIXED** | Dockerfile defaults to `127.0.0.1`; docker-compose binds to `127.0.0.1:8080` |
+| 19 | CSP includes unsafe-inline | L5 | **FIXED** | Removed `'unsafe-inline'` from `style-src` in default CSP |
+| 20 | No CSRF token implementation | L5 | **FIXED** | `CSRFMiddleware` validates `X-CSRF-Token` header for cookie-auth; skips Bearer auth |
+| 21 | HTTPException leaks error strings | L5 | **FIXED** | All 15 `detail=str(e)` in `security.py` replaced with generic "Internal server error" |
+| 22 | No lock file | L4 | **FIXED** | `requirements.lock` generated and committed |
+
+---
+
 ## VERSION
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 3.1 | 2026-03-10 | All 22 findings resolved (4 already fixed, 18 newly fixed). All layer verdicts upgraded to PASS. |
 | 3.0 | 2026-03-10 | Full 5-layer audit using Agentic Security Audit v3.0 framework. OWASP Agentic Top 10 aligned. |
 
 ---

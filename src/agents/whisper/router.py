@@ -13,6 +13,7 @@ from enum import Enum, auto
 from typing import Any, Callable, Dict, List, Optional, Set
 
 from .intent import IntentCategory, IntentClassification
+from .integrity import SmithIntegrityChecker, SmithStatus
 from .load_balancer import (
     AgentHealthStatus,
     AgentLoadTracker,
@@ -144,6 +145,10 @@ class RoutingEngine:
         self.available_agents = available_agents or set()
         self.default_agent = default_agent
 
+        # Smith integrity checker — fail-closed when Smith is compromised/unavailable
+        self._smith_checker = SmithIntegrityChecker()
+        self._smith_agent = None
+
         # Routing metrics
         self._routing_count = 0
         self._fallback_count = 0
@@ -167,6 +172,11 @@ class RoutingEngine:
             # Start health checks if enabled
             if enable_health_checks:
                 self._health_checker.start()
+
+    def register_smith_agent(self, smith_agent) -> bool:
+        """Register the Smith agent for integrity checking."""
+        self._smith_agent = smith_agent
+        return self._smith_checker.initialize(smith_agent)
 
     def route(
         self,
@@ -236,6 +246,21 @@ class RoutingEngine:
         requires_smith = any(r.requires_smith for r in routes)
         if classification.requires_smith_review:
             requires_smith = True
+
+        # Integrity check: fail-closed if Smith is compromised/unavailable
+        if requires_smith and not self._smith_checker.is_safe_to_proceed(self._smith_agent):
+            logger.critical(
+                "SECURITY: Smith integrity check FAILED for security-sensitive request. "
+                "Rejecting request (fail-closed LOCKDOWN)."
+            )
+            return RoutingDecision(
+                routes=[],
+                strategy=RoutingStrategy.FALLBACK,
+                intent=classification,
+                requires_smith=True,
+                context_budget=0,
+                reasoning="LOCKDOWN: Smith integrity validation failed. Request rejected.",
+            )
 
         # Build decision
         return RoutingDecision(

@@ -670,7 +670,8 @@ class AttackAnalyzer:
             ),
             VulnerabilityType.PROMPT_HANDLING: (
                 "Sanitize user input before including in prompts. Use prompt templates "
-                "with strict escaping. Implement S3 instruction integrity validation."
+                "with strict escaping. Validate instruction integrity using "
+                "InstructionIntegrityValidator from src.agents.smith.instruction_integrity."
             ),
             VulnerabilityType.AUTHORIZATION: (
                 "Implement proper authorization checks. Use the policy engine. "

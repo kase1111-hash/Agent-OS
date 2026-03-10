@@ -242,7 +242,7 @@ async def list_attacks(
         raise
     except Exception as e:
         logger.error(f"Error listing attacks: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/attacks/{attack_id}", response_model=AttackDetail)
@@ -279,7 +279,7 @@ async def get_attack(attack_id: str, admin_id: str = Depends(require_admin_user)
         raise
     except Exception as e:
         logger.error(f"Error getting attack {attack_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/attacks/{attack_id}/false-positive")
@@ -320,7 +320,7 @@ async def mark_attack_false_positive(
         raise
     except Exception as e:
         logger.error(f"Error marking false positive: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # =============================================================================
@@ -384,7 +384,7 @@ async def list_recommendations(
         raise
     except Exception as e:
         logger.error(f"Error listing recommendations: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/recommendations/{recommendation_id}", response_model=RecommendationDetail)
@@ -431,7 +431,7 @@ async def get_recommendation(recommendation_id: str, admin_id: str = Depends(req
         raise
     except Exception as e:
         logger.error(f"Error getting recommendation {recommendation_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/recommendations/{recommendation_id}/markdown")
@@ -466,7 +466,7 @@ async def get_recommendation_markdown(recommendation_id: str, admin_id: str = De
         raise
     except Exception as e:
         logger.error(f"Error getting recommendation markdown: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/recommendations/{recommendation_id}/approve")
@@ -506,7 +506,7 @@ async def approve_recommendation(
         raise
     except Exception as e:
         logger.error(f"Error approving recommendation: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/recommendations/{recommendation_id}/reject")
@@ -552,7 +552,7 @@ async def reject_recommendation(
         raise
     except Exception as e:
         logger.error(f"Error rejecting recommendation: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/recommendations/{recommendation_id}/comments")
@@ -598,7 +598,7 @@ async def add_recommendation_comment(
         raise
     except Exception as e:
         logger.error(f"Error adding comment: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/recommendations/{recommendation_id}/assign")
@@ -637,7 +637,7 @@ async def assign_reviewers(
         raise
     except Exception as e:
         logger.error(f"Error assigning reviewers: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # =============================================================================
@@ -672,7 +672,7 @@ async def get_attack_detection_status(admin_id: str = Depends(require_admin_user
         raise
     except Exception as e:
         logger.error(f"Error getting status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/pipeline")
@@ -715,7 +715,7 @@ async def control_pipeline(
         raise
     except Exception as e:
         logger.error(f"Error controlling pipeline: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/patterns")
@@ -756,7 +756,7 @@ async def list_attack_patterns(admin_id: str = Depends(require_admin_user)) -> D
         raise
     except Exception as e:
         logger.error(f"Error listing patterns: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/patterns/{pattern_id}/enable")
@@ -783,7 +783,7 @@ async def enable_pattern(pattern_id: str, admin_id: str = Depends(require_admin_
         raise
     except Exception as e:
         logger.error(f"Error enabling pattern: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/patterns/{pattern_id}/disable")
@@ -810,4 +810,4 @@ async def disable_pattern(pattern_id: str, admin_id: str = Depends(require_admin
         raise
     except Exception as e:
         logger.error(f"Error disabling pattern: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
