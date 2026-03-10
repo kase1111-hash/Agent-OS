@@ -27,7 +27,7 @@ keywords = ["ai", "agents", "llm", "constitutional-ai", "local-ai"]
 
 dependencies = [
     "PyYAML>=6.0.2,<7.0",
-    "watchdog>=5.0,<6.0",
+    "watchdog>=5.0,<7.0",
     "pydantic>=2.10,<3.0",
     "httpx>=0.28,<1.0",
     "fastapi>=0.115,<1.0",
