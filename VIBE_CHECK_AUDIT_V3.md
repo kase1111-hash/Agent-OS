@@ -105,6 +105,21 @@ Fix:       Default to require_auth=True. The .env.example already
 ```
 
 ```
+[HIGH] — API key grants unscoped ADMIN access
+Layer:     2
+Location:  src/web/auth.py:170-245
+Evidence:  Single monolithic AGENT_OS_API_KEY grants full ADMIN role.
+           No per-user, per-feature, or per-resource scoping.
+           All Bearer token holders get identical permissions.
+           No key versioning or rotation without service restart.
+Risk:      Key compromise = total system compromise. No granular
+           revocation. Cannot distinguish between key users.
+Fix:       Implement scoped API keys with capability restrictions
+           (read:chat, write:memory, admin:system). Add key
+           versioning with grace period for rotation.
+```
+
+```
 [MEDIUM] — Conversations stored in plaintext SQLite
 Layer:     2
 Location:  src/web/conversation_store.py
@@ -113,6 +128,19 @@ Evidence:  Chat messages (which may contain user secrets shared
 Risk:      Data at rest exposure if database file is accessed.
 Fix:       Encrypt conversation content using the existing
            AES-256-GCM infrastructure before storage.
+```
+
+```
+[MEDIUM] — No automatic key rotation policy
+Layer:     2
+Location:  src/memory/keys.py, src/web/auth.py
+Evidence:  Key rotation mechanisms exist (rotate_key()) but are
+           manual-only. No TTL, usage-count, or scheduled triggers.
+           API key has no rotation story at all.
+Risk:      Compromised keys remain valid indefinitely. No automated
+           lifecycle management.
+Fix:       Implement 90-day TTL-based rotation with grace period.
+           Add rotation monitoring and alerting for stale keys.
 ```
 
 ```
@@ -421,8 +449,8 @@ Fix:       Return generic error messages. Log the detail server-side.
 | Severity | Count | Layers |
 |----------|-------|--------|
 | **CRITICAL** | 0 | — |
-| **HIGH** | 8 | L2 (2), L3 (6) |
-| **MEDIUM** | 7 | L2 (2), L3 (3), L4 (2) |
+| **HIGH** | 9 | L2 (3), L3 (6) |
+| **MEDIUM** | 9 | L2 (4), L3 (3), L4 (2) |
 | **LOW** | 4 | L4 (1), L5 (3) |
 
 ### HIGH Findings — Fix Within 24h
@@ -431,24 +459,26 @@ Fix:       Return generic error messages. Log the detail server-side.
 |---|---------|-------|----------|
 | 1 | Session secret XOR fallback | L2 | `src/web/auth.py` |
 | 2 | Auth defaults to disabled | L2 | `src/web/config.py` |
-| 3 | No prompt sanitization layer | L3 | `src/web/routes/chat.py` |
-| 4 | Inter-agent messages unsigned | L3 | `src/messaging/bus.py` |
-| 5 | Smith agent single point of failure | L3 | `src/agents/whisper/router.py:99` |
-| 6 | S3 instruction integrity missing | L3 | `src/agents/analyzer.py` |
-| 7 | Unauthenticated constitution endpoints | L3 | `src/web/routes/constitution.py` |
-| 8 | No outbound secret scanning | L3 | `src/utils/encryption.py` |
+| 3 | API key grants unscoped ADMIN access | L2 | `src/web/auth.py:170-245` |
+| 4 | No prompt sanitization layer | L3 | `src/web/routes/chat.py` |
+| 5 | Inter-agent messages unsigned | L3 | `src/messaging/bus.py` |
+| 6 | Smith agent single point of failure | L3 | `src/agents/whisper/router.py:99` |
+| 7 | S3 instruction integrity missing | L3 | `src/agents/analyzer.py` |
+| 8 | Unauthenticated constitution endpoints | L3 | `src/web/routes/constitution.py` |
+| 9 | No outbound secret scanning | L3 | `src/utils/encryption.py` |
 
 ### MEDIUM Findings — Fix Within 1 Week
 
 | # | Finding | Layer | Location |
 |---|---------|-------|----------|
-| 9 | Plaintext conversation storage | L2 | `src/web/conversation_store.py` |
-| 10 | .env.example risky defaults | L2 | `.env.example` |
-| 11 | Memory accessor identity spoofable | L3 | `src/memory/seshat/consent_integration.py` |
-| 12 | Escalation callbacks lack human handler | L3 | `src/boundary/enforcement.py` |
-| 13 | Untrusted memories not quarantined | L3 | `src/agents/seshat/agent.py` |
-| 14 | Unsigned manifests accepted | L4 | `src/tools/manifest.py` |
-| 15 | Agent loading without code verification | L4 | `src/agents/loader.py` |
+| 10 | Plaintext conversation storage | L2 | `src/web/conversation_store.py` |
+| 11 | No automatic key rotation policy | L2 | `src/memory/keys.py` |
+| 12 | .env.example risky defaults | L2 | `.env.example` |
+| 13 | Memory accessor identity spoofable | L3 | `src/memory/seshat/consent_integration.py` |
+| 14 | Escalation callbacks lack human handler | L3 | `src/boundary/enforcement.py` |
+| 15 | Untrusted memories not quarantined | L3 | `src/agents/seshat/agent.py` |
+| 16 | Unsigned manifests accepted | L4 | `src/tools/manifest.py` |
+| 17 | Agent loading without code verification | L4 | `src/agents/loader.py` |
 
 ---
 
@@ -458,22 +488,24 @@ Fix:       Return generic error messages. Log the detail server-side.
 
 1. **Remove XOR encryption fallback** in `auth.py` — use AES-256-GCM exclusively with a randomly generated persistent key
 2. **Flip `require_auth` default to `True`** in `config.py` to match `.env.example`
-3. **Implement prompt sanitization/blocking layer** that acts on detection results — detection without prevention is insufficient
-4. **Require signed inter-agent messages** on the message bus — reject unsigned by default
-5. **Add mutual validation for Smith agent** — a separate lightweight integrity checker should validate Smith; fail-closed when Smith is unavailable
-6. **Implement S3 instruction integrity validation** that the codebase already references
-7. **Add admin authentication to constitution endpoints** — POST/PUT/DELETE on constitutional rules must require admin auth
-8. **Wire SensitiveDataRedactor to outbound agent messages** — not just logs; prevent credential exfiltration via prompt injection
+3. **Implement scoped API keys** — single monolithic key granting ADMIN to all holders is unacceptable; add capability restrictions and key versioning
+4. **Implement prompt sanitization/blocking layer** that acts on detection results — detection without prevention is insufficient
+5. **Require signed inter-agent messages** on the message bus — reject unsigned by default
+6. **Add mutual validation for Smith agent** — a separate lightweight integrity checker should validate Smith; fail-closed when Smith is unavailable
+7. **Implement S3 instruction integrity validation** that the codebase already references
+8. **Add admin authentication to constitution endpoints** — POST/PUT/DELETE on constitutional rules must require admin auth
+9. **Wire SensitiveDataRedactor to outbound agent messages** — not just logs; prevent credential exfiltration via prompt injection
 
 ### Near-term Priority (MEDIUM findings)
 
-9. Encrypt conversation content at rest using existing AES-256-GCM infrastructure
-10. Use fail-validation placeholder values in `.env.example` and default host to `127.0.0.1`
-11. Validate memory accessor identity against authenticated request context
-12. Build human-in-the-loop approval UI for escalation callbacks
-13. Implement memory pool segregation — quarantine untrusted memories with stricter retrieval weighting
-14. Reject unsigned tool manifests by default; fail closed on verification errors
-15. Extend Ed25519 signing to agent source files before dynamic loading
+10. Encrypt conversation content at rest using existing AES-256-GCM infrastructure
+11. Implement automatic key rotation with 90-day TTL and grace period; add stale-key alerting
+12. Use fail-validation placeholder values in `.env.example` and default host to `127.0.0.1`
+13. Validate memory accessor identity against authenticated request context
+14. Build human-in-the-loop approval UI for escalation callbacks
+15. Implement memory pool segregation — quarantine untrusted memories with stricter retrieval weighting
+16. Reject unsigned tool manifests by default; fail closed on verification errors
+17. Extend Ed25519 signing to agent source files before dynamic loading
 
 ### Strategic Improvements
 
