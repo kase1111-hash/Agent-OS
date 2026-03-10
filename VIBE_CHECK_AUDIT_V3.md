@@ -234,6 +234,45 @@ Fix:       Implement a human-in-the-loop approval UI/API endpoint
            that gates destructive and high-privilege operations.
 ```
 
+```
+[HIGH] — Unauthenticated constitution admin endpoints
+Layer:     3
+Location:  src/web/routes/constitution.py
+Evidence:  POST/PUT/DELETE endpoints for constitutional rules have
+           zero authentication. Anyone can modify the agent's
+           governing rules.
+Risk:      Attacker rewrites agent constitutional constraints,
+           disabling security boundaries entirely.
+Fix:       Add admin authentication (Depends(require_admin_auth))
+           on all constitution write endpoints.
+```
+
+```
+[HIGH] — No outbound secret scanning on agent messages
+Layer:     3
+Location:  src/utils/encryption.py (SensitiveDataRedactor)
+Evidence:  SensitiveDataRedactor exists but is only wired to log
+           redaction, NOT to outbound agent messages. Agents can
+           leak credentials in responses.
+Risk:      Credential exfiltration via prompt injection — attacker
+           tricks agent into including secrets in output.
+Fix:       Wire SensitiveDataRedactor as middleware on all outbound
+           agent message paths.
+```
+
+```
+[MEDIUM] — Untrusted memories not quarantined
+Layer:     3
+Location:  src/agents/seshat/agent.py
+Evidence:  Memory entries are tagged with source_trust_level metadata
+           (EXTERNAL_DOCUMENT, LLM_OUTPUT, AGENT_GENERATED) but all
+           memories are stored in the same pool regardless of trust.
+Risk:      Poisoned memories from untrusted sources influence agent
+           reasoning alongside trusted memories.
+Fix:       Implement memory pool segregation. Quarantine untrusted
+           memories and apply stricter weight/filtering in retrieval.
+```
+
 ---
 
 ## L4: SUPPLY CHAIN & DEPENDENCY TRUST — PASS
@@ -382,8 +421,8 @@ Fix:       Return generic error messages. Log the detail server-side.
 | Severity | Count | Layers |
 |----------|-------|--------|
 | **CRITICAL** | 0 | — |
-| **HIGH** | 6 | L2 (2), L3 (4) |
-| **MEDIUM** | 6 | L2 (2), L3 (2), L4 (2) |
+| **HIGH** | 8 | L2 (2), L3 (6) |
+| **MEDIUM** | 7 | L2 (2), L3 (3), L4 (2) |
 | **LOW** | 4 | L4 (1), L5 (3) |
 
 ### HIGH Findings — Fix Within 24h
@@ -396,17 +435,20 @@ Fix:       Return generic error messages. Log the detail server-side.
 | 4 | Inter-agent messages unsigned | L3 | `src/messaging/bus.py` |
 | 5 | Smith agent single point of failure | L3 | `src/agents/whisper/router.py:99` |
 | 6 | S3 instruction integrity missing | L3 | `src/agents/analyzer.py` |
+| 7 | Unauthenticated constitution endpoints | L3 | `src/web/routes/constitution.py` |
+| 8 | No outbound secret scanning | L3 | `src/utils/encryption.py` |
 
 ### MEDIUM Findings — Fix Within 1 Week
 
 | # | Finding | Layer | Location |
 |---|---------|-------|----------|
-| 7 | Plaintext conversation storage | L2 | `src/web/conversation_store.py` |
-| 8 | .env.example risky defaults | L2 | `.env.example` |
-| 9 | Memory accessor identity spoofable | L3 | `src/memory/seshat/consent_integration.py` |
-| 10 | Escalation callbacks lack human handler | L3 | `src/boundary/enforcement.py` |
-| 11 | Unsigned manifests accepted | L4 | `src/tools/manifest.py` |
-| 12 | Agent loading without code verification | L4 | `src/agents/loader.py` |
+| 9 | Plaintext conversation storage | L2 | `src/web/conversation_store.py` |
+| 10 | .env.example risky defaults | L2 | `.env.example` |
+| 11 | Memory accessor identity spoofable | L3 | `src/memory/seshat/consent_integration.py` |
+| 12 | Escalation callbacks lack human handler | L3 | `src/boundary/enforcement.py` |
+| 13 | Untrusted memories not quarantined | L3 | `src/agents/seshat/agent.py` |
+| 14 | Unsigned manifests accepted | L4 | `src/tools/manifest.py` |
+| 15 | Agent loading without code verification | L4 | `src/agents/loader.py` |
 
 ---
 
@@ -420,15 +462,18 @@ Fix:       Return generic error messages. Log the detail server-side.
 4. **Require signed inter-agent messages** on the message bus — reject unsigned by default
 5. **Add mutual validation for Smith agent** — a separate lightweight integrity checker should validate Smith; fail-closed when Smith is unavailable
 6. **Implement S3 instruction integrity validation** that the codebase already references
+7. **Add admin authentication to constitution endpoints** — POST/PUT/DELETE on constitutional rules must require admin auth
+8. **Wire SensitiveDataRedactor to outbound agent messages** — not just logs; prevent credential exfiltration via prompt injection
 
 ### Near-term Priority (MEDIUM findings)
 
-7. Encrypt conversation content at rest using existing AES-256-GCM infrastructure
-8. Use fail-validation placeholder values in `.env.example` and default host to `127.0.0.1`
-9. Validate memory accessor identity against authenticated request context
-10. Build human-in-the-loop approval UI for escalation callbacks
-11. Reject unsigned tool manifests by default; fail closed on verification errors
-12. Extend Ed25519 signing to agent source files before dynamic loading
+9. Encrypt conversation content at rest using existing AES-256-GCM infrastructure
+10. Use fail-validation placeholder values in `.env.example` and default host to `127.0.0.1`
+11. Validate memory accessor identity against authenticated request context
+12. Build human-in-the-loop approval UI for escalation callbacks
+13. Implement memory pool segregation — quarantine untrusted memories with stricter retrieval weighting
+14. Reject unsigned tool manifests by default; fail closed on verification errors
+15. Extend Ed25519 signing to agent source files before dynamic loading
 
 ### Strategic Improvements
 
