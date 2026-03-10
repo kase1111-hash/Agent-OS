@@ -4,37 +4,37 @@
 PyYAML>=6.0.2,<7.0
 
 # File system watching for hot-reload
-watchdog>=5.0,<6.0
+watchdog>=5.0,<7.0
 
 # Message protocol models
 pydantic>=2.10,<3.0
 
 # Message bus (optional - for Redis backend)
-redis>=5.0,<6.0
+redis>=5.0,<8.0
 
 # HTTP client for Ollama integration (optional)
 httpx>=0.28,<1.0
 
 # Cryptography (AES-256-GCM encryption, key derivation, signing)
-cryptography>=42.0,<44.0
+cryptography>=42.0,<47.0
 
 # Web interface (UC-017)
 fastapi>=0.115,<1.0
 uvicorn[standard]>=0.32,<1.0
 jinja2>=3.1,<4.0
 python-multipart>=0.0.17,<1.0
-websockets>=14.0,<15.0
+websockets>=14.0,<17.0
 
 # Testing
-pytest>=8.0,<9.0
-pytest-cov>=6.0,<7.0
+pytest>=8.0,<10.0
+pytest-cov>=6.0,<8.0
 
 # Type checking (optional)
 mypy>=1.13,<2.0
 
 # Code formatting (optional)
-black>=24.0,<25.0
-isort>=5.13,<6.0
+black>=24.0,<27.0
+isort>=5.13,<9.0
 
 # Development
 ipython>=8.29,<9.0
