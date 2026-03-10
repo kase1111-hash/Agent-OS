@@ -5,9 +5,11 @@ Provides security and utility middleware:
 - HTTPS redirect and HSTS enforcement
 - Request logging
 - Security headers
+- CSRF token validation
 """
 
 import logging
+import secrets
 import uuid
 from typing import Callable, Optional
 
@@ -147,7 +149,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     DEFAULT_CSP = (
         "default-src 'self'; "
         "script-src 'self'; "
-        "style-src 'self' 'unsafe-inline'; "
+        "style-src 'self'; "
         "img-src 'self' data:; "
         "connect-src 'self' ws: wss:; "
         "frame-ancestors 'none'"
@@ -189,3 +191,57 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             response.headers["Content-Security-Policy"] = self.content_security_policy
 
         return response
+
+
+class CSRFMiddleware(BaseHTTPMiddleware):
+    """
+    CSRF token validation for session-authenticated (cookie-based) requests.
+
+    Generates a CSRF token on first request, sets it as a cookie,
+    and validates it on state-changing requests (POST/PUT/DELETE/PATCH).
+
+    Bearer token authenticated requests skip CSRF (not vulnerable to CSRF).
+
+    This addresses Finding L5 (No CSRF token implementation) from the
+    Agentic Security Audit v3.0.
+    """
+
+    CSRF_COOKIE = "csrf_token"
+    CSRF_HEADER = "x-csrf-token"
+    STATE_CHANGING_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
+    # Paths exempt from CSRF (public endpoints, WebSocket)
+    EXEMPT_PATHS = {"/api/auth/login", "/api/auth/register", "/health", "/ws"}
+
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        # Skip for non-state-changing methods
+        if request.method not in self.STATE_CHANGING_METHODS:
+            return await call_next(request)
+
+        # Skip for Bearer token auth (not vulnerable to CSRF)
+        auth_header = request.headers.get("authorization", "")
+        if auth_header.startswith("Bearer "):
+            return await call_next(request)
+
+        # Skip exempt paths
+        if any(request.url.path.startswith(p) for p in self.EXEMPT_PATHS):
+            return await call_next(request)
+
+        # Validate CSRF token for cookie-authenticated requests
+        cookie_token = request.cookies.get(self.CSRF_COOKIE)
+        header_token = request.headers.get(self.CSRF_HEADER)
+
+        if not cookie_token or not header_token:
+            return Response(
+                content='{"detail": "CSRF token missing"}',
+                status_code=403,
+                media_type="application/json",
+            )
+
+        if not secrets.compare_digest(cookie_token, header_token):
+            return Response(
+                content='{"detail": "CSRF token mismatch"}',
+                status_code=403,
+                media_type="application/json",
+            )
+
+        return await call_next(request)

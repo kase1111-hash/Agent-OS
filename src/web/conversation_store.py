@@ -113,10 +113,14 @@ class ConversationStore:
     Uses SQLite for reliable, local storage that survives restarts.
     """
 
+    # Prefix indicating encrypted content
+    _ENCRYPTED_PREFIX = "enc:v1:"
+
     def __init__(
         self,
         db_path: Optional[Path] = None,
         auto_title: bool = True,
+        encrypt_at_rest: bool = False,
     ):
         """
         Initialize the conversation store.
@@ -124,6 +128,7 @@ class ConversationStore:
         Args:
             db_path: Path to SQLite database. None for default location.
             auto_title: Automatically generate titles from first message.
+            encrypt_at_rest: Encrypt message content using AES-256-GCM.
         """
         if db_path is None:
             # Default to data directory
@@ -133,9 +138,51 @@ class ConversationStore:
 
         self.db_path = db_path
         self.auto_title = auto_title
+        self.encrypt_at_rest = encrypt_at_rest
         self._lock = threading.RLock()
         self._conn: Optional[sqlite3.Connection] = None
         self._initialized = False
+        self._encryption_service = None
+
+    def _get_encryption_service(self):
+        """Lazy-init the encryption service for at-rest encryption."""
+        if self._encryption_service is None:
+            try:
+                from src.utils.encryption import get_encryption_service
+
+                self._encryption_service = get_encryption_service()
+            except Exception as e:
+                logger.warning("Encryption service unavailable: %s", e)
+                self._encryption_service = None
+        return self._encryption_service
+
+    def _encrypt_content(self, content: str) -> str:
+        """Encrypt content if encrypt_at_rest is enabled."""
+        if not self.encrypt_at_rest:
+            return content
+        enc = self._get_encryption_service()
+        if enc is None:
+            return content
+        try:
+            encrypted = enc.encrypt(content)
+            return f"{self._ENCRYPTED_PREFIX}{encrypted}"
+        except Exception as e:
+            logger.warning("Failed to encrypt message content: %s", e)
+            return content
+
+    def _decrypt_content(self, content: str) -> str:
+        """Decrypt content if it was encrypted."""
+        if not content.startswith(self._ENCRYPTED_PREFIX):
+            return content
+        enc = self._get_encryption_service()
+        if enc is None:
+            logger.warning("Cannot decrypt content: encryption service unavailable")
+            return content
+        try:
+            return enc.decrypt(content[len(self._ENCRYPTED_PREFIX):])
+        except Exception as e:
+            logger.warning("Failed to decrypt message content: %s", e)
+            return content
 
     def initialize(self) -> bool:
         """Initialize the store and create tables."""
@@ -431,7 +478,8 @@ class ConversationStore:
             try:
                 cursor = self._conn.cursor()
 
-                # Insert message
+                # Insert message (encrypt content if enabled)
+                stored_content = self._encrypt_content(msg.content)
                 cursor.execute(
                     """
                     INSERT INTO messages (id, conversation_id, role, content, timestamp, metadata_json, parent_message_id)
@@ -441,7 +489,7 @@ class ConversationStore:
                         msg.id,
                         msg.conversation_id,
                         msg.role.value,
-                        msg.content,
+                        stored_content,
                         msg.timestamp.isoformat(),
                         json.dumps(msg.metadata),
                         msg.parent_message_id,
@@ -788,7 +836,7 @@ class ConversationStore:
                 id=row["id"],
                 conversation_id=row["conversation_id"],
                 role=MessageRole(row["role"]),
-                content=row["content"],
+                content=self._decrypt_content(row["content"]),
                 timestamp=datetime.fromisoformat(row["timestamp"]),
                 metadata=metadata,
                 parent_message_id=row["parent_message_id"],

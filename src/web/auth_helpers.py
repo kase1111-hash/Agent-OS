@@ -25,6 +25,25 @@ def _extract_token(request: Request, session_token: Optional[str] = None) -> Opt
     return token
 
 
+def _try_api_key_auth(request: Request) -> Optional[tuple]:
+    """Try to authenticate via scoped API key. Returns (user_id, scoped_key) or None."""
+    auth_header = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return None
+
+    token = auth_header[7:]
+    if not token.startswith("aos_"):
+        return None
+
+    from .auth import get_user_store
+
+    store = get_user_store()
+    api_key = store.validate_api_key(token)
+    if api_key:
+        return (api_key.user_id, api_key)
+    return None
+
+
 def require_authenticated_user(
     request: Request,
     session_token: Optional[str] = Cookie(None),
@@ -32,14 +51,16 @@ def require_authenticated_user(
     """
     FastAPI dependency: require any authenticated user.
 
+    Supports both session tokens and scoped API keys.
     Returns the user_id if authenticated.
     Raises HTTPException 401 if not authenticated.
-
-    Usage:
-        @router.get("/example")
-        async def example(user_id: str = Depends(require_authenticated_user)):
-            ...
     """
+    # Try scoped API key first
+    api_result = _try_api_key_auth(request)
+    if api_result:
+        request.state.api_key_scopes = api_result[1].scopes
+        return api_result[0]
+
     from .auth import get_user_store
 
     token = _extract_token(request, session_token)
@@ -59,6 +80,7 @@ def require_authenticated_user(
             detail="Session expired or invalid",
         )
 
+    request.state.api_key_scopes = None
     return user.user_id
 
 
@@ -69,14 +91,22 @@ def require_admin_user(
     """
     FastAPI dependency: require an authenticated admin user.
 
-    Returns the user_id if authenticated and has admin role.
-    Raises HTTPException 401 if not authenticated, 403 if not admin.
-
-    Usage:
-        @router.post("/admin-action")
-        async def admin_action(admin_id: str = Depends(require_admin_user)):
-            ...
+    Supports both session tokens (checks ADMIN role) and scoped API keys
+    (checks admin scope).
     """
+    # Try scoped API key first
+    api_result = _try_api_key_auth(request)
+    if api_result:
+        from .auth import ApiKeyScope
+
+        if ApiKeyScope.ADMIN.value not in api_result[1].scopes:
+            raise HTTPException(
+                status_code=403,
+                detail="API key lacks admin scope",
+            )
+        request.state.api_key_scopes = api_result[1].scopes
+        return api_result[0]
+
     from .auth import UserRole, get_user_store
 
     token = _extract_token(request, session_token)
@@ -102,7 +132,40 @@ def require_admin_user(
             detail="Admin privileges required for this operation",
         )
 
+    request.state.api_key_scopes = None
     return user.user_id
+
+
+def require_scope(scope: str):
+    """
+    FastAPI dependency factory: require a specific API key scope.
+
+    For session-authenticated users, all scopes are granted.
+    For API key users, checks if the key has the required scope.
+
+    Usage:
+        @router.post("/chat")
+        async def send_chat(
+            user_id: str = Depends(require_authenticated_user),
+            _scope: None = Depends(require_scope("write:chat")),
+        ):
+            ...
+    """
+
+    def _check_scope(request: Request):
+        scopes = getattr(request.state, "api_key_scopes", None)
+        if scopes is None:
+            return  # Session auth — all scopes granted
+        from .auth import ApiKeyScope
+
+        if ApiKeyScope.ADMIN.value in scopes or scope in scopes:
+            return
+        raise HTTPException(
+            status_code=403,
+            detail=f"API key lacks required scope: {scope}",
+        )
+
+    return _check_scope
 
 
 async def authenticate_websocket(websocket: WebSocket) -> Optional[str]:

@@ -35,6 +35,40 @@ class UserRole(str, Enum):
     GUEST = "guest"
 
 
+class ApiKeyScope(str, Enum):
+    """Scopes for API key permissions."""
+
+    READ_CHAT = "read:chat"
+    WRITE_CHAT = "write:chat"
+    READ_MEMORY = "read:memory"
+    WRITE_MEMORY = "write:memory"
+    ADMIN = "admin"
+
+
+@dataclass
+class ScopedApiKey:
+    """Scoped API key model."""
+
+    key_id: str
+    user_id: str
+    key_hash: str
+    scopes: List[str]
+    description: str = ""
+    created_at: datetime = field(default_factory=datetime.utcnow)
+    expires_at: Optional[datetime] = None
+    is_active: bool = True
+
+    def has_scope(self, scope: str) -> bool:
+        """Check if this key has a specific scope."""
+        return ApiKeyScope.ADMIN in self.scopes or scope in self.scopes
+
+    def is_expired(self) -> bool:
+        """Check if the key has expired."""
+        if self.expires_at is None:
+            return False
+        return datetime.utcnow() > self.expires_at
+
+
 from src.core.exceptions import AuthError
 
 
@@ -445,48 +479,30 @@ class UserStore:
 
         Format: nonce (12 bytes) + ciphertext + tag (16 bytes)
         """
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
         machine_key = self._get_machine_key()
         nonce = os.urandom(12)
-        try:
-            from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
-            aesgcm = AESGCM(machine_key)
-            ciphertext = aesgcm.encrypt(nonce, secret, None)
-            return nonce + ciphertext
-        except ImportError:
-            # Fallback: HMAC-verified XOR if cryptography not available
-            encrypted = bytes(a ^ b for a, b in zip(secret, machine_key[:32]))
-            mac = hmac.new(machine_key, encrypted, hashlib.sha256).digest()
-            return b"\x00" + encrypted + mac  # Leading null byte indicates legacy format
+        aesgcm = AESGCM(machine_key)
+        ciphertext = aesgcm.encrypt(nonce, secret, None)
+        return nonce + ciphertext
 
     def _decrypt_secret(self, data: bytes) -> bytes:
         """
-        Decrypt the session secret.
-
-        Supports both AES-256-GCM (new) and legacy XOR format.
+        Decrypt the session secret using AES-256-GCM.
 
         Raises:
-            ValueError: If data is invalid or tampered with
+            ValueError: If data is invalid, tampered with, or in legacy format
         """
-        # Legacy XOR format: starts with \x00 and is exactly 65 bytes (1 + 32 + 32)
-        if len(data) == 65 and data[0] == 0:
-            encrypted = data[1:33]
-            stored_mac = data[33:]
-            machine_key = self._get_machine_key()
-            expected_mac = hmac.new(machine_key, encrypted, hashlib.sha256).digest()
-            if not hmac.compare_digest(stored_mac, expected_mac):
-                raise ValueError("Secret file verification failed - possible tampering")
-            return bytes(a ^ b for a, b in zip(encrypted, machine_key[:32]))
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-        # Legacy XOR format (original 64-byte): 32 encrypted + 32 HMAC
-        if len(data) == 64:
-            encrypted = data[:32]
-            stored_mac = data[32:]
-            machine_key = self._get_machine_key()
-            expected_mac = hmac.new(machine_key, encrypted, hashlib.sha256).digest()
-            if not hmac.compare_digest(stored_mac, expected_mac):
-                raise ValueError("Secret file verification failed - possible tampering")
-            return bytes(a ^ b for a, b in zip(encrypted, machine_key[:32]))
+        # Reject legacy XOR formats — require re-encryption
+        if (len(data) == 65 and data[0] == 0) or len(data) == 64:
+            raise ValueError(
+                "Legacy XOR-encrypted session secret detected. "
+                "Delete the secret file at ~/.agent-os/data/.session_secret "
+                "and restart to generate a new AES-256-GCM encrypted secret."
+            )
 
         # AES-256-GCM format: nonce (12) + ciphertext + tag (16)
         if len(data) < 28:  # minimum: 12 nonce + 16 tag
@@ -495,16 +511,8 @@ class UserStore:
         nonce = data[:12]
         ciphertext = data[12:]
         machine_key = self._get_machine_key()
-
-        try:
-            from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
-            aesgcm = AESGCM(machine_key)
-            return aesgcm.decrypt(nonce, ciphertext, None)
-        except ImportError:
-            raise ValueError(
-                "cryptography library required to decrypt AES-256-GCM session secret"
-            )
+        aesgcm = AESGCM(machine_key)
+        return aesgcm.decrypt(nonce, ciphertext, None)
 
     def _generate_bound_token(
         self,
@@ -654,6 +662,23 @@ class UserStore:
         """
         )
 
+        # Scoped API keys table
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS api_keys (
+                key_id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                key_hash TEXT UNIQUE NOT NULL,
+                scopes TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                created_at TEXT NOT NULL,
+                expires_at TEXT,
+                is_active INTEGER DEFAULT 1,
+                FOREIGN KEY (user_id) REFERENCES users(user_id)
+            )
+        """
+        )
+
         # Indexes
         cursor.execute(
             """
@@ -673,6 +698,11 @@ class UserStore:
         cursor.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)
+        """
+        )
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash)
         """
         )
 
@@ -1242,6 +1272,162 @@ class UserStore:
             user_agent=row["user_agent"],
             is_active=bool(row["is_active"]),
         )
+
+    # =========================================================================
+    # Scoped API Key Management
+    # =========================================================================
+
+    def create_api_key(
+        self,
+        user_id: str,
+        scopes: List[str],
+        description: str = "",
+        expires_in_days: Optional[int] = None,
+    ) -> Tuple[str, ScopedApiKey]:
+        """
+        Create a new scoped API key.
+
+        Returns:
+            Tuple of (raw_key, ScopedApiKey) — raw_key is shown once, never stored.
+        """
+        import uuid
+
+        # Validate scopes
+        valid_scopes = {s.value for s in ApiKeyScope}
+        for scope in scopes:
+            if scope not in valid_scopes:
+                raise AuthError(f"Invalid scope: {scope}", "INVALID_SCOPE")
+
+        # Validate user exists
+        user = self.get_user(user_id)
+        if not user:
+            raise AuthError("User not found", "USER_NOT_FOUND")
+
+        raw_key = f"aos_{secrets.token_urlsafe(32)}"
+        key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+        key_id = str(uuid.uuid4())
+        now = datetime.utcnow()
+        expires_at = now + timedelta(days=expires_in_days) if expires_in_days else None
+
+        with self._lock:
+            cursor = self._connection.cursor()
+            cursor.execute(
+                """
+                INSERT INTO api_keys (key_id, user_id, key_hash, scopes, description, created_at, expires_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+                (
+                    key_id,
+                    user_id,
+                    key_hash,
+                    json.dumps(scopes),
+                    description,
+                    now.isoformat(),
+                    expires_at.isoformat() if expires_at else None,
+                ),
+            )
+            self._connection.commit()
+
+        api_key = ScopedApiKey(
+            key_id=key_id,
+            user_id=user_id,
+            key_hash=key_hash,
+            scopes=scopes,
+            description=description,
+            created_at=now,
+            expires_at=expires_at,
+        )
+
+        return raw_key, api_key
+
+    def validate_api_key(self, raw_key: str) -> Optional[ScopedApiKey]:
+        """
+        Validate an API key and return its scoped metadata.
+
+        Also handles legacy single AGENT_OS_API_KEY with admin scope
+        and a deprecation warning.
+        """
+        # Legacy support: check against single AGENT_OS_API_KEY from config
+        from src.web.config import get_config
+
+        config = get_config()
+        if config.api_key and hmac.compare_digest(raw_key, config.api_key):
+            logger.warning(
+                "DEPRECATED: Legacy single AGENT_OS_API_KEY used. "
+                "Migrate to scoped API keys via POST /auth/api-keys."
+            )
+            return ScopedApiKey(
+                key_id="legacy",
+                user_id="admin",
+                key_hash="",
+                scopes=[ApiKeyScope.ADMIN.value],
+                description="Legacy AGENT_OS_API_KEY",
+            )
+
+        # Look up scoped key
+        key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+        with self._lock:
+            cursor = self._connection.cursor()
+            cursor.execute(
+                "SELECT * FROM api_keys WHERE key_hash = ? AND is_active = 1",
+                (key_hash,),
+            )
+            row = cursor.fetchone()
+
+        if not row:
+            return None
+
+        api_key = ScopedApiKey(
+            key_id=row["key_id"],
+            user_id=row["user_id"],
+            key_hash=row["key_hash"],
+            scopes=json.loads(row["scopes"]),
+            description=row["description"],
+            created_at=datetime.fromisoformat(row["created_at"]),
+            expires_at=datetime.fromisoformat(row["expires_at"]) if row["expires_at"] else None,
+            is_active=bool(row["is_active"]),
+        )
+
+        if api_key.is_expired():
+            logger.info(f"Expired API key used: {api_key.key_id}")
+            return None
+
+        return api_key
+
+    def revoke_api_key(self, key_id: str, user_id: str) -> bool:
+        """Revoke an API key. User can only revoke their own keys."""
+        with self._lock:
+            cursor = self._connection.cursor()
+            cursor.execute(
+                "UPDATE api_keys SET is_active = 0 WHERE key_id = ? AND user_id = ?",
+                (key_id, user_id),
+            )
+            self._connection.commit()
+            return cursor.rowcount > 0
+
+    def list_api_keys(self, user_id: str) -> List[ScopedApiKey]:
+        """List all active API keys for a user (without exposing hashes)."""
+        with self._lock:
+            cursor = self._connection.cursor()
+            cursor.execute(
+                "SELECT * FROM api_keys WHERE user_id = ? AND is_active = 1 ORDER BY created_at DESC",
+                (user_id,),
+            )
+            rows = cursor.fetchall()
+
+        return [
+            ScopedApiKey(
+                key_id=row["key_id"],
+                user_id=row["user_id"],
+                key_hash="***",
+                scopes=json.loads(row["scopes"]),
+                description=row["description"],
+                created_at=datetime.fromisoformat(row["created_at"]),
+                expires_at=datetime.fromisoformat(row["expires_at"]) if row["expires_at"] else None,
+                is_active=bool(row["is_active"]),
+            )
+            for row in rows
+        ]
 
 
 # =============================================================================

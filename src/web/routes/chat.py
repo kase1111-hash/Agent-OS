@@ -848,6 +848,21 @@ async def chat_websocket(
                     )
                     continue
 
+                # Prompt injection sanitization
+                try:
+                    from src.core.input_sanitizer import PromptSanitizer
+
+                    sanitizer = PromptSanitizer()
+                    content, was_blocked, _score = sanitizer.process(content)
+                    if was_blocked:
+                        await manager.send_message(
+                            connection.id,
+                            {"type": "error", "message": "Message blocked by security filter"},
+                        )
+                        continue
+                except ImportError:
+                    pass
+
                 # Process message
                 try:
                     response = await manager.process_message(
@@ -856,6 +871,13 @@ async def chat_websocket(
                         conv_id,
                     )
 
+                    # Redact sensitive data from outbound response
+                    from src.utils.encryption import redact as _redact_outbound
+
+                    redacted_content = _redact_outbound(response.content)
+                    if redacted_content != response.content:
+                        logger.warning("Sensitive data redacted from outbound WebSocket message")
+
                     await manager.send_message(
                         connection.id,
                         {
@@ -863,7 +885,7 @@ async def chat_websocket(
                             "message": {
                                 "id": response.id,
                                 "role": response.role.value,
-                                "content": response.content,
+                                "content": redacted_content,
                                 "timestamp": response.timestamp.isoformat(),
                                 "metadata": response.metadata,
                             },
@@ -937,6 +959,14 @@ async def send_message(
 
     start_time = time.time()
 
+    # Prompt injection sanitization
+    from src.core.input_sanitizer import PromptSanitizer
+
+    sanitizer = PromptSanitizer()
+    sanitized_message, was_blocked, _score = sanitizer.process(request.message)
+    if was_blocked:
+        raise HTTPException(status_code=400, detail="Message blocked by security filter")
+
     conversation_id = request.conversation_id or str(uuid.uuid4())
 
     # Create a temporary connection ID for processing
@@ -944,9 +974,18 @@ async def send_message(
 
     response = await manager.process_message(
         temp_conn_id,
-        request.message,
+        sanitized_message,
         conversation_id,
     )
+
+    # Redact sensitive data from outbound response
+    from src.utils.encryption import redact as _redact_outbound
+
+    if response.content:
+        redacted = _redact_outbound(response.content)
+        if redacted != response.content:
+            logger.warning("Sensitive data redacted from outbound REST response")
+            response.content = redacted
 
     processing_time = int((time.time() - start_time) * 1000)
 

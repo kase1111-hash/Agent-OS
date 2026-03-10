@@ -65,7 +65,8 @@ USER agentos
 # Environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
-ENV AGENT_OS_WEB_HOST=0.0.0.0
+# SECURITY: Default to localhost. Use 0.0.0.0 only behind a reverse proxy.
+ENV AGENT_OS_WEB_HOST=127.0.0.1
 ENV AGENT_OS_WEB_PORT=8080
 ENV AGENT_OS_DATA_DIR=/app/data
 

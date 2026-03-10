@@ -378,6 +378,7 @@ Real-time streaming is available via WebSocket:
     # Include routers
     from .routes import (
         agents,
+        approvals,
         auth,
         chat,
         constitution,
@@ -390,6 +391,7 @@ Real-time streaming is available via WebSocket:
     )
 
     app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
+    app.include_router(approvals.router, prefix="/api/approvals", tags=["Approvals"])
     app.include_router(chat.router, prefix="/api/chat", tags=["Chat"])
     app.include_router(images.router, prefix="/api/images", tags=["Images"])
     app.include_router(agents.router, prefix="/api/agents", tags=["Agents"])
