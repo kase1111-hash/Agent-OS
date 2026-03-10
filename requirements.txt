@@ -16,7 +16,7 @@ redis>=5.0,<6.0
 httpx>=0.28,<1.0
 
 # Cryptography (AES-256-GCM encryption, key derivation, signing)
-cryptography>=42.0,<44.0
+cryptography>=42.0,<47.0
 
 # Web interface (UC-017)
 fastapi>=0.115,<1.0
