@@ -22,8 +22,6 @@ cryptography>=42.0,<47.0
 fastapi>=0.115,<1.0
 uvicorn[standard]>=0.32,<1.0
 jinja2>=3.1,<4.0
-python-multipart>=0.0.17,<1.0
-websockets>=14.0,<17.0
 
 # Testing
 pytest>=8.0,<10.0
@@ -35,6 +33,3 @@ mypy>=1.13,<2.0
 # Code formatting (optional)
 black>=24.0,<27.0
 isort>=5.13,<9.0
-
-# Development
-ipython>=8.29,<9.0
