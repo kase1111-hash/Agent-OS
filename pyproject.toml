@@ -33,10 +33,7 @@ dependencies = [
     "fastapi>=0.115,<1.0",
     "uvicorn[standard]>=0.32,<1.0",
     "jinja2>=3.1,<4.0",
-    "python-multipart>=0.0.17,<1.0",
-    "websockets>=14.0,<17.0",
     "cryptography>=42.0,<47.0",
-    "defusedxml>=0.7,<1.0",
 ]
 
 [project.optional-dependencies]
@@ -44,13 +41,9 @@ redis = ["redis>=5.0"]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=6.0",
-    "pytest-benchmark>=5.0",
-    "pytest-asyncio>=0.24.0",
-    "freezegun>=1.4.0",
     "mypy>=1.13",
     "black>=24.0",
     "isort>=5.13",
-    "ipython>=8.29",
 ]
 [project.scripts]
 agent-os = "src.web.app:main"
