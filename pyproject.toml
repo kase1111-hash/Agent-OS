@@ -42,7 +42,7 @@ dev = [
     "pytest>=8.0",
     "pytest-cov>=6.0",
     "mypy>=1.13",
-    "black>=24.0",
+    "black>=26.3.1",
     "isort>=5.13",
 ]
 [project.scripts]
