@@ -40,7 +40,7 @@ dependencies = [
 redis = ["redis>=5.0"]
 dev = [
     "pytest>=8.0",
-    "pytest-cov>=6.0",
+    "pytest-cov>=7.1.0",
     "mypy>=1.13",
     "black>=24.0",
     "isort>=5.13",
