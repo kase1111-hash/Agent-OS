@@ -139,7 +139,7 @@ After=network.target ollama.service
 Type=simple
 User=your-username
 WorkingDirectory=/path/to/Agent-OS
-ExecStart=/path/to/Agent-OS/venv/bin/python -m uvicorn src.web.app:app --host 0.0.0.0 --port 8080
+ExecStart=/path/to/Agent-OS/venv/bin/python -m uvicorn src.web.app:get_app --factory --host 0.0.0.0 --port 8080
 Restart=always
 RestartSec=10
 
@@ -174,7 +174,8 @@ Add this content (adjust paths as needed):
         <string>/path/to/Agent-OS/venv/bin/python</string>
         <string>-m</string>
         <string>uvicorn</string>
-        <string>src.web.app:app</string>
+        <string>src.web.app:get_app</string>
+        <string>--factory</string>
         <string>--host</string>
         <string>0.0.0.0</string>
         <string>--port</string>
@@ -232,7 +233,7 @@ AGENT_OS_WEB_PORT=8081
 
 Or use a different port directly:
 ```bash
-python -m uvicorn src.web.app:app --host 0.0.0.0 --port 8081
+python -m uvicorn src.web.app:get_app --factory --host 0.0.0.0 --port 8081
 ```
 
 ### SSL/Certificate errors during pip install
@@ -257,7 +258,7 @@ docker-compose logs -f agentos
 docker-compose down
 ```
 
-> **Note:** Set `GRAFANA_ADMIN_PASSWORD` in your environment before running Docker Compose.
+> **Note:** Set `AGENT_OS_API_KEY` in your environment before running Docker Compose (generate one with `python -c "import secrets; print(secrets.token_urlsafe(32))"`).
 
 ---
 

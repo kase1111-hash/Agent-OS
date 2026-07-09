@@ -526,22 +526,21 @@ Agent OS has achieved **substantial implementation** of all core components. The
 
 | Component | Status | Location | Features |
 |-----------|--------|----------|----------|
-| Conversational Kernel | ✅ Complete | `src/kernel/` | FUSE wrapper, eBPF filters, rule registry, policy compiler |
 | Web Interface | ✅ Complete | `src/web/` | FastAPI app, REST/WebSocket, chat routes |
-| Mobile Backend | ✅ Complete | `src/mobile/` | API client, auth, notifications, VPN support |
-| Voice Interface | ✅ Complete | `src/voice/` | STT, TTS, wake word detection |
-| Multimodal | ✅ Complete | `src/multimodal/` | Vision, audio, video processing |
-| Federation | ✅ Complete | `src/federation/` | Node protocol, crypto, identity, permissions |
 | Tool Integration | ✅ Complete | `src/tools/` | Registry, executor, permissions, validation |
-| Value Ledger | ✅ Complete | `src/ledger/` | Intent hooks, merkle proofs, client |
-| Installer | ✅ Complete | `src/installer/` | Multi-platform, Docker support |
-| Agent SDK | ✅ Complete | `src/sdk/` | Templates, decorators, testing framework |
+| Contracts | ✅ Complete | `src/contracts/` | Learning contracts, consent, storage |
+| Security | ✅ Complete | `src/security/` | Secret scanning, key management |
+
+> **Note:** The conversational kernel, mobile backend, voice interface,
+> multimodal processing, federation, value ledger, installer, and agent SDK
+> were removed in the phase-1 scope trim to refocus the project on
+> constitutional AI governance.
 
 #### ✅ Test Coverage
 
 | Test Module | Status | Description |
 |-------------|--------|-------------|
-| `test_kernel.py` | ✅ | Constitutional kernel tests |
+| `test_constitution_core.py`, `test_parser.py`, `test_validator.py` | ✅ | Constitutional kernel tests |
 | `test_messaging_*.py` | ✅ | Message bus and models |
 | `test_whisper.py` | ✅ | Orchestrator agent |
 | `test_smith.py` | ✅ | Guardian agent |
@@ -552,16 +551,9 @@ Agent OS has achieved **substantial implementation** of all core components. The
 | `test_memory_vault.py` | ✅ | Memory vault system |
 | `test_boundary.py` | ✅ | Boundary daemon |
 | `test_contracts.py` | ✅ | Learning contracts |
-| `test_ceremony.py` | ✅ | Bring-home ceremony |
-| `test_federation.py` | ✅ | Federation protocol |
 | `test_web.py` | ✅ | Web interface |
-| `test_mobile.py` | ✅ | Mobile backend |
-| `test_voice.py` | ✅ | Voice interface |
-| `test_multimodal.py` | ✅ | Multimodal agents |
 | `test_tools.py` | ✅ | Tool integration |
-| `test_sdk.py` | ✅ | Agent SDK |
-| `test_installer.py` | ✅ | Installation system |
-| `e2e_simulation.py` | ✅ | End-to-end system test |
+| `test_orchestration.py`, `test_integration.py` | ✅ | Cross-component integration |
 
 ---
 
@@ -570,7 +562,7 @@ Agent OS has achieved **substantial implementation** of all core components. The
 ### UC-001: Constitutional Kernel
 **Status:** ✅ IMPLEMENTED
 **Location:** `src/core/constitution.py`, `src/core/parser.py`, `src/core/validator.py`
-**Test:** `tests/test_kernel.py`, `tests/test_parser.py`, `tests/test_validator.py`
+**Test:** `tests/test_constitution_core.py`, `tests/test_parser.py`, `tests/test_validator.py`
 
 **Implemented Features:**
 - YAML frontmatter parsing

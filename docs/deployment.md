@@ -71,25 +71,6 @@ Create a `.env` file in the project root. See `.env.example` for all available o
 | `AGENT_OS_RATE_LIMIT_REDIS` | `true` | Use Redis for distributed rate limiting |
 | `AGENT_OS_REDIS_URL` | `redis://redis:6379` | Redis connection URL |
 
-#### Voice Features
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `AGENT_OS_STT_ENABLED` | `true` | Enable speech-to-text |
-| `AGENT_OS_STT_ENGINE` | `auto` | STT engine: `auto`, `whisper`, `whisper_api` |
-| `AGENT_OS_STT_MODEL` | `base` | Whisper model size |
-| `AGENT_OS_TTS_ENABLED` | `true` | Enable text-to-speech |
-| `AGENT_OS_TTS_ENGINE` | `auto` | TTS engine: `auto`, `piper`, `espeak` |
-
-#### Monitoring
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PROMETHEUS_PORT` | `9090` | Prometheus web UI port |
-| `GRAFANA_PORT` | `3000` | Grafana web UI port |
-| `GRAFANA_ADMIN_USER` | `admin` | Grafana admin username |
-| `GRAFANA_ADMIN_PASSWORD` | `agentos` | Grafana admin password |
-
 ## Docker Deployment
 
 ### Production Build
@@ -139,44 +120,19 @@ After deployment, the following endpoints are available:
 | Agent OS | http://localhost:8080 | Main application |
 | API Docs | http://localhost:8080/docs | OpenAPI documentation |
 | Health Check | http://localhost:8080/health | Application health |
-| Metrics | http://localhost:8080/api/observability/metrics | Prometheus metrics |
-| Prometheus | http://localhost:9090 | Metrics dashboard |
-| Grafana | http://localhost:3000 | Visualization dashboards |
 
 ## Monitoring Setup
 
-### Prometheus
-
-Prometheus is pre-configured to scrape metrics from Agent OS. Access the Prometheus UI at `http://localhost:9090`.
-
-**Key metrics to monitor:**
-- `agentos_http_requests_total` - Request count by endpoint
-- `agentos_http_request_duration_seconds` - Request latency
-- `agentos_active_connections` - WebSocket connections
-- `agentos_agent_operations_total` - Agent operations count
-
-### Grafana
-
-Grafana is pre-configured with Prometheus as a datasource. Default credentials:
-- Username: `admin`
-- Password: `agentos` (change in production!)
-
-Access Grafana at `http://localhost:3000`.
-
 ### Health Checks
 
-The application exposes health endpoints:
+The application exposes a health endpoint that reports component status:
 
 ```bash
-# Quick health check
+# Quick health check (component details require authentication)
 curl http://localhost:8080/health
-
-# Detailed component health
-curl http://localhost:8080/api/observability/health
-
-# List available checks
-curl http://localhost:8080/api/observability/health/checks/list
 ```
+
+The Docker image and Compose file use this endpoint for container health checks.
 
 ## Security Considerations
 

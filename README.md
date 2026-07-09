@@ -76,8 +76,11 @@ ollama pull mistral
 ollama pull llama3.2:3b
 ollama pull nomic-embed-text
 
+# Authentication is on by default — generate an API key
+export AGENT_OS_API_KEY=$(python -c "import secrets; print(secrets.token_urlsafe(32))")
+
 # Run the application
-python -m uvicorn src.web.app:get_app --factory --host 0.0.0.0 --port 8080
+python -m uvicorn src.web.app:get_app --factory --host 127.0.0.1 --port 8080
 ```
 
 Visit http://localhost:8080 to access the web interface.
@@ -227,10 +230,7 @@ See [requirements.txt](./requirements.txt) for the complete list.
 
 ### Running Tests
 ```bash
-python -m pytest tests/ --ignore=tests/test_kernel.py \
-  --ignore=tests/test_memory_vault.py \
-  --ignore=tests/test_pq_keys.py \
-  --ignore=tests/test_seshat.py
+python -m pytest
 ```
 
 ### Code Formatting

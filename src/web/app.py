@@ -12,10 +12,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from .config import WebConfig, get_config
-
 # API version - must match src.__version__
 from src import __version__ as _pkg_version
+
+from .config import WebConfig, get_config
+
 API_VERSION = _pkg_version
 
 # OpenAPI Tags with descriptions for documentation
@@ -110,9 +111,6 @@ class AppState:
 
     def __init__(self):
         self.config: Optional[WebConfig] = None
-        self.agent_registry = None
-        self.memory_store = None
-        self.constitution_registry = None
         self.active_connections: Dict[str, Any] = {}
         self.request_count: int = 0
         self.request_errors: int = 0
@@ -221,6 +219,7 @@ def create_app(config: Optional[WebConfig] = None) -> Any:
         # Close UserStore SQLite connection
         try:
             from .dependencies import get_user_store
+
             user_store = get_user_store()
             user_store.close()
             logger.info("UserStore closed")
@@ -302,7 +301,9 @@ Real-time streaming is available via WebSocket:
     from .middleware import RequestIdMiddleware, SecurityHeadersMiddleware
 
     app.add_middleware(SecurityHeadersMiddleware)
-    logger.info("Security headers middleware enabled (CSP, X-Frame-Options, X-Content-Type-Options)")
+    logger.info(
+        "Security headers middleware enabled (CSP, X-Frame-Options, X-Content-Type-Options)"
+    )
 
     # Request correlation ID middleware
     app.add_middleware(RequestIdMiddleware)
@@ -449,30 +450,31 @@ Real-time streaming is available via WebSocket:
         # API is up if we're responding
         components["api"] = "up"
 
-        # Check constitutional kernel
+        # Check constitutional kernel (store initializes lazily on first access)
         try:
-            if _app_state.constitution_registry is not None:
-                components["constitutional_kernel"] = "up"
-            else:
-                components["constitutional_kernel"] = "degraded"
+            from .routes.constitution import get_store as _get_constitution_store
+
+            components["constitutional_kernel"] = (
+                "up" if _get_constitution_store() is not None else "degraded"
+            )
         except Exception:
             components["constitutional_kernel"] = "down"
 
         # Check agent registry
         try:
-            if _app_state.agent_registry is not None:
-                components["agent_registry"] = "up"
-            else:
-                components["agent_registry"] = "degraded"
+            from .routes.agents import get_store as _get_agent_store
+
+            components["agent_registry"] = "up" if _get_agent_store() is not None else "degraded"
         except Exception:
             components["agent_registry"] = "down"
 
         # Check memory store
         try:
-            if _app_state.memory_store is not None:
-                components["memory_store"] = "up"
-            else:
-                components["memory_store"] = "not_configured"
+            from .routes.memory import get_store as _get_memory_store
+
+            components["memory_store"] = (
+                "up" if _get_memory_store() is not None else "not_configured"
+            )
         except Exception:
             components["memory_store"] = "down"
 

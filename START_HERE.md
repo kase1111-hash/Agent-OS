@@ -43,9 +43,15 @@ ollama serve   # If not already running as a service
 
 ## 3. Run Agent-OS
 
+Authentication is enabled by default and requires an API key:
+
 ```bash
-python -m uvicorn src.web.app:get_app --factory --host 0.0.0.0 --port 8080
+export AGENT_OS_API_KEY=$(python -c "import secrets; print(secrets.token_urlsafe(32))")
+python -m uvicorn src.web.app:get_app --factory --host 127.0.0.1 --port 8080
 ```
+
+(For a throwaway local session you can instead set `AGENT_OS_REQUIRE_AUTH=false`
+and `AGENT_OS_WEB_DEBUG=true`.)
 
 Then open http://localhost:8080 in your browser.
 
@@ -131,13 +137,10 @@ If Ollama is unavailable, enforcement falls back to keyword-based matching with 
 ## 6. Run the Tests
 
 ```bash
-python -m pytest tests/ -v --ignore=tests/test_kernel.py \
-  --ignore=tests/test_memory_vault.py \
-  --ignore=tests/test_pq_keys.py \
-  --ignore=tests/test_seshat.py
+python -m pytest tests/ -v
 ```
 
-The ignored tests have dependencies on optional C libraries. All core governance tests run without them.
+Tests that need optional external services (Redis, post-quantum liboqs) skip automatically when those aren't installed.
 
 ---
 

@@ -24,7 +24,7 @@ COPY src/ src/
 
 # Install with all optional dependencies for production
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir -e ".[redis,observability]"
+    pip install --no-cache-dir -e ".[redis]"
 
 # =============================================================================
 # Stage 2: Production Image

@@ -13,7 +13,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-
 # =============================================================================
 # Environment Setup
 # =============================================================================
@@ -72,7 +71,7 @@ def temp_db_path(temp_dir: Path) -> Path:
 @pytest.fixture
 def mock_config():
     """Provide a mock WebConfig for testing."""
-    from src.web.config import WebConfig, VoiceConfig
+    from src.web.config import WebConfig
 
     return WebConfig(
         host="127.0.0.1",
@@ -80,17 +79,13 @@ def mock_config():
         debug=True,
         require_auth=False,
         rate_limit_enabled=False,
-        voice=VoiceConfig(
-            stt_enabled=False,
-            tts_enabled=False,
-        ),
     )
 
 
 @pytest.fixture
 def test_config(temp_dir: Path):
     """Provide a test WebConfig with temporary directories."""
-    from src.web.config import WebConfig, VoiceConfig
+    from src.web.config import WebConfig
 
     return WebConfig(
         host="127.0.0.1",
@@ -101,10 +96,6 @@ def test_config(temp_dir: Path):
         static_dir=temp_dir / "static",
         templates_dir=temp_dir / "templates",
         data_dir=temp_dir / "data",
-        voice=VoiceConfig(
-            stt_enabled=False,
-            tts_enabled=False,
-        ),
     )
 
 

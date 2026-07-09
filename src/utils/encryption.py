@@ -125,6 +125,7 @@ class EncryptionService:
         # V6-1: Use configurable config directory
         try:
             from src.utils.paths import get_encryption_key_path
+
             key_file = get_encryption_key_path()
         except ImportError:
             pass
@@ -233,6 +234,7 @@ class EncryptionService:
         # V6-1: Use configurable config directory
         try:
             from src.utils.paths import get_encryption_key_path
+
             key_file = get_encryption_key_path()
         except ImportError:
             pass
@@ -405,6 +407,7 @@ class CredentialManager:
         # V6-1: Use configurable config directory
         try:
             from src.utils.paths import get_credentials_path
+
             self._storage_path = get_credentials_path()
         except ImportError:
             pass
@@ -505,15 +508,22 @@ class SensitiveDataRedactor:
                 "API key assignments",
             ),
             RedactionPattern(
-                re.compile(r"sk-[a-zA-Z0-9]{20,}"), "[REDACTED_OPENAI_KEY]", "OpenAI API keys"
+                re.compile(r"sk-(?:[a-zA-Z0-9]+-)*[a-zA-Z0-9]{20,}"),
+                "[REDACTED_OPENAI_KEY]",
+                "OpenAI API keys (including project-scoped sk-proj- keys)",
             ),
             RedactionPattern(
                 re.compile(r"hf_[a-zA-Z0-9]{20,}"), "[REDACTED_HF_TOKEN]", "Hugging Face tokens"
             ),
             RedactionPattern(
-                re.compile(r"ghp_[a-zA-Z0-9]{20,}"),
+                re.compile(r"gh[pousr]_[a-zA-Z0-9]{20,}"),
                 "[REDACTED_GITHUB_TOKEN]",
-                "GitHub personal access tokens",
+                "GitHub tokens (personal, OAuth, user-to-server, server-to-server, refresh)",
+            ),
+            RedactionPattern(
+                re.compile(r"xox[baprs]-[a-zA-Z0-9-]{10,}"),
+                "[REDACTED_SLACK_TOKEN]",
+                "Slack tokens (bot, app, personal, legacy)",
             ),
             # Auth headers
             RedactionPattern(
@@ -545,10 +555,11 @@ class SensitiveDataRedactor:
             # Private keys
             RedactionPattern(
                 re.compile(
-                    r"-----BEGIN\s+(?:RSA\s+)?PRIVATE\s+KEY-----[\s\S]*?-----END\s+(?:RSA\s+)?PRIVATE\s+KEY-----"
+                    r"-----BEGIN\s+(?:[A-Z]+\s+)?PRIVATE\s+KEY-----"
+                    r"(?:[\s\S]*?-----END\s+(?:[A-Z]+\s+)?PRIVATE\s+KEY-----)?"
                 ),
                 "[REDACTED_PRIVATE_KEY]",
-                "Private keys",
+                "Private keys (full blocks, or a bare header when truncated)",
             ),
             # AWS keys
             RedactionPattern(

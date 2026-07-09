@@ -174,19 +174,13 @@ pytest tests/
 
 ```bash
 # Single test file
-pytest tests/test_kernel.py
+pytest tests/test_constitution_core.py
 
 # With verbose output
 pytest -v tests/
 
 # With coverage report
 pytest --cov=src tests/
-```
-
-### Run End-to-End Simulation
-
-```bash
-python -m tests.e2e_simulation
 ```
 
 ### Run Benchmarks

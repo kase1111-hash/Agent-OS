@@ -10,12 +10,13 @@
 
 | Metric | Before | After |
 |--------|--------|-------|
-| Direct runtime dependencies | 11 | 8 |
+| Direct runtime dependencies | 11 | 9 |
 | Dev dependencies | 9 | 5 |
-| Total declared dependencies | 20 | 13 |
+| Total declared dependencies | 20 | 14 |
 | Transitive dependencies (estimated) | ~35 | ~30 |
 
 **Removed:** 7 dependencies (3 dead runtime, 4 dead/unused dev)
+**Added (post-audit):** numpy — required by the Seshat memory agent but never declared; without it the seshat test module failed collection and the web app silently fell back to mock memory.
 **Consolidated:** 0
 **Replaced:** 0
 
@@ -35,6 +36,7 @@
 | uvicorn[standard] | >=0.32,<1.0 | **ESSENTIAL** | 1 src file (app.py) — ASGI server; `[standard]` extra includes websockets, watchfiles, httptools, uvloop | Kept |
 | jinja2 | >=3.1,<4.0 | **ESSENTIAL** | 1 src file (app.py) — HTML templates for web UI | Kept |
 | cryptography | >=42.0,<47.0 | **ESSENTIAL** | 5 src files (auth.py, encryption.py, pq_keys.py, storage.py, identity.py) — AES-256-GCM encryption, key derivation, signing | Kept |
+| numpy | >=1.24,<3.0 | **ESSENTIAL** | 2 src files (seshat/embeddings.py, seshat/vectorstore.py) — top-level imports for Seshat vector math; was previously undeclared and broke `import src.agents.seshat` on clean installs | **Added** |
 | python-multipart | >=0.0.17,<1.0 | **DEAD** | 0 imports, no Form() or UploadFile usage anywhere in codebase | **Removed** |
 | websockets | >=14.0,<17.0 | **REDUNDANT** | 0 direct imports; already included as transitive dep of `uvicorn[standard]` | **Removed** |
 | defusedxml | >=0.7,<1.0 | **DEAD** | 0 imports, zero XML parsing in entire codebase | **Removed** |

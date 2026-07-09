@@ -14,7 +14,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-
 # ===========================================================================
 # 1. Whisper Post-Validation Tests
 # ===========================================================================
@@ -67,6 +66,7 @@ class TestWhisperPostValidation:
 def _make_flow_request(prompt="test message"):
     """Create a minimal valid FlowRequest for testing."""
     from src.messaging.models import FlowRequest, RequestContent
+
     return FlowRequest(
         source="test",
         destination="test_agent",
@@ -151,10 +151,12 @@ class TestMessageBusAsyncHandler:
 class TestHealthCheck:
     """Test that the health check endpoint checks actual component state."""
 
-    @pytest.mark.skipif(
-        True,  # Skip by default due to pre-existing pyo3_runtime.PanicException
-        reason="TestClient triggers pyo3_runtime.PanicException (pre-existing)"
-    )
+    @pytest.fixture(autouse=True)
+    def _local_dev_env(self, monkeypatch):
+        """Auth is enabled by default and requires AGENT_OS_API_KEY; run in local-dev mode."""
+        monkeypatch.setenv("AGENT_OS_REQUIRE_AUTH", "false")
+        monkeypatch.setenv("AGENT_OS_WEB_DEBUG", "true")
+
     def test_health_check_returns_components(self):
         """Health check should include component status details."""
         from src.web.app import create_app
@@ -162,6 +164,7 @@ class TestHealthCheck:
         app = create_app()
 
         from fastapi.testclient import TestClient
+
         client = TestClient(app)
         response = client.get("/health")
         assert response.status_code == 200
@@ -177,36 +180,35 @@ class TestHealthCheck:
         assert "agent_registry" in components
         assert "websocket" in components
 
-    @pytest.mark.skipif(
-        True,  # Skip by default due to pre-existing pyo3_runtime.PanicException
-        reason="create_app triggers pyo3_runtime.PanicException (pre-existing)"
-    )
     def test_health_check_endpoint_defined(self):
         """Health check endpoint should be defined on the app."""
         from src.web.app import create_app
 
         app = create_app()
 
-        # Verify the route is registered
-        routes = [r.path for r in app.routes]
+        # Verify the route is registered (some mounted routers have no .path)
+        routes = [getattr(r, "path", None) for r in app.routes]
         assert "/health" in routes
 
-    def test_health_check_logic_degraded_without_components(self):
-        """Health check should report 'degraded' when components are not initialized."""
-        from src.web.app import _app_state
+    def test_health_check_reports_healthy_with_live_stores(self):
+        """Health check should report 'healthy' once the route stores initialize."""
+        from fastapi.testclient import TestClient
 
-        # With no kernel/registry initialized, component checks should show degraded
-        assert _app_state.constitution_registry is None
-        assert _app_state.agent_registry is None
+        from src.web.app import create_app
+
+        client = TestClient(create_app())
+        data = client.get("/health").json()
+
+        assert data["status"] == "healthy"
+        assert data["components"]["constitutional_kernel"] == "up"
+        assert data["components"]["agent_registry"] == "up"
 
     def test_app_state_has_expected_fields(self):
-        """AppState should track constitution_registry, agent_registry, memory_store."""
+        """AppState should track config and active WebSocket connections."""
         from src.web.app import AppState
 
         state = AppState()
-        assert hasattr(state, "constitution_registry")
-        assert hasattr(state, "agent_registry")
-        assert hasattr(state, "memory_store")
+        assert hasattr(state, "config")
         assert hasattr(state, "active_connections")
 
 
@@ -221,21 +223,25 @@ class TestSmithSecurityChecks:
     def test_pre_validator_exists(self):
         """Smith pre-validator should be importable."""
         from src.agents.smith.pre_validator import PreExecutionValidator
+
         assert PreExecutionValidator is not None
 
     def test_post_monitor_exists(self):
         """Smith post-monitor should be importable."""
         from src.agents.smith.post_monitor import PostExecutionMonitor
+
         assert PostExecutionMonitor is not None
 
     def test_refusal_engine_exists(self):
         """Smith refusal engine should be importable."""
         from src.agents.smith.refusal_engine import RefusalEngine
+
         assert RefusalEngine is not None
 
     def test_emergency_controls_exist(self):
         """Emergency controls should be importable."""
         from src.agents.smith.emergency import EmergencyControls, SystemMode
+
         assert EmergencyControls is not None
         assert SystemMode.NORMAL is not None
         assert SystemMode.LOCKDOWN is not None
@@ -303,11 +309,13 @@ class TestOrchestrationFlow:
     def test_whisper_classifier_import(self):
         """Intent classifier should be importable."""
         from src.agents.whisper.intent import IntentClassifier
+
         assert IntentClassifier is not None
 
     def test_whisper_router_import(self):
         """Routing engine should be importable."""
         from src.agents.whisper.router import RoutingEngine
+
         assert RoutingEngine is not None
 
     def test_intent_classification_categories(self):
@@ -338,11 +346,12 @@ class TestOrchestrationFlow:
     def test_flow_controller_import(self):
         """Flow controller should be importable."""
         from src.agents.whisper.flow import FlowController
+
         assert FlowController is not None
 
     def test_agent_interface_lifecycle(self):
         """Agent interface should enforce validate -> process lifecycle."""
-        from src.agents.interface import BaseAgent, AgentState
+        from src.agents.interface import AgentState, BaseAgent
 
         class TestAgent(BaseAgent):
             def initialize(self, config):
