@@ -2,24 +2,25 @@
 Tests for Agent OS Message Protocol Models
 """
 
-import pytest
 from datetime import datetime
 from uuid import UUID
 
+import pytest
+
 from src.messaging.models import (
+    AuditLogEntry,
+    CheckStatus,
+    ConstitutionalCheck,
+    DeadLetterMessage,
     FlowRequest,
     FlowResponse,
-    RequestMetadata,
-    ResponseMetadata,
-    RequestContent,
-    ResponseContent,
-    ConstitutionalCheck,
     MemoryRequest,
-    MessageStatus,
-    CheckStatus,
     MessagePriority,
-    DeadLetterMessage,
-    AuditLogEntry,
+    MessageStatus,
+    RequestContent,
+    RequestMetadata,
+    ResponseContent,
+    ResponseMetadata,
     create_request,
     create_response,
 )

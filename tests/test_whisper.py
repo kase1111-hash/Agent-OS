@@ -2,21 +2,17 @@
 Tests for Agent OS Whisper (Orchestrator)
 """
 
-import pytest
 from datetime import datetime
 
-from src.agents.whisper.intent import (
-    IntentCategory,
-    IntentClassification,
-    IntentClassifier,
-    classify_intent,
+import pytest
+
+from src.agents.whisper.agent import (
+    WhisperAgent,
+    create_whisper,
 )
-from src.agents.whisper.router import (
-    RoutingEngine,
-    RoutingDecision,
-    RoutingStrategy,
-    AgentRoute,
-    RoutingAuditor,
+from src.agents.whisper.aggregator import (
+    AggregationStrategy,
+    ResponseAggregator,
 )
 from src.agents.whisper.context import (
     ContextMinimizer,
@@ -24,27 +20,32 @@ from src.agents.whisper.context import (
     minimize_context,
 )
 from src.agents.whisper.flow import (
+    AgentResult,
     FlowController,
     FlowResult,
     FlowStatus,
-    AgentResult,
+)
+from src.agents.whisper.intent import (
+    IntentCategory,
+    IntentClassification,
+    IntentClassifier,
+    classify_intent,
+)
+from src.agents.whisper.router import (
+    AgentRoute,
+    RoutingAuditor,
+    RoutingDecision,
+    RoutingEngine,
+    RoutingStrategy,
 )
 from src.agents.whisper.smith import (
-    SmithIntegration,
     SmithCheckType,
-)
-from src.agents.whisper.aggregator import (
-    ResponseAggregator,
-    AggregationStrategy,
-)
-from src.agents.whisper.agent import (
-    WhisperAgent,
-    create_whisper,
+    SmithIntegration,
 )
 from src.messaging.models import (
-    create_request,
     FlowRequest,
     MessageStatus,
+    create_request,
 )
 
 
@@ -135,9 +136,7 @@ class TestRoutingEngine:
 
     @pytest.fixture
     def router(self):
-        return RoutingEngine(
-            available_agents={"sage", "muse", "quill", "seshat", "smith"}
-        )
+        return RoutingEngine(available_agents={"sage", "muse", "quill", "seshat", "smith"})
 
     @pytest.fixture
     def classification(self):
@@ -252,10 +251,7 @@ class TestContextMinimizer:
 
     def test_minimize_large_context(self, minimizer):
         """Reduce large context."""
-        context = [
-            {"role": "user", "content": "Message " + "x" * 500}
-            for _ in range(10)
-        ]
+        context = [{"role": "user", "content": "Message " + "x" * 500} for _ in range(10)]
 
         result = minimizer.minimize(context, "Question", budget=500)
 
@@ -571,10 +567,12 @@ class TestWhisperAgent:
     @pytest.fixture
     def whisper(self):
         agent = WhisperAgent()
-        agent.initialize({
-            "available_agents": {"sage", "muse", "seshat"},
-            "use_llm_classifier": False,
-        })
+        agent.initialize(
+            {
+                "available_agents": {"sage", "muse", "seshat"},
+                "use_llm_classifier": False,
+            }
+        )
         return agent
 
     def test_whisper_initialization(self, whisper):
@@ -587,6 +585,7 @@ class TestWhisperAgent:
         caps = whisper.get_capabilities()
 
         from src.agents.interface import CapabilityType
+
         assert CapabilityType.ROUTING in caps.capabilities
         assert "*" in caps.supported_intents
 

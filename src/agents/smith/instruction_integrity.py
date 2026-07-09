@@ -64,9 +64,7 @@ class InstructionIntegrityValidator:
         """Persist known-good hashes to disk."""
         try:
             self._hash_store_path.parent.mkdir(parents=True, exist_ok=True)
-            self._hash_store_path.write_text(
-                json.dumps({"hashes": self._known_hashes}, indent=2)
-            )
+            self._hash_store_path.write_text(json.dumps({"hashes": self._known_hashes}, indent=2))
             self._hash_store_path.chmod(0o600)
         except Exception as e:
             logger.warning("Failed to save instruction hash store: %s", e)

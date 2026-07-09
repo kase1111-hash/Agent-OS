@@ -151,8 +151,7 @@ class MemoryStore:
         """Create database tables."""
         cursor = self._connection.cursor()
 
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS memories (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -168,22 +167,17 @@ class MemoryStore:
                 consent_given INTEGER DEFAULT 1,
                 retention_days INTEGER
             )
-        """
-        )
+        """)
 
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_memories_user_id
             ON memories(user_id)
-        """
-        )
+        """)
 
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_memories_user_type
             ON memories(user_id, memory_type)
-        """
-        )
+        """)
 
         self._connection.commit()
 
@@ -233,11 +227,10 @@ class MemoryStore:
 
             # Update access stats (only update timestamp if >60s since last access)
             now = datetime.utcnow()
-            last_accessed = datetime.fromisoformat(row["accessed_at"]) if row["accessed_at"] else None
-            should_update_time = (
-                not last_accessed
-                or (now - last_accessed).total_seconds() > 60
+            last_accessed = (
+                datetime.fromisoformat(row["accessed_at"]) if row["accessed_at"] else None
             )
+            should_update_time = not last_accessed or (now - last_accessed).total_seconds() > 60
             if should_update_time:
                 cursor.execute(
                     "UPDATE memories SET accessed_at = ?, access_count = access_count + 1 WHERE id = ?",
@@ -337,7 +330,9 @@ class MemoryStore:
                 return self._row_to_entry(row)
 
             params.append(entry_id)
-            cursor.execute(f"UPDATE memories SET {', '.join(updates)} WHERE id = ?", params)  # nosec B608 - column names are hardcoded
+            cursor.execute(
+                f"UPDATE memories SET {', '.join(updates)} WHERE id = ?", params
+            )  # nosec B608 - column names are hardcoded
             self._connection.commit()
 
             # Fetch updated entry

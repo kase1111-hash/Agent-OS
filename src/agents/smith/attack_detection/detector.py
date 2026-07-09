@@ -31,14 +31,16 @@ from .patterns import (
     PatternType,
     create_pattern_library,
 )
+
 try:
     from .siem_connector import (
+        SIEMConfig,
         SIEMConnector,
         SIEMEvent,
-        SIEMConfig,
         SIEMProvider,
         create_siem_connector,
     )
+
     SIEM_AVAILABLE = True
 except ImportError:
     SIEM_AVAILABLE = False
@@ -207,15 +209,11 @@ class AttackDetector:
         self.on_attack = on_attack
 
         # Core components
-        self._pattern_library = create_pattern_library(
-            patterns_dir=self.config.patterns_dir
-        )
+        self._pattern_library = create_pattern_library(patterns_dir=self.config.patterns_dir)
         self._siem_connector: Optional[Any] = None
 
         # Event processing
-        self._event_window: Deque[Dict[str, Any]] = deque(
-            maxlen=self.config.max_events_per_window
-        )
+        self._event_window: Deque[Dict[str, Any]] = deque(maxlen=self.config.max_events_per_window)
         self._attack_queue: queue.Queue = queue.Queue()
         self._detected_attacks: Dict[str, AttackEvent] = {}
 
@@ -403,14 +401,16 @@ class AttackDetector:
         """Get detector statistics."""
         return {
             **self._stats,
-            "active_attacks": len([
-                a for a in self._detected_attacks.values()
-                if a.status not in [AttackStatus.MITIGATED, AttackStatus.FALSE_POSITIVE]
-            ]),
+            "active_attacks": len(
+                [
+                    a
+                    for a in self._detected_attacks.values()
+                    if a.status not in [AttackStatus.MITIGATED, AttackStatus.FALSE_POSITIVE]
+                ]
+            ),
             "patterns_loaded": len(self._pattern_library.list_patterns()),
             "siem_connected": (
-                self._siem_connector.get_stats()["sources_connected"]
-                if self._siem_connector else 0
+                self._siem_connector.get_stats()["sources_connected"] if self._siem_connector else 0
             ),
             "event_window_size": len(self._event_window),
             "is_running": self._running,
@@ -447,10 +447,7 @@ class AttackDetector:
         self._stats["patterns_matched"] += len(matches)
 
         # Filter by confidence threshold
-        significant_matches = [
-            m for m in matches
-            if m.confidence >= self.config.min_confidence
-        ]
+        significant_matches = [m for m in matches if m.confidence >= self.config.min_confidence]
 
         if not significant_matches:
             return None
@@ -558,13 +555,16 @@ class AttackDetector:
         matches: List[PatternMatch],
     ) -> str:
         """Generate unique attack ID."""
-        data = json.dumps({
-            "event_hash": hashlib.sha256(
-                json.dumps(event, default=str, sort_keys=True).encode()
-            ).hexdigest()[:16],
-            "patterns": [m.pattern_id for m in matches],
-            "timestamp": datetime.now().isoformat(),
-        }, sort_keys=True)
+        data = json.dumps(
+            {
+                "event_hash": hashlib.sha256(
+                    json.dumps(event, default=str, sort_keys=True).encode()
+                ).hexdigest()[:16],
+                "patterns": [m.pattern_id for m in matches],
+                "timestamp": datetime.now().isoformat(),
+            },
+            sort_keys=True,
+        )
 
         return f"ATK-{hashlib.sha256(data.encode()).hexdigest()[:12].upper()}"
 
@@ -596,39 +596,49 @@ class AttackDetector:
         actions = []
 
         if attack.attack_type == AttackType.PROMPT_INJECTION:
-            actions.extend([
-                "Block the malicious prompt pattern",
-                "Add pattern to input sanitization rules",
-                "Update S3 instruction integrity validation",
-            ])
+            actions.extend(
+                [
+                    "Block the malicious prompt pattern",
+                    "Add pattern to input sanitization rules",
+                    "Update S3 instruction integrity validation",
+                ]
+            )
 
         elif attack.attack_type == AttackType.JAILBREAK:
-            actions.extend([
-                "Strengthen constitutional constraints",
-                "Add pattern to refusal engine",
-                "Review agent capability boundaries",
-            ])
+            actions.extend(
+                [
+                    "Strengthen constitutional constraints",
+                    "Add pattern to refusal engine",
+                    "Review agent capability boundaries",
+                ]
+            )
 
         elif attack.attack_type == AttackType.INJECTION:
-            actions.extend([
-                "Sanitize input at entry point",
-                "Add input validation rule",
-                "Update tool execution sandbox",
-            ])
+            actions.extend(
+                [
+                    "Sanitize input at entry point",
+                    "Add input validation rule",
+                    "Update tool execution sandbox",
+                ]
+            )
 
         elif attack.attack_type == AttackType.PRIVILEGE_ESCALATION:
-            actions.extend([
-                "Review authorization policies",
-                "Tighten permission boundaries",
-                "Audit recent privilege changes",
-            ])
+            actions.extend(
+                [
+                    "Review authorization policies",
+                    "Tighten permission boundaries",
+                    "Audit recent privilege changes",
+                ]
+            )
 
         elif attack.attack_type == AttackType.DATA_EXFILTRATION:
-            actions.extend([
-                "Block data egress path",
-                "Review S7 exfiltration controls",
-                "Audit data access patterns",
-            ])
+            actions.extend(
+                [
+                    "Block data egress path",
+                    "Review S7 exfiltration controls",
+                    "Audit data access patterns",
+                ]
+            )
 
         # Common actions
         actions.append("Generate incident report")

@@ -263,12 +263,8 @@ class ConstitutionalKernel:
 
         # Convert EnforcementDecision -> EnforcementResult
         if not decision.allowed:
-            suggestions = decision.suggestions or self._generate_suggestions(
-                decision.matched_rules
-            )
-            reason = decision.reason or self._format_violation_reason(
-                decision.matched_rules
-            )
+            suggestions = decision.suggestions or self._generate_suggestions(decision.matched_rules)
+            reason = decision.reason or self._format_violation_reason(decision.matched_rules)
 
             return EnforcementResult(
                 allowed=False,
@@ -444,9 +440,7 @@ class ConstitutionalKernel:
                 logger.error(f"Permission denied reloading constitution: {path}")
                 return False
             except Exception as e:
-                logger.error(
-                    f"Failed to reload constitution {path}: {type(e).__name__}: {e}"
-                )
+                logger.error(f"Failed to reload constitution {path}: {type(e).__name__}: {e}")
                 return False
 
     def _rule_applies(self, rule: Rule, context: RequestContext) -> bool:
@@ -496,15 +490,20 @@ class ConstitutionalKernel:
             # For mandate rules, check if required elements are referenced
             # A mandate is violated if the context relates to the mandate topic
             # but doesn't include the required elements
-            topic_match = any(
-                kw in content_lower or kw in intent_lower for kw in mandate_keywords
-            )
+            topic_match = any(kw in content_lower or kw in intent_lower for kw in mandate_keywords)
 
             if topic_match:
                 # Check for mandate indicator words that suggest compliance
                 compliance_indicators = {
-                    "review", "validate", "verify", "check", "confirm",
-                    "ensure", "approved", "authorization", "consent"
+                    "review",
+                    "validate",
+                    "verify",
+                    "check",
+                    "confirm",
+                    "ensure",
+                    "approved",
+                    "authorization",
+                    "consent",
                 }
                 has_compliance = any(
                     indicator in content_lower for indicator in compliance_indicators

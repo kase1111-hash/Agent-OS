@@ -144,14 +144,12 @@ class VaultIndex:
 
         with self._transaction() as conn:
             # Schema version table
-            conn.execute(
-                """
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS schema_version (
                     version INTEGER PRIMARY KEY,
                     applied_at TEXT NOT NULL
                 )
-            """
-            )
+            """)
 
             # Check current version
             cursor = conn.execute("SELECT MAX(version) FROM schema_version")
@@ -164,8 +162,7 @@ class VaultIndex:
         """Apply database migrations."""
         if from_version < 1:
             # Initial schema
-            conn.executescript(
-                """
+            conn.executescript("""
                 -- Blob metadata index
                 CREATE TABLE IF NOT EXISTS blobs (
                     blob_id TEXT PRIMARY KEY,
@@ -261,8 +258,7 @@ class VaultIndex:
                 -- Record schema version
                 INSERT INTO schema_version (version, applied_at)
                 VALUES (1, datetime('now'));
-            """
-            )
+            """)
 
         logger.info(f"Database migrated to version {self.SCHEMA_VERSION}")
 
@@ -592,13 +588,11 @@ class VaultIndex:
     def get_pending_deletions(self) -> List[Dict[str, Any]]:
         """Get pending deletion requests."""
         conn = self._get_connection()
-        cursor = conn.execute(
-            """
+        cursor = conn.execute("""
             SELECT * FROM deletion_queue
             WHERE status = 'PENDING'
             ORDER BY requested_at ASC
-        """
-        )
+        """)
 
         return [dict(row) for row in cursor.fetchall()]
 
@@ -687,18 +681,14 @@ class VaultIndex:
         cursor = conn.execute("SELECT COUNT(*) FROM blobs")
         stats["total_blobs"] = cursor.fetchone()[0]
 
-        cursor = conn.execute(
-            """
+        cursor = conn.execute("""
             SELECT tier, COUNT(*) FROM blobs GROUP BY tier
-        """
-        )
+        """)
         stats["blobs_by_tier"] = {row[0]: row[1] for row in cursor.fetchall()}
 
-        cursor = conn.execute(
-            """
+        cursor = conn.execute("""
             SELECT status, COUNT(*) FROM blobs GROUP BY status
-        """
-        )
+        """)
         stats["blobs_by_status"] = {row[0]: row[1] for row in cursor.fetchall()}
 
         cursor = conn.execute("SELECT SUM(size_bytes), SUM(encrypted_size) FROM blobs")

@@ -112,7 +112,10 @@ class SecretScanner:
             ),
             # AWS secret keys (40 char base64)
             _ScanPattern(
-                re.compile(r"(?:aws_secret_access_key|secret_key)[=:]\s*['\"]?([A-Za-z0-9/+=]{40})['\"]?", re.I),
+                re.compile(
+                    r"(?:aws_secret_access_key|secret_key)[=:]\s*['\"]?([A-Za-z0-9/+=]{40})['\"]?",
+                    re.I,
+                ),
                 "aws_secret_key",
                 "[BLOCKED_AWS_SECRET]",
             ),
@@ -187,10 +190,7 @@ class SecretScanner:
         freq: Dict[str, int] = {}
         for c in s:
             freq[c] = freq.get(c, 0) + 1
-        return -sum(
-            (count / length) * math.log2(count / length)
-            for count in freq.values()
-        )
+        return -sum((count / length) * math.log2(count / length) for count in freq.values())
 
     def _check_high_entropy(self, text: str) -> Optional[str]:
         """
@@ -200,7 +200,7 @@ class SecretScanner:
         Looks for contiguous alphanumeric strings with entropy > threshold.
         """
         # Match long alphanumeric+special strings that look like tokens/keys
-        for match in re.finditer(r'[a-zA-Z0-9_/+=.-]{20,}', text):
+        for match in re.finditer(r"[a-zA-Z0-9_/+=.-]{20,}", text):
             candidate = match.group()
             # Skip common non-secret patterns
             if candidate.startswith("http") or candidate.startswith("file"):
@@ -311,9 +311,7 @@ class SecretScanner:
             if isinstance(value, str):
                 result = self.scan(value)
                 if result.found_secrets:
-                    all_matched.extend(
-                        f"{current_path}:{p}" for p in result.patterns_matched
-                    )
+                    all_matched.extend(f"{current_path}:{p}" for p in result.patterns_matched)
             elif isinstance(value, dict):
                 result = self.scan_dict(value, current_path)
                 all_matched.extend(result.patterns_matched)
@@ -323,9 +321,7 @@ class SecretScanner:
                     if isinstance(item, str):
                         result = self.scan(item)
                         if result.found_secrets:
-                            all_matched.extend(
-                                f"{item_path}:{p}" for p in result.patterns_matched
-                            )
+                            all_matched.extend(f"{item_path}:{p}" for p in result.patterns_matched)
                     elif isinstance(item, dict):
                         result = self.scan_dict(item, item_path)
                         all_matched.extend(result.patterns_matched)

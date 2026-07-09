@@ -9,7 +9,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from ..auth_helpers import require_admin_user
@@ -27,6 +27,7 @@ try:
         RecommendationStatus,
         create_attack_detector,
     )
+
     ATTACK_DETECTION_AVAILABLE = True
 except ImportError:
     ATTACK_DETECTION_AVAILABLE = False
@@ -34,6 +35,7 @@ except ImportError:
 # Try to import Smith agent
 try:
     from src.agents.smith.agent import SmithAgent, create_smith
+
     SMITH_AVAILABLE = True
 except ImportError:
     SMITH_AVAILABLE = False
@@ -166,23 +168,22 @@ def get_smith() -> Any:
 
     if _smith_instance is None:
         if not SMITH_AVAILABLE:
-            raise HTTPException(
-                status_code=503,
-                detail="Smith agent not available"
-            )
+            raise HTTPException(status_code=503, detail="Smith agent not available")
         try:
-            _smith_instance = create_smith(config={
-                "attack_detection_enabled": True,
-                "attack_detection_config": {
-                    "enable_boundary_events": True,
-                    "enable_flow_monitoring": True,
+            _smith_instance = create_smith(
+                config={
+                    "attack_detection_enabled": True,
+                    "attack_detection_config": {
+                        "enable_boundary_events": True,
+                        "enable_flow_monitoring": True,
+                    },
                 }
-            })
+            )
         except Exception as e:
             logger.error(f"Failed to create Smith agent: {e}")
             raise HTTPException(
                 status_code=503,
-                detail="Failed to initialize security agent. Check server logs for details."
+                detail="Failed to initialize security agent. Check server logs for details.",
             )
 
     return _smith_instance
@@ -222,19 +223,21 @@ async def list_attacks(
             if status and attack.get("status") != status:
                 continue
 
-            filtered.append(AttackSummary(
-                attack_id=attack["attack_id"],
-                attack_type=attack.get("attack_type", "UNKNOWN"),
-                severity=attack.get("severity", "MEDIUM"),
-                status=attack.get("status", "DETECTED"),
-                detected_at=attack.get("detected_at", datetime.now()),
-                description=attack.get("description", ""),
-                confidence=attack.get("confidence", 0.5),
-                source=attack.get("source"),
-            ))
+            filtered.append(
+                AttackSummary(
+                    attack_id=attack["attack_id"],
+                    attack_type=attack.get("attack_type", "UNKNOWN"),
+                    severity=attack.get("severity", "MEDIUM"),
+                    status=attack.get("status", "DETECTED"),
+                    detected_at=attack.get("detected_at", datetime.now()),
+                    description=attack.get("description", ""),
+                    confidence=attack.get("confidence", 0.5),
+                    source=attack.get("source"),
+                )
+            )
 
         # Apply pagination after filtering
-        filtered = filtered[offset:offset + limit]
+        filtered = filtered[offset : offset + limit]
 
         return filtered
 
@@ -297,15 +300,9 @@ async def mark_attack_false_positive(
         smith = get_smith()
 
         if not smith._attack_detector:
-            raise HTTPException(
-                status_code=503,
-                detail="Attack detector not enabled"
-            )
+            raise HTTPException(status_code=503, detail="Attack detector not enabled")
 
-        result = smith._attack_detector.mark_false_positive(
-            attack_id,
-            request.reason
-        )
+        result = smith._attack_detector.mark_false_positive(attack_id, request.reason)
 
         if not result:
             raise HTTPException(status_code=404, detail="Attack not found")
@@ -355,28 +352,27 @@ async def list_recommendations(
                 status_enum = RecommendationStatus[status.upper()]
                 recs = smith._recommendation_system.list_recommendations(status=status_enum)
             except KeyError:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Invalid status: {status}"
-                )
+                raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
         else:
             recs = smith._recommendation_system.list_recommendations()
 
         for rec in recs[:limit]:
-            rec_dict = rec.to_dict() if hasattr(rec, 'to_dict') else rec
+            rec_dict = rec.to_dict() if hasattr(rec, "to_dict") else rec
 
             if priority and rec_dict.get("priority") != priority.upper():
                 continue
 
-            recommendations.append(RecommendationSummary(
-                recommendation_id=rec_dict["recommendation_id"],
-                attack_id=rec_dict["attack_id"],
-                title=rec_dict.get("title", ""),
-                priority=rec_dict.get("priority", "MEDIUM"),
-                status=rec_dict.get("status", "PENDING"),
-                created_at=rec_dict.get("created_at", datetime.now()),
-                patch_count=len(rec_dict.get("patches", [])),
-            ))
+            recommendations.append(
+                RecommendationSummary(
+                    recommendation_id=rec_dict["recommendation_id"],
+                    attack_id=rec_dict["attack_id"],
+                    title=rec_dict.get("title", ""),
+                    priority=rec_dict.get("priority", "MEDIUM"),
+                    status=rec_dict.get("status", "PENDING"),
+                    created_at=rec_dict.get("created_at", datetime.now()),
+                    patch_count=len(rec_dict.get("patches", [])),
+                )
+            )
 
         return recommendations
 
@@ -388,7 +384,9 @@ async def list_recommendations(
 
 
 @router.get("/recommendations/{recommendation_id}", response_model=RecommendationDetail)
-async def get_recommendation(recommendation_id: str, admin_id: str = Depends(require_admin_user)) -> RecommendationDetail:
+async def get_recommendation(
+    recommendation_id: str, admin_id: str = Depends(require_admin_user)
+) -> RecommendationDetail:
     """
     Get detailed information about a fix recommendation.
 
@@ -398,17 +396,14 @@ async def get_recommendation(recommendation_id: str, admin_id: str = Depends(req
         smith = get_smith()
 
         if not smith._recommendation_system:
-            raise HTTPException(
-                status_code=503,
-                detail="Recommendation system not enabled"
-            )
+            raise HTTPException(status_code=503, detail="Recommendation system not enabled")
 
         rec = smith._recommendation_system.get_recommendation(recommendation_id)
 
         if not rec:
             raise HTTPException(status_code=404, detail="Recommendation not found")
 
-        rec_dict = rec.to_dict() if hasattr(rec, 'to_dict') else rec
+        rec_dict = rec.to_dict() if hasattr(rec, "to_dict") else rec
 
         return RecommendationDetail(
             recommendation_id=rec_dict["recommendation_id"],
@@ -435,7 +430,9 @@ async def get_recommendation(recommendation_id: str, admin_id: str = Depends(req
 
 
 @router.get("/recommendations/{recommendation_id}/markdown")
-async def get_recommendation_markdown(recommendation_id: str, admin_id: str = Depends(require_admin_user)) -> Dict[str, str]:
+async def get_recommendation_markdown(
+    recommendation_id: str, admin_id: str = Depends(require_admin_user)
+) -> Dict[str, str]:
     """
     Get recommendation formatted as markdown for human review.
 
@@ -445,10 +442,7 @@ async def get_recommendation_markdown(recommendation_id: str, admin_id: str = De
         smith = get_smith()
 
         if not smith._recommendation_system:
-            raise HTTPException(
-                status_code=503,
-                detail="Recommendation system not enabled"
-            )
+            raise HTTPException(status_code=503, detail="Recommendation system not enabled")
 
         rec = smith._recommendation_system.get_recommendation(recommendation_id)
 
@@ -490,10 +484,7 @@ async def approve_recommendation(
         )
 
         if not result:
-            raise HTTPException(
-                status_code=400,
-                detail="Failed to approve recommendation"
-            )
+            raise HTTPException(status_code=400, detail="Failed to approve recommendation")
 
         return {
             "status": "success",
@@ -524,10 +515,7 @@ async def reject_recommendation(
         smith = get_smith()
 
         if not smith._recommendation_system:
-            raise HTTPException(
-                status_code=503,
-                detail="Recommendation system not enabled"
-            )
+            raise HTTPException(status_code=503, detail="Recommendation system not enabled")
 
         result = smith._recommendation_system.reject(
             recommendation_id,
@@ -536,10 +524,7 @@ async def reject_recommendation(
         )
 
         if not result:
-            raise HTTPException(
-                status_code=400,
-                detail="Failed to reject recommendation"
-            )
+            raise HTTPException(status_code=400, detail="Failed to reject recommendation")
 
         return {
             "status": "success",
@@ -570,10 +555,7 @@ async def add_recommendation_comment(
         smith = get_smith()
 
         if not smith._recommendation_system:
-            raise HTTPException(
-                status_code=503,
-                detail="Recommendation system not enabled"
-            )
+            raise HTTPException(status_code=503, detail="Recommendation system not enabled")
 
         comment_id = smith._recommendation_system.add_comment(
             recommendation_id,
@@ -582,10 +564,7 @@ async def add_recommendation_comment(
         )
 
         if not comment_id:
-            raise HTTPException(
-                status_code=400,
-                detail="Failed to add comment"
-            )
+            raise HTTPException(status_code=400, detail="Failed to add comment")
 
         return {
             "status": "success",
@@ -616,10 +595,7 @@ async def assign_reviewers(
         smith = get_smith()
 
         if not smith._recommendation_system:
-            raise HTTPException(
-                status_code=503,
-                detail="Recommendation system not enabled"
-            )
+            raise HTTPException(status_code=503, detail="Recommendation system not enabled")
 
         smith._recommendation_system.assign_reviewers(
             recommendation_id,
@@ -646,7 +622,9 @@ async def assign_reviewers(
 
 
 @router.get("/status", response_model=AttackDetectionStatus)
-async def get_attack_detection_status(admin_id: str = Depends(require_admin_user)) -> AttackDetectionStatus:
+async def get_attack_detection_status(
+    admin_id: str = Depends(require_admin_user),
+) -> AttackDetectionStatus:
     """
     Get attack detection system status.
 
@@ -691,10 +669,7 @@ async def control_pipeline(
 
         if request.action == "start":
             if not smith._attack_detector:
-                raise HTTPException(
-                    status_code=503,
-                    detail="Attack detector not initialized"
-                )
+                raise HTTPException(status_code=503, detail="Attack detector not initialized")
             smith._attack_detector.start()
             smith._attack_detection_enabled = True
             message = "Attack detection pipeline started"
@@ -730,10 +705,7 @@ async def list_attack_patterns(admin_id: str = Depends(require_admin_user)) -> D
         smith = get_smith()
 
         if not smith._attack_detector:
-            raise HTTPException(
-                status_code=503,
-                detail="Attack detector not enabled"
-            )
+            raise HTTPException(status_code=503, detail="Attack detector not enabled")
 
         patterns = smith._attack_detector.pattern_library.list_patterns()
 
@@ -744,7 +716,7 @@ async def list_attack_patterns(admin_id: str = Depends(require_admin_user)) -> D
                     "id": p.id,
                     "name": p.name,
                     "description": p.description,
-                    "category": p.category.name if hasattr(p.category, 'name') else str(p.category),
+                    "category": p.category.name if hasattr(p.category, "name") else str(p.category),
                     "severity": p.severity,
                     "enabled": p.enabled,
                 }
@@ -760,16 +732,15 @@ async def list_attack_patterns(admin_id: str = Depends(require_admin_user)) -> D
 
 
 @router.post("/patterns/{pattern_id}/enable")
-async def enable_pattern(pattern_id: str, admin_id: str = Depends(require_admin_user)) -> Dict[str, str]:
+async def enable_pattern(
+    pattern_id: str, admin_id: str = Depends(require_admin_user)
+) -> Dict[str, str]:
     """Enable an attack detection pattern."""
     try:
         smith = get_smith()
 
         if not smith._attack_detector:
-            raise HTTPException(
-                status_code=503,
-                detail="Attack detector not enabled"
-            )
+            raise HTTPException(status_code=503, detail="Attack detector not enabled")
 
         smith._attack_detector.pattern_library.enable_pattern(pattern_id)
 
@@ -787,16 +758,15 @@ async def enable_pattern(pattern_id: str, admin_id: str = Depends(require_admin_
 
 
 @router.post("/patterns/{pattern_id}/disable")
-async def disable_pattern(pattern_id: str, admin_id: str = Depends(require_admin_user)) -> Dict[str, str]:
+async def disable_pattern(
+    pattern_id: str, admin_id: str = Depends(require_admin_user)
+) -> Dict[str, str]:
     """Disable an attack detection pattern."""
     try:
         smith = get_smith()
 
         if not smith._attack_detector:
-            raise HTTPException(
-                status_code=503,
-                detail="Attack detector not enabled"
-            )
+            raise HTTPException(status_code=503, detail="Attack detector not enabled")
 
         smith._attack_detector.pattern_library.disable_pattern(pattern_id)
 

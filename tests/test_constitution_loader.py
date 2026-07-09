@@ -8,17 +8,17 @@ Verifies that:
 - System prompts are properly combined with constitutional context
 """
 
-import pytest
 from pathlib import Path
 
+import pytest
+
 from src.agents.constitution_loader import (
-    ConstitutionLoader,
     ConstitutionalContext,
+    ConstitutionLoader,
+    build_system_prompt_with_constitution,
     get_constitution_loader,
     load_constitutional_context,
-    build_system_prompt_with_constitution,
 )
-
 
 # Find project root
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -105,7 +105,9 @@ class TestConstitutionLoader:
         # Should include base prompt
         assert "You are a test agent." in full_prompt
         # Constitutional context should come first
-        assert full_prompt.index("CONSTITUTIONAL GOVERNANCE") < full_prompt.index("You are a test agent.")
+        assert full_prompt.index("CONSTITUTIONAL GOVERNANCE") < full_prompt.index(
+            "You are a test agent."
+        )
 
     def test_caching(self):
         """Test that constitution loading is cached."""
@@ -247,8 +249,14 @@ class TestIntegrationWithAgents:
     def test_all_agents_have_constitutions(self):
         """Verify all documented agents have constitution files."""
         agents_with_constitutions = [
-            "muse", "sage", "quill", "guardian",
-            "executive", "seshat", "planner", "researcher"
+            "muse",
+            "sage",
+            "quill",
+            "guardian",
+            "executive",
+            "seshat",
+            "planner",
+            "researcher",
         ]
 
         loader = get_constitution_loader()
@@ -263,10 +271,7 @@ class TestIntegrationWithAgents:
         loader = get_constitution_loader()
 
         agents = ["muse", "sage", "quill", "guardian"]
-        agent_contexts = {
-            name: loader.load_for_agent(name, force_reload=True)
-            for name in agents
-        }
+        agent_contexts = {name: loader.load_for_agent(name, force_reload=True) for name in agents}
 
         for agent_name, context in agent_contexts.items():
             agent_constitution = context.agent_constitution.lower()
@@ -276,8 +281,9 @@ class TestIntegrationWithAgents:
                     # The other agent's name shouldn't appear prominently
                     # in this agent's constitution
                     constitution_header = f"constitution of the {other_name} agent"
-                    assert constitution_header not in agent_constitution, \
-                        f"{agent_name}'s constitution contains {other_name}'s constitution"
+                    assert (
+                        constitution_header not in agent_constitution
+                    ), f"{agent_name}'s constitution contains {other_name}'s constitution"
 
 
 if __name__ == "__main__":

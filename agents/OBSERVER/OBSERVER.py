@@ -3,18 +3,21 @@
 # Detects motion patterns, interprets via LLM, logs metadata only (privacy-focused).
 # Adapted from PyImageSearch motion detection tutorial.
 
-import cv2
-import imutils
-import time
-import datetime
 import argparse
-import ollama
+import datetime
 import os
 import tempfile
+import time
+
+import cv2
+import imutils
+import ollama
 
 # Parse command-line arguments
 ap = argparse.ArgumentParser()
-ap.add_argument("-a", "--min-area", type=int, default=500, help="minimum contour area for motion detection")
+ap.add_argument(
+    "-a", "--min-area", type=int, default=500, help="minimum contour area for motion detection"
+)
 ap.add_argument("-m", "--model", default="llava", help="Ollama vision model (e.g., llava)")
 args = vars(ap.parse_args())
 
@@ -61,7 +64,7 @@ while True:
         if cv2.contourArea(c) < args["min_area"]:
             continue
         motion_detected = True
-        (x, y, w, h) = cv2.boundingRect(c)
+        x, y, w, h = cv2.boundingRect(c)
         cv2.rectangle(frame_resized, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
     # Update state
@@ -74,7 +77,7 @@ while True:
         # Capture temp image for LLM analysis (privacy: delete after)
         with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as temp_img:
             cv2.imwrite(temp_img.name, frame_resized)
-        
+
         # Prompt LLM for behavioral description
         try:
             response = ollama.chat(
@@ -83,14 +86,14 @@ while True:
                     {
                         "role": "user",
                         "content": "Describe the user's posture and activity in this image briefly, focusing on behavioral indicators like pacing (thinking), stillness (focus), leaning back (contemplation), or frustration. Do not identify the person or store details.",
-                        "images": [temp_img.name]
+                        "images": [temp_img.name],
                     }
-                ]
+                ],
             )
             description = response["message"]["content"]
         except Exception as e:
             description = f"Error in LLM call: {str(e)}"
-        
+
         # Delete temp image
         os.unlink(temp_img.name)
 
@@ -98,8 +101,10 @@ while True:
         if current_state == "stillness":
             pattern = "focus" if duration > 60 else "brief pause"  # e.g., >1 min = focus
         else:
-            pattern = "thinking/pacing" if duration > 180 else "brief activity"  # e.g., >3 min = pacing
-        
+            pattern = (
+                "thinking/pacing" if duration > 180 else "brief activity"
+            )  # e.g., >3 min = pacing
+
         # Log metadata (integrate with Primary Model)
         log_entry = f"{timestamp}: {current_state.capitalize()} for {duration:.1f} seconds ({pattern}). Description: {description}"
         log_entries.append(log_entry)
@@ -110,7 +115,15 @@ while True:
         state_start_time = time.time()
 
     # Display feed (for debugging; remove in production for lower resources)
-    cv2.putText(frame_resized, f"State: {current_state}", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+    cv2.putText(
+        frame_resized,
+        f"State: {current_state}",
+        (10, 20),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.5,
+        (0, 0, 255),
+        2,
+    )
     cv2.imshow("Observer Feed", frame_resized)
 
     # Quit on 'q'

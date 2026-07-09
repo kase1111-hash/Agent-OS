@@ -12,8 +12,8 @@ from datetime import datetime
 from enum import Enum, auto
 from typing import Any, Callable, Dict, List, Optional, Set
 
-from .intent import IntentCategory, IntentClassification
 from .integrity import SmithIntegrityChecker, SmithStatus
+from .intent import IntentCategory, IntentClassification
 from .load_balancer import (
     AgentHealthStatus,
     AgentLoadTracker,
@@ -227,7 +227,9 @@ class RoutingEngine:
 
             routes = [AgentRoute(agent_name=fallback_agent, priority=0)]
             strategy = RoutingStrategy.FALLBACK
-            reasoning = f"No routes found for {intent.value}, using fallback agent '{fallback_agent}'"
+            reasoning = (
+                f"No routes found for {intent.value}, using fallback agent '{fallback_agent}'"
+            )
         else:
             strategy = self._determine_strategy(routes, classification)
 

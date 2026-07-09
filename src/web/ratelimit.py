@@ -456,7 +456,7 @@ class RateLimiter:
                 )
                 # Return existing data unchanged
                 return (
-                    {"requests": requests[-rule.requests:], "count": count},
+                    {"requests": requests[-rule.requests :], "count": count},
                     int(rule.window_seconds * 2),
                 )
 
@@ -471,7 +471,7 @@ class RateLimiter:
                 reset_at=reset_at,
             )
             return (
-                {"requests": requests[-rule.requests:], "count": len(requests)},
+                {"requests": requests[-rule.requests :], "count": len(requests)},
                 int(rule.window_seconds * 2),
             )
 

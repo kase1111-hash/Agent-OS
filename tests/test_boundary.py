@@ -5,57 +5,57 @@ Tests state monitoring, tripwires, policy engine, enforcement,
 event logging, and boundary client integration.
 """
 
-import pytest
-import time
 import tempfile
+import time
 from datetime import datetime
 from pathlib import Path
+
+import pytest
 
 from src.boundary import (
     BoundaryClient,
     BoundaryClientConfig,
-    create_boundary_client,
-    BoundaryDaemon,
     BoundaryConfig,
+    BoundaryDaemon,
     BoundaryMode,
-    RequestType,
     Decision,
+    RequestType,
+    create_boundary_client,
     create_boundary_daemon,
 )
-
 from src.boundary.daemon import (
-    StateMonitor,
-    SystemState,
-    NetworkState,
-    ProcessState,
-    HardwareState,
-    create_state_monitor,
-    TripwireSystem,
-    Tripwire,
-    TripwireEvent,
-    TripwireType,
-    TripwireState,
-    create_tripwire_system,
-    create_file_tripwire,
-    PolicyEngine,
-    PolicyRequest,
-    PolicyDecision,
-    PolicyRule,
-    create_policy_engine,
-    EnforcementLayer,
-    EnforcementEvent,
     EnforcementAction,
+    EnforcementEvent,
+    EnforcementLayer,
     EnforcementSeverity,
-    create_enforcement_layer,
+    HardwareState,
     ImmutableEventLog,
     LogEntry,
+    NetworkState,
+    PolicyDecision,
+    PolicyEngine,
+    PolicyRequest,
+    PolicyRule,
+    ProcessState,
+    StateMonitor,
+    SystemState,
+    Tripwire,
+    TripwireEvent,
+    TripwireState,
+    TripwireSystem,
+    TripwireType,
+    create_enforcement_layer,
     create_event_log,
+    create_file_tripwire,
+    create_policy_engine,
+    create_state_monitor,
+    create_tripwire_system,
 )
-
 
 # =============================================================================
 # SystemState Tests
 # =============================================================================
+
 
 class TestSystemState:
     """Tests for SystemState."""
@@ -113,6 +113,7 @@ class TestSystemState:
 # StateMonitor Tests
 # =============================================================================
 
+
 class TestStateMonitor:
     """Tests for StateMonitor."""
 
@@ -166,6 +167,7 @@ class TestStateMonitor:
 # =============================================================================
 # Tripwire Tests
 # =============================================================================
+
 
 class TestTripwire:
     """Tests for Tripwire."""
@@ -235,6 +237,7 @@ class TestTripwire:
 # TripwireSystem Tests
 # =============================================================================
 
+
 class TestTripwireSystem:
     """Tests for TripwireSystem."""
 
@@ -262,12 +265,14 @@ class TestTripwireSystem:
         system = TripwireSystem()
 
         # Add a triggering tripwire
-        system.add_tripwire(Tripwire(
-            id="will_trigger",
-            tripwire_type=TripwireType.CUSTOM,
-            description="Will trigger",
-            condition=lambda: True,
-        ))
+        system.add_tripwire(
+            Tripwire(
+                id="will_trigger",
+                tripwire_type=TripwireType.CUSTOM,
+                description="Will trigger",
+                condition=lambda: True,
+            )
+        )
 
         events = system.check_all()
 
@@ -278,12 +283,14 @@ class TestTripwireSystem:
         """Test resetting all tripwires."""
         system = TripwireSystem()
 
-        system.add_tripwire(Tripwire(
-            id="trigger_me",
-            tripwire_type=TripwireType.CUSTOM,
-            description="Trigger",
-            condition=lambda: True,
-        ))
+        system.add_tripwire(
+            Tripwire(
+                id="trigger_me",
+                tripwire_type=TripwireType.CUSTOM,
+                description="Trigger",
+                condition=lambda: True,
+            )
+        )
 
         system.check_all()
         assert system.is_triggered() is True
@@ -310,6 +317,7 @@ class TestTripwireSystem:
 # =============================================================================
 # PolicyEngine Tests
 # =============================================================================
+
 
 class TestPolicyEngine:
     """Tests for PolicyEngine."""
@@ -404,6 +412,7 @@ class TestPolicyEngine:
 # EnforcementLayer Tests
 # =============================================================================
 
+
 class TestEnforcementLayer:
     """Tests for EnforcementLayer."""
 
@@ -477,6 +486,7 @@ class TestEnforcementLayer:
 # =============================================================================
 # ImmutableEventLog Tests
 # =============================================================================
+
 
 class TestImmutableEventLog:
     """Tests for ImmutableEventLog."""
@@ -552,6 +562,7 @@ class TestImmutableEventLog:
 # BoundaryDaemon Tests
 # =============================================================================
 
+
 class TestBoundaryDaemon:
     """Tests for BoundaryDaemon."""
 
@@ -573,9 +584,11 @@ class TestBoundaryDaemon:
 
     def test_request_permission_restricted(self):
         """Test permission in restricted mode."""
-        daemon = BoundaryDaemon(BoundaryConfig(
-            initial_mode=BoundaryMode.RESTRICTED,
-        ))
+        daemon = BoundaryDaemon(
+            BoundaryConfig(
+                initial_mode=BoundaryMode.RESTRICTED,
+            )
+        )
         daemon.start()
 
         try:
@@ -640,6 +653,7 @@ class TestBoundaryDaemon:
 # =============================================================================
 # BoundaryClient Tests
 # =============================================================================
+
 
 class TestBoundaryClient:
     """Tests for BoundaryClient."""
@@ -753,6 +767,7 @@ class TestBoundaryClient:
 # Integration Tests
 # =============================================================================
 
+
 class TestBoundaryIntegration:
     """Integration tests for boundary system."""
 
@@ -816,13 +831,15 @@ class TestBoundaryIntegration:
             # Add a custom tripwire that will trigger
             from src.boundary.daemon.tripwires import Tripwire, TripwireType
 
-            daemon._tripwires.add_tripwire(Tripwire(
-                id="test_trigger",
-                tripwire_type=TripwireType.CUSTOM,
-                description="Test trigger",
-                condition=lambda: True,
-                severity=3,
-            ))
+            daemon._tripwires.add_tripwire(
+                Tripwire(
+                    id="test_trigger",
+                    tripwire_type=TripwireType.CUSTOM,
+                    description="Test trigger",
+                    condition=lambda: True,
+                    severity=3,
+                )
+            )
 
             # Check tripwires
             daemon._tripwires.check_all()
@@ -858,6 +875,7 @@ class TestBoundaryIntegration:
 # =============================================================================
 # Enum Tests
 # =============================================================================
+
 
 class TestEnums:
     """Tests for enum values."""

@@ -57,6 +57,7 @@ logger = logging.getLogger(__name__)
 # Try to import yaml, provide fallback
 try:
     import yaml
+
     YAML_AVAILABLE = True
 except ImportError:
     YAML_AVAILABLE = False
@@ -65,6 +66,7 @@ except ImportError:
 
 class ConfigError(Exception):
     """Configuration error."""
+
     pass
 
 
@@ -78,6 +80,7 @@ class ConfigValidationError(ConfigError):
 
 class SeverityLevel(Enum):
     """Severity level for configuration."""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -87,12 +90,14 @@ class SeverityLevel(Enum):
 
 class StorageBackend(Enum):
     """Storage backend type."""
+
     MEMORY = "memory"
     SQLITE = "sqlite"
 
 
 class SIEMProviderType(Enum):
     """SIEM provider type."""
+
     MOCK = "mock"
     SPLUNK = "splunk"
     ELASTIC = "elastic"
@@ -102,6 +107,7 @@ class SIEMProviderType(Enum):
 
 class NotificationChannelType(Enum):
     """Notification channel type."""
+
     CONSOLE = "console"
     EMAIL = "email"
     SLACK = "slack"
@@ -113,6 +119,7 @@ class NotificationChannelType(Enum):
 @dataclass
 class DetectorConfig:
     """Attack detector configuration."""
+
     enable_boundary_events: bool = True
     enable_siem_events: bool = True
     auto_lockdown_on_critical: bool = False
@@ -125,6 +132,7 @@ class DetectorConfig:
 @dataclass
 class SIEMSourceConfig:
     """Configuration for a SIEM source."""
+
     name: str
     provider: SIEMProviderType
     enabled: bool = True
@@ -142,6 +150,7 @@ class SIEMSourceConfig:
 @dataclass
 class SIEMConfig:
     """SIEM integration configuration."""
+
     enabled: bool = True
     sources: List[SIEMSourceConfig] = field(default_factory=list)
     event_deduplication: bool = True
@@ -152,6 +161,7 @@ class SIEMConfig:
 @dataclass
 class NotificationChannelConfig:
     """Configuration for a notification channel."""
+
     name: str
     type: NotificationChannelType
     enabled: bool = True
@@ -183,6 +193,7 @@ class NotificationChannelConfig:
 @dataclass
 class NotificationsConfig:
     """Notifications configuration."""
+
     enabled: bool = True
     channels: List[NotificationChannelConfig] = field(default_factory=list)
     aggregate_similar: bool = True
@@ -193,6 +204,7 @@ class NotificationsConfig:
 @dataclass
 class StorageConfig:
     """Storage configuration."""
+
     backend: StorageBackend = StorageBackend.SQLITE
     path: str = "./data/attack_detection.db"
     auto_migrate: bool = True
@@ -204,6 +216,7 @@ class StorageConfig:
 @dataclass
 class AnalyzerConfig:
     """Attack analyzer configuration."""
+
     enable_llm_analysis: bool = True
     llm_timeout_seconds: int = 30
     use_sage_agent: bool = True
@@ -215,6 +228,7 @@ class AnalyzerConfig:
 @dataclass
 class RemediationConfig:
     """Remediation engine configuration."""
+
     enabled: bool = True
     auto_generate_patches: bool = True
     require_approval: bool = True
@@ -226,6 +240,7 @@ class RemediationConfig:
 @dataclass
 class GitIntegrationConfig:
     """Git integration configuration."""
+
     enabled: bool = False
     auto_create_pr: bool = False
     pr_draft_mode: bool = True
@@ -238,6 +253,7 @@ class GitIntegrationConfig:
 @dataclass
 class AttackDetectionConfig:
     """Complete attack detection configuration."""
+
     enabled: bool = True
     severity_threshold: SeverityLevel = SeverityLevel.LOW
 
@@ -254,12 +270,12 @@ class AttackDetectionConfig:
         return _config_to_dict(self)
 
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 def _config_to_dict(obj: Any) -> Any:
     """Recursively convert dataclass to dict."""
-    if hasattr(obj, '__dataclass_fields__'):
+    if hasattr(obj, "__dataclass_fields__"):
         result = {}
         for field_name in obj.__dataclass_fields__:
             value = getattr(obj, field_name)
@@ -280,7 +296,7 @@ class ConfigLoader:
     Configuration loader with YAML support and environment variable substitution.
     """
 
-    ENV_VAR_PATTERN = re.compile(r'\$\{([^}]+)\}')
+    ENV_VAR_PATTERN = re.compile(r"\$\{([^}]+)\}")
 
     def __init__(
         self,
@@ -315,7 +331,7 @@ class ConfigLoader:
             raise ConfigError(f"Configuration file not found: {path}")
 
         try:
-            with open(path, 'r') as f:
+            with open(path, "r") as f:
                 raw_config = yaml.safe_load(f)
         except yaml.YAMLError as e:
             raise ConfigError(f"Invalid YAML: {e}")
@@ -324,8 +340,8 @@ class ConfigLoader:
             raw_config = {}
 
         # Extract attack_detection section if present
-        if 'attack_detection' in raw_config:
-            raw_config = raw_config['attack_detection']
+        if "attack_detection" in raw_config:
+            raw_config = raw_config["attack_detection"]
 
         # Substitute environment variables
         raw_config = self._substitute_env_vars(raw_config)
@@ -363,7 +379,7 @@ class ConfigLoader:
         for key, value in os.environ.items():
             if key.startswith(f"{self.env_prefix}_"):
                 # Parse key path
-                path_parts = key[len(self.env_prefix) + 1:].lower().split('_')
+                path_parts = key[len(self.env_prefix) + 1 :].lower().split("_")
                 self._set_nested(config_dict, path_parts, self._parse_value(value))
 
         return self._parse_config(config_dict)
@@ -392,13 +408,14 @@ class ConfigLoader:
     def _substitute_env_vars(self, obj: Any) -> Any:
         """Recursively substitute environment variables."""
         if isinstance(obj, str):
+
             def replace_var(match: re.Match) -> str:
                 var_name = match.group(1)
                 default = None
 
                 # Support ${VAR:-default} syntax
-                if ':-' in var_name:
-                    var_name, default = var_name.split(':-', 1)
+                if ":-" in var_name:
+                    var_name, default = var_name.split(":-", 1)
 
                 value = os.environ.get(var_name)
                 if value is None:
@@ -424,20 +441,20 @@ class ConfigLoader:
 
         try:
             config = AttackDetectionConfig(
-                enabled=raw.get('enabled', True),
+                enabled=raw.get("enabled", True),
                 severity_threshold=self._parse_enum(
-                    raw.get('severity_threshold', 'low'),
+                    raw.get("severity_threshold", "low"),
                     SeverityLevel,
-                    'severity_threshold',
+                    "severity_threshold",
                     errors,
                 ),
-                detector=self._parse_detector(raw.get('detector', {}), errors),
-                siem=self._parse_siem(raw.get('siem', {}), errors),
-                notifications=self._parse_notifications(raw.get('notifications', {}), errors),
-                storage=self._parse_storage(raw.get('storage', {}), errors),
-                analyzer=self._parse_analyzer(raw.get('analyzer', {}), errors),
-                remediation=self._parse_remediation(raw.get('remediation', {}), errors),
-                git=self._parse_git(raw.get('git', {}), errors),
+                detector=self._parse_detector(raw.get("detector", {}), errors),
+                siem=self._parse_siem(raw.get("siem", {}), errors),
+                notifications=self._parse_notifications(raw.get("notifications", {}), errors),
+                storage=self._parse_storage(raw.get("storage", {}), errors),
+                analyzer=self._parse_analyzer(raw.get("analyzer", {}), errors),
+                remediation=self._parse_remediation(raw.get("remediation", {}), errors),
+                git=self._parse_git(raw.get("git", {}), errors),
             )
         except Exception as e:
             errors.append(f"Configuration parsing error: {e}")
@@ -451,146 +468,146 @@ class ConfigLoader:
     def _parse_detector(self, raw: Dict[str, Any], errors: List[str]) -> DetectorConfig:
         """Parse detector configuration."""
         return DetectorConfig(
-            enable_boundary_events=raw.get('enable_boundary_events', True),
-            enable_siem_events=raw.get('enable_siem_events', True),
-            auto_lockdown_on_critical=raw.get('auto_lockdown_on_critical', False),
-            lockdown_duration_seconds=raw.get('lockdown_duration_seconds', 3600),
-            detection_confidence_threshold=raw.get('detection_confidence_threshold', 0.7),
-            max_events_per_minute=raw.get('max_events_per_minute', 1000),
-            pattern_match_timeout_ms=raw.get('pattern_match_timeout_ms', 100),
+            enable_boundary_events=raw.get("enable_boundary_events", True),
+            enable_siem_events=raw.get("enable_siem_events", True),
+            auto_lockdown_on_critical=raw.get("auto_lockdown_on_critical", False),
+            lockdown_duration_seconds=raw.get("lockdown_duration_seconds", 3600),
+            detection_confidence_threshold=raw.get("detection_confidence_threshold", 0.7),
+            max_events_per_minute=raw.get("max_events_per_minute", 1000),
+            pattern_match_timeout_ms=raw.get("pattern_match_timeout_ms", 100),
         )
 
     def _parse_siem(self, raw: Dict[str, Any], errors: List[str]) -> SIEMConfig:
         """Parse SIEM configuration."""
         sources = []
-        for source_raw in raw.get('sources', []):
+        for source_raw in raw.get("sources", []):
             try:
                 source = SIEMSourceConfig(
-                    name=source_raw.get('name', 'unnamed'),
+                    name=source_raw.get("name", "unnamed"),
                     provider=self._parse_enum(
-                        source_raw.get('provider', 'mock'),
+                        source_raw.get("provider", "mock"),
                         SIEMProviderType,
                         f"siem.sources[{source_raw.get('name')}].provider",
                         errors,
                     ),
-                    enabled=source_raw.get('enabled', True),
-                    endpoint=source_raw.get('endpoint'),
-                    username=source_raw.get('username'),
-                    password=source_raw.get('password'),
-                    api_key=source_raw.get('api_key'),
-                    poll_interval=source_raw.get('poll_interval', 30),
-                    batch_size=source_raw.get('batch_size', 100),
-                    verify_ssl=source_raw.get('verify_ssl', True),
-                    timeout=source_raw.get('timeout', 30),
-                    extra_params=source_raw.get('extra_params', {}),
+                    enabled=source_raw.get("enabled", True),
+                    endpoint=source_raw.get("endpoint"),
+                    username=source_raw.get("username"),
+                    password=source_raw.get("password"),
+                    api_key=source_raw.get("api_key"),
+                    poll_interval=source_raw.get("poll_interval", 30),
+                    batch_size=source_raw.get("batch_size", 100),
+                    verify_ssl=source_raw.get("verify_ssl", True),
+                    timeout=source_raw.get("timeout", 30),
+                    extra_params=source_raw.get("extra_params", {}),
                 )
                 sources.append(source)
             except Exception as e:
                 errors.append(f"Invalid SIEM source config: {e}")
 
         return SIEMConfig(
-            enabled=raw.get('enabled', True),
+            enabled=raw.get("enabled", True),
             sources=sources,
-            event_deduplication=raw.get('event_deduplication', True),
-            dedup_window_seconds=raw.get('dedup_window_seconds', 300),
-            max_queue_size=raw.get('max_queue_size', 10000),
+            event_deduplication=raw.get("event_deduplication", True),
+            dedup_window_seconds=raw.get("dedup_window_seconds", 300),
+            max_queue_size=raw.get("max_queue_size", 10000),
         )
 
     def _parse_notifications(self, raw: Dict[str, Any], errors: List[str]) -> NotificationsConfig:
         """Parse notifications configuration."""
         channels = []
-        for channel_raw in raw.get('channels', []):
+        for channel_raw in raw.get("channels", []):
             try:
                 channel = NotificationChannelConfig(
-                    name=channel_raw.get('name', 'unnamed'),
+                    name=channel_raw.get("name", "unnamed"),
                     type=self._parse_enum(
-                        channel_raw.get('type', 'console'),
+                        channel_raw.get("type", "console"),
                         NotificationChannelType,
                         f"notifications.channels[{channel_raw.get('name')}].type",
                         errors,
                     ),
-                    enabled=channel_raw.get('enabled', True),
+                    enabled=channel_raw.get("enabled", True),
                     min_severity=self._parse_enum(
-                        channel_raw.get('min_severity', 'medium'),
+                        channel_raw.get("min_severity", "medium"),
                         SeverityLevel,
                         f"notifications.channels[{channel_raw.get('name')}].min_severity",
                         errors,
                     ),
-                    rate_limit=channel_raw.get('rate_limit', 10),
-                    rate_window_seconds=channel_raw.get('rate_window_seconds', 60),
-                    webhook_url=channel_raw.get('webhook_url'),
-                    channel=channel_raw.get('channel'),
-                    smtp_host=channel_raw.get('smtp_host'),
-                    smtp_port=channel_raw.get('smtp_port', 587),
-                    from_address=channel_raw.get('from_address'),
-                    to_addresses=channel_raw.get('to_addresses', []),
-                    use_tls=channel_raw.get('use_tls', True),
-                    username=channel_raw.get('username'),
-                    password=channel_raw.get('password'),
-                    routing_key=channel_raw.get('routing_key'),
-                    headers=channel_raw.get('headers', {}),
-                    payload_template=channel_raw.get('payload_template'),
+                    rate_limit=channel_raw.get("rate_limit", 10),
+                    rate_window_seconds=channel_raw.get("rate_window_seconds", 60),
+                    webhook_url=channel_raw.get("webhook_url"),
+                    channel=channel_raw.get("channel"),
+                    smtp_host=channel_raw.get("smtp_host"),
+                    smtp_port=channel_raw.get("smtp_port", 587),
+                    from_address=channel_raw.get("from_address"),
+                    to_addresses=channel_raw.get("to_addresses", []),
+                    use_tls=channel_raw.get("use_tls", True),
+                    username=channel_raw.get("username"),
+                    password=channel_raw.get("password"),
+                    routing_key=channel_raw.get("routing_key"),
+                    headers=channel_raw.get("headers", {}),
+                    payload_template=channel_raw.get("payload_template"),
                 )
                 channels.append(channel)
             except Exception as e:
                 errors.append(f"Invalid notification channel config: {e}")
 
         return NotificationsConfig(
-            enabled=raw.get('enabled', True),
+            enabled=raw.get("enabled", True),
             channels=channels,
-            aggregate_similar=raw.get('aggregate_similar', True),
-            aggregate_window_seconds=raw.get('aggregate_window_seconds', 300),
-            include_console=raw.get('include_console', True),
+            aggregate_similar=raw.get("aggregate_similar", True),
+            aggregate_window_seconds=raw.get("aggregate_window_seconds", 300),
+            include_console=raw.get("include_console", True),
         )
 
     def _parse_storage(self, raw: Dict[str, Any], errors: List[str]) -> StorageConfig:
         """Parse storage configuration."""
         return StorageConfig(
             backend=self._parse_enum(
-                raw.get('backend', 'sqlite'),
+                raw.get("backend", "sqlite"),
                 StorageBackend,
-                'storage.backend',
+                "storage.backend",
                 errors,
             ),
-            path=raw.get('path', './data/attack_detection.db'),
-            auto_migrate=raw.get('auto_migrate', True),
-            cleanup_enabled=raw.get('cleanup_enabled', True),
-            cleanup_older_than_days=raw.get('cleanup_older_than_days', 90),
-            keep_unresolved=raw.get('keep_unresolved', True),
+            path=raw.get("path", "./data/attack_detection.db"),
+            auto_migrate=raw.get("auto_migrate", True),
+            cleanup_enabled=raw.get("cleanup_enabled", True),
+            cleanup_older_than_days=raw.get("cleanup_older_than_days", 90),
+            keep_unresolved=raw.get("keep_unresolved", True),
         )
 
     def _parse_analyzer(self, raw: Dict[str, Any], errors: List[str]) -> AnalyzerConfig:
         """Parse analyzer configuration."""
         return AnalyzerConfig(
-            enable_llm_analysis=raw.get('enable_llm_analysis', True),
-            llm_timeout_seconds=raw.get('llm_timeout_seconds', 30),
-            use_sage_agent=raw.get('use_sage_agent', True),
-            fallback_to_patterns=raw.get('fallback_to_patterns', True),
-            max_code_context_lines=raw.get('max_code_context_lines', 50),
-            mitre_mapping_enabled=raw.get('mitre_mapping_enabled', True),
+            enable_llm_analysis=raw.get("enable_llm_analysis", True),
+            llm_timeout_seconds=raw.get("llm_timeout_seconds", 30),
+            use_sage_agent=raw.get("use_sage_agent", True),
+            fallback_to_patterns=raw.get("fallback_to_patterns", True),
+            max_code_context_lines=raw.get("max_code_context_lines", 50),
+            mitre_mapping_enabled=raw.get("mitre_mapping_enabled", True),
         )
 
     def _parse_remediation(self, raw: Dict[str, Any], errors: List[str]) -> RemediationConfig:
         """Parse remediation configuration."""
         return RemediationConfig(
-            enabled=raw.get('enabled', True),
-            auto_generate_patches=raw.get('auto_generate_patches', True),
-            require_approval=raw.get('require_approval', True),
-            test_patches_in_sandbox=raw.get('test_patches_in_sandbox', True),
-            sandbox_timeout_seconds=raw.get('sandbox_timeout_seconds', 60),
-            max_patches_per_attack=raw.get('max_patches_per_attack', 5),
+            enabled=raw.get("enabled", True),
+            auto_generate_patches=raw.get("auto_generate_patches", True),
+            require_approval=raw.get("require_approval", True),
+            test_patches_in_sandbox=raw.get("test_patches_in_sandbox", True),
+            sandbox_timeout_seconds=raw.get("sandbox_timeout_seconds", 60),
+            max_patches_per_attack=raw.get("max_patches_per_attack", 5),
         )
 
     def _parse_git(self, raw: Dict[str, Any], errors: List[str]) -> GitIntegrationConfig:
         """Parse git integration configuration."""
         return GitIntegrationConfig(
-            enabled=raw.get('enabled', False),
-            auto_create_pr=raw.get('auto_create_pr', False),
-            pr_draft_mode=raw.get('pr_draft_mode', True),
-            base_branch=raw.get('base_branch', 'main'),
-            branch_prefix=raw.get('branch_prefix', 'security/fix'),
-            default_reviewers=raw.get('default_reviewers', []),
-            labels=raw.get('labels', ['security', 'auto-remediation']),
+            enabled=raw.get("enabled", False),
+            auto_create_pr=raw.get("auto_create_pr", False),
+            pr_draft_mode=raw.get("pr_draft_mode", True),
+            base_branch=raw.get("base_branch", "main"),
+            branch_prefix=raw.get("branch_prefix", "security/fix"),
+            default_reviewers=raw.get("default_reviewers", []),
+            labels=raw.get("labels", ["security", "auto-remediation"]),
         )
 
     def _parse_enum(
@@ -630,9 +647,9 @@ class ConfigLoader:
     def _parse_value(self, value: str) -> Any:
         """Parse a string value to appropriate type."""
         # Boolean
-        if value.lower() in ('true', 'yes', '1'):
+        if value.lower() in ("true", "yes", "1"):
             return True
-        if value.lower() in ('false', 'no', '0'):
+        if value.lower() in ("false", "no", "0"):
             return False
 
         # Integer
@@ -648,8 +665,8 @@ class ConfigLoader:
             pass
 
         # List (comma-separated)
-        if ',' in value:
-            return [v.strip() for v in value.split(',')]
+        if "," in value:
+            return [v.strip() for v in value.split(",")]
 
         return value
 
@@ -684,13 +701,13 @@ def generate_default_config() -> str:
 
     if YAML_AVAILABLE:
         return yaml.dump(
-            {'attack_detection': config_dict},
+            {"attack_detection": config_dict},
             default_flow_style=False,
             sort_keys=False,
         )
     else:
         # Simple YAML-like output without PyYAML
-        return _dict_to_yaml_string({'attack_detection': config_dict})
+        return _dict_to_yaml_string({"attack_detection": config_dict})
 
 
 def _dict_to_yaml_string(obj: Any, indent: int = 0) -> str:
@@ -726,7 +743,7 @@ def _format_yaml_value(value: Any) -> str:
     elif isinstance(value, bool):
         return "true" if value else "false"
     elif isinstance(value, str):
-        if any(c in value for c in ':{}[],"\''):
+        if any(c in value for c in ":{}[],\"'"):
             return f'"{value}"'
         return value
     elif isinstance(value, list):
@@ -747,7 +764,7 @@ def generate_example_config() -> str:
     Returns:
         YAML string with example configuration and comments
     """
-    return '''# Agent Smith Attack Detection Configuration
+    return """# Agent Smith Attack Detection Configuration
 # This file configures the attack detection and auto-remediation system.
 
 attack_detection:
@@ -905,10 +922,11 @@ attack_detection:
       - security
       - auto-remediation
       - agent-smith
-'''
+"""
 
 
 # Factory functions
+
 
 def create_config_loader(
     env_prefix: str = "ATTACK_DETECTION",
@@ -987,9 +1005,9 @@ def save_config(
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    config_dict = {'attack_detection': config.to_dict()}
+    config_dict = {"attack_detection": config.to_dict()}
 
-    with open(path, 'w') as f:
+    with open(path, "w") as f:
         yaml.dump(config_dict, f, default_flow_style=False, sort_keys=False)
 
     logger.info(f"Configuration saved to {path}")

@@ -9,9 +9,10 @@ Covers:
 
 import base64
 import os
-import pytest
 import tempfile
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 # Skip all tests if cryptography is not available
 pytest.importorskip("cryptography")
@@ -176,9 +177,7 @@ class TestCredentialManager:
 
         # Create new manager with same storage path
         key = base64.b64decode("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
-        new_manager = CredentialManager(
-            encryption_service=EncryptionService(master_key=key)
-        )
+        new_manager = CredentialManager(encryption_service=EncryptionService(master_key=key))
         new_manager._storage_path = credential_manager._storage_path
         new_manager.load()
 
@@ -324,7 +323,7 @@ class TestFactoryFunctions:
 
     def test_encrypt_decrypt_shortcuts(self):
         """Test encrypt/decrypt shortcut functions."""
-        from src.utils.encryption import encrypt, decrypt
+        from src.utils.encryption import decrypt, encrypt
 
         plaintext = "Test message"
         encrypted = encrypt(plaintext)
@@ -398,13 +397,21 @@ class TestSensitiveDataRedactorParameterized:
         [
             # API Keys
             ('api_key="sk-1234567890abcdefghijklmnop"', "sk-1234567890", "REDACTED"),
-            ("Using key: sk-proj-abcdefghijklmnopqrstuvwxyz123456", "sk-proj", "REDACTED_OPENAI_KEY"),
+            (
+                "Using key: sk-proj-abcdefghijklmnopqrstuvwxyz123456",
+                "sk-proj",
+                "REDACTED_OPENAI_KEY",
+            ),
             # GitHub tokens
             ("token = ghp_abcdefghijklmnopqrstuvwxyz12345", "ghp_", "REDACTED_GITHUB_TOKEN"),
             ("gho_1234567890abcdefghij", "gho_", "REDACTED_GITHUB_TOKEN"),
             ("ghs_abcdefghij1234567890", "ghs_", "REDACTED_GITHUB_TOKEN"),
             # Bearer tokens
-            ("Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", "eyJh", "Bearer [REDACTED]"),
+            (
+                "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
+                "eyJh",
+                "Bearer [REDACTED]",
+            ),
             # Passwords
             ('password="mysecretpassword123"', "mysecretpassword123", "REDACTED"),
             ("passwd=supersecret", "supersecret", "REDACTED"),

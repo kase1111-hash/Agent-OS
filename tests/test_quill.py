@@ -2,34 +2,35 @@
 Tests for Agent OS Quill Agent (UC-010)
 """
 
-import pytest
 import json
 from datetime import datetime
-from typing import Dict, Any
+from typing import Any, Dict
 from unittest.mock import Mock, patch
 
+import pytest
+
+from src.agents.interface import AgentState, CapabilityType
 from src.agents.quill import (
+    DEFAULT_TEMPLATES,
+    ChangeType,
+    DocumentTemplate,
+    FormattingEngine,
+    OutputFormat,
     QuillAgent,
     QuillConfig,
-    create_quill_agent,
-    FormattingEngine,
     RefinementEngine,
-    OutputFormat,
-    ChangeType,
-    TextChange,
     RefinementResult,
-    DocumentTemplate,
-    DEFAULT_TEMPLATES,
+    TextChange,
     create_formatting_engine,
+    create_quill_agent,
     create_refinement_engine,
 )
-from src.agents.interface import AgentState, CapabilityType
 from src.messaging.models import FlowRequest, FlowResponse, MessageStatus, create_request
-
 
 # =============================================================================
 # Fixtures
 # =============================================================================
+
 
 @pytest.fixture
 def formatting_engine():
@@ -84,6 +85,7 @@ def sample_flow_request():
 # TextChange Tests
 # =============================================================================
 
+
 class TestTextChange:
     """Tests for TextChange."""
 
@@ -119,6 +121,7 @@ class TestTextChange:
 # =============================================================================
 # RefinementResult Tests
 # =============================================================================
+
 
 class TestRefinementResult:
     """Tests for RefinementResult."""
@@ -188,6 +191,7 @@ class TestRefinementResult:
 # DocumentTemplate Tests
 # =============================================================================
 
+
 class TestDocumentTemplate:
     """Tests for DocumentTemplate."""
 
@@ -229,6 +233,7 @@ class TestDocumentTemplate:
 # =============================================================================
 # FormattingEngine Tests
 # =============================================================================
+
 
 class TestFormattingEngine:
     """Tests for FormattingEngine."""
@@ -331,6 +336,7 @@ class TestFormattingEngine:
 # RefinementEngine Tests
 # =============================================================================
 
+
 class TestRefinementEngine:
     """Tests for RefinementEngine."""
 
@@ -345,7 +351,11 @@ class TestRefinementEngine:
         result = refinement_engine.refine(text)
 
         # Should fix "could of" -> "could have" and "seperate" -> "separate"
-        assert "could have" in result.refined or "separate" in result.refined or result.change_count >= 0
+        assert (
+            "could have" in result.refined
+            or "separate" in result.refined
+            or result.change_count >= 0
+        )
 
     def test_refine_capitalization(self, refinement_engine):
         """Test capitalization fixes."""
@@ -425,6 +435,7 @@ class TestRefinementEngine:
 # =============================================================================
 # QuillAgent Tests
 # =============================================================================
+
 
 class TestQuillAgent:
     """Tests for QuillAgent."""
@@ -629,6 +640,7 @@ class TestCreateQuillAgent:
 # Integration Tests
 # =============================================================================
 
+
 class TestQuillIntegration:
     """Integration tests for Quill agent."""
 
@@ -690,6 +702,7 @@ class TestQuillIntegration:
 # Constitutional Compliance Tests
 # =============================================================================
 
+
 class TestConstitutionalCompliance:
     """Tests for constitutional compliance."""
 
@@ -750,6 +763,7 @@ class TestConstitutionalCompliance:
 # OutputFormat Tests
 # =============================================================================
 
+
 class TestOutputFormat:
     """Tests for OutputFormat enum."""
 
@@ -769,6 +783,7 @@ class TestOutputFormat:
 # =============================================================================
 # ChangeType Tests
 # =============================================================================
+
 
 class TestChangeType:
     """Tests for ChangeType enum."""

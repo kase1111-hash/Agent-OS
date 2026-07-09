@@ -719,19 +719,15 @@ class ContractStore:
 
             stats = {"by_status": {}, "by_type": {}}
 
-            cursor.execute(
-                """
+            cursor.execute("""
                 SELECT status, COUNT(*) FROM contracts GROUP BY status
-            """
-            )
+            """)
             for row in cursor.fetchall():
                 stats["by_status"][row[0]] = row[1]
 
-            cursor.execute(
-                """
+            cursor.execute("""
                 SELECT contract_type, COUNT(*) FROM contracts GROUP BY contract_type
-            """
-            )
+            """)
             for row in cursor.fetchall():
                 stats["by_type"][row[0]] = row[1]
 
@@ -747,8 +743,7 @@ class ContractStore:
         """Create database tables."""
         cursor = self._connection.cursor()
 
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS contracts (
                 contract_id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -767,11 +762,9 @@ class ContractStore:
                 metadata_json TEXT,
                 signature_hash TEXT
             )
-        """
-        )
+        """)
 
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS contract_events (
                 event_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 contract_id TEXT NOT NULL,
@@ -781,22 +774,17 @@ class ContractStore:
                 timestamp TEXT NOT NULL,
                 FOREIGN KEY (contract_id) REFERENCES contracts(contract_id)
             )
-        """
-        )
+        """)
 
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_contracts_user_id
             ON contracts(user_id)
-        """
-        )
+        """)
 
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_contracts_status
             ON contracts(status)
-        """
-        )
+        """)
 
         self._connection.commit()
 

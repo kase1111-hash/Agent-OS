@@ -27,10 +27,10 @@ logger = logging.getLogger(__name__)
 # Try to import Sage
 try:
     from src.agents.sage import (
-        SageAgent,
+        ConfidenceLevel,
         ReasoningChain,
         ReasoningType,
-        ConfidenceLevel,
+        SageAgent,
         create_sage_agent,
     )
 
@@ -446,6 +446,7 @@ class LLMAnalyzer:
             Complete LLM analysis result
         """
         import time
+
         start_time = time.time()
 
         analysis_id = f"LLM-{hashlib.md5(f'{attack_id}{datetime.now().isoformat()}'.encode(), usedforsecurity=False).hexdigest()[:12]}"
@@ -462,14 +463,12 @@ class LLMAnalyzer:
         if self._sage and not self._use_mock:
             # Use Sage for analysis
             result = self._analyze_with_sage(
-                result, attack_id, attack_type, severity,
-                description, source, target, context_str
+                result, attack_id, attack_type, severity, description, source, target, context_str
             )
         else:
             # Fallback to pattern-based analysis
             result = self._analyze_with_fallback(
-                result, attack_id, attack_type, severity,
-                description, source, target, context_str
+                result, attack_id, attack_type, severity, description, source, target, context_str
             )
             result.fallback_used = True
 
@@ -514,8 +513,7 @@ class LLMAnalyzer:
                 # Sage returned nothing, use fallback
                 logger.warning("Sage returned empty response, using fallback")
                 result = self._analyze_with_fallback(
-                    result, attack_id, attack_type, severity,
-                    description, source, target, context
+                    result, attack_id, attack_type, severity, description, source, target, context
                 )
                 result.fallback_used = True
 
@@ -523,8 +521,7 @@ class LLMAnalyzer:
             logger.error(f"Sage analysis failed: {e}")
             # Fallback to pattern-based
             result = self._analyze_with_fallback(
-                result, attack_id, attack_type, severity,
-                description, source, target, context
+                result, attack_id, attack_type, severity, description, source, target, context
             )
             result.fallback_used = True
 
@@ -592,13 +589,23 @@ class LLMAnalyzer:
 
         if self._sage and not self._use_mock:
             vulnerabilities = self._analyze_code_with_sage(
-                attack_type, description, str(file_path),
-                code_snippet, line_start, line_end, language
+                attack_type,
+                description,
+                str(file_path),
+                code_snippet,
+                line_start,
+                line_end,
+                language,
             )
         else:
             vulnerabilities = self._analyze_code_with_fallback(
-                attack_type, description, str(file_path),
-                code_snippet, line_start, line_end, language
+                attack_type,
+                description,
+                str(file_path),
+                code_snippet,
+                line_start,
+                line_end,
+                language,
             )
 
         return vulnerabilities
@@ -636,8 +643,7 @@ class LLMAnalyzer:
         except Exception as e:
             logger.error(f"Sage code analysis failed: {e}")
             vulnerabilities = self._analyze_code_with_fallback(
-                attack_type, description, file_path,
-                code_snippet, line_start, line_end, language
+                attack_type, description, file_path, code_snippet, line_start, line_end, language
             )
 
         return vulnerabilities
@@ -662,19 +668,23 @@ class LLMAnalyzer:
             regex = pattern_data.get("regex")
             if regex and re.search(regex, code_snippet, re.IGNORECASE):
                 vuln_id = f"VULN-{hashlib.md5(f'{file_path}{pattern_name}'.encode(), usedforsecurity=False).hexdigest()[:8]}"
-                vulnerabilities.append(CodeVulnerability(
-                    vulnerability_id=vuln_id,
-                    file_path=file_path,
-                    line_start=line_start,
-                    line_end=line_end,
-                    vulnerability_type=pattern_name,
-                    description=pattern_data.get("description", "Potential vulnerability detected"),
-                    severity=pattern_data.get("severity", 3),
-                    exploitability=pattern_data.get("exploitability", "medium"),
-                    cwe_id=pattern_data.get("cwe_id"),
-                    suggested_fix=pattern_data.get("fix", "Review and remediate this code"),
-                    confidence=AnalysisConfidence.MODERATE,
-                ))
+                vulnerabilities.append(
+                    CodeVulnerability(
+                        vulnerability_id=vuln_id,
+                        file_path=file_path,
+                        line_start=line_start,
+                        line_end=line_end,
+                        vulnerability_type=pattern_name,
+                        description=pattern_data.get(
+                            "description", "Potential vulnerability detected"
+                        ),
+                        severity=pattern_data.get("severity", 3),
+                        exploitability=pattern_data.get("exploitability", "medium"),
+                        cwe_id=pattern_data.get("cwe_id"),
+                        suggested_fix=pattern_data.get("fix", "Review and remediate this code"),
+                        confidence=AnalysisConfidence.MODERATE,
+                    )
+                )
 
         return vulnerabilities
 
@@ -775,18 +785,20 @@ class LLMAnalyzer:
         for pattern, vuln_type, severity, cwe_id in vuln_patterns:
             if re.search(pattern, conclusion, re.IGNORECASE):
                 vuln_id = f"VULN-{hashlib.md5(f'{file_path}{vuln_type}'.encode(), usedforsecurity=False).hexdigest()[:8]}"
-                vulnerabilities.append(CodeVulnerability(
-                    vulnerability_id=vuln_id,
-                    file_path=file_path,
-                    line_start=line_start,
-                    line_end=line_end,
-                    vulnerability_type=vuln_type,
-                    description=self._extract_description(conclusion, pattern),
-                    severity=severity,
-                    cwe_id=cwe_id,
-                    suggested_fix=self._extract_fix(conclusion),
-                    confidence=AnalysisConfidence.HIGH,
-                ))
+                vulnerabilities.append(
+                    CodeVulnerability(
+                        vulnerability_id=vuln_id,
+                        file_path=file_path,
+                        line_start=line_start,
+                        line_end=line_end,
+                        vulnerability_type=vuln_type,
+                        description=self._extract_description(conclusion, pattern),
+                        severity=severity,
+                        cwe_id=cwe_id,
+                        suggested_fix=self._extract_fix(conclusion),
+                        confidence=AnalysisConfidence.HIGH,
+                    )
+                )
 
         return vulnerabilities
 
@@ -800,12 +812,14 @@ class LLMAnalyzer:
             if tactic_name.lower() in conclusion.lower():
                 # Extract techniques mentioned with this tactic
                 techniques = self._extract_techniques(conclusion, tactic_name)
-                tactics.append(MITRETactic(
-                    tactic_id=tactic_id,
-                    tactic_name=tactic_name,
-                    techniques=techniques,
-                    confidence=AnalysisConfidence.HIGH,
-                ))
+                tactics.append(
+                    MITRETactic(
+                        tactic_id=tactic_id,
+                        tactic_name=tactic_name,
+                        techniques=techniques,
+                        confidence=AnalysisConfidence.HIGH,
+                    )
+                )
 
         return tactics
 
@@ -890,11 +904,13 @@ class LLMAnalyzer:
 
         for tactic_id, tactic_name in self.MITRE_TACTICS.items():
             if tactic_name.lower() in conclusion.lower():
-                tactics.append(MITRETactic(
-                    tactic_id=tactic_id,
-                    tactic_name=tactic_name,
-                    confidence=AnalysisConfidence.HIGH,
-                ))
+                tactics.append(
+                    MITRETactic(
+                        tactic_id=tactic_id,
+                        tactic_name=tactic_name,
+                        confidence=AnalysisConfidence.HIGH,
+                    )
+                )
 
         return tactics
 
@@ -989,10 +1005,13 @@ class LLMAnalyzer:
             ),
         }
 
-        return intent_map.get(attack_type, AttackIntent(
-            primary_goal=f"Execute {attack_type.replace('_', ' ').lower()} attack",
-            confidence=AnalysisConfidence.LOW,
-        ))
+        return intent_map.get(
+            attack_type,
+            AttackIntent(
+                primary_goal=f"Execute {attack_type.replace('_', ' ').lower()} attack",
+                confidence=AnalysisConfidence.LOW,
+            ),
+        )
 
     def _assess_impact(
         self,
@@ -1025,11 +1044,13 @@ class LLMAnalyzer:
         tactic_ids = self.ATTACK_TYPE_MITRE_MAP.get(attack_type, [])
         for tactic_id in tactic_ids:
             if tactic_id in self.MITRE_TACTICS:
-                tactics.append(MITRETactic(
-                    tactic_id=tactic_id,
-                    tactic_name=self.MITRE_TACTICS[tactic_id],
-                    confidence=AnalysisConfidence.MODERATE,
-                ))
+                tactics.append(
+                    MITRETactic(
+                        tactic_id=tactic_id,
+                        tactic_name=self.MITRE_TACTICS[tactic_id],
+                        confidence=AnalysisConfidence.MODERATE,
+                    )
+                )
 
         return tactics
 
@@ -1089,11 +1110,14 @@ class LLMAnalyzer:
             ],
         }
 
-        return fixes.get(attack_type, [
-            "Review and strengthen security controls",
-            "Implement defense in depth",
-            "Regular security assessments",
-        ])
+        return fixes.get(
+            attack_type,
+            [
+                "Review and strengthen security controls",
+                "Implement defense in depth",
+                "Regular security assessments",
+            ],
+        )
 
     def _generate_prevention_measures(self, attack_type: str) -> List[str]:
         """Generate prevention recommendations."""

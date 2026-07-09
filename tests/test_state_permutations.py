@@ -11,25 +11,34 @@ Tests ALL possible permutations of:
 Goal: Verify NO soft locks or dead ends exist in any state combination.
 """
 
-import sys
 import itertools
+import sys
 from dataclasses import dataclass
-from typing import List, Tuple, Set, Dict, Any, Optional
 from enum import Enum
+from typing import Any, Dict, List, Optional, Set, Tuple
 
-sys.path.insert(0, '.')
+sys.path.insert(0, ".")
 
 from src.boundary import (
-    BoundaryMode, RequestType, Decision,
+    BoundaryMode,
+    Decision,
+    RequestType,
     create_boundary_daemon,
 )
 from src.boundary.daemon import (
-    TripwireSystem, Tripwire, TripwireType, TripwireState,
-    create_tripwire_system, PolicyEngine, PolicyRequest,
-    create_policy_engine, EnforcementLayer, EnforcementAction,
-    EnforcementSeverity, create_enforcement_layer,
+    EnforcementAction,
+    EnforcementLayer,
+    EnforcementSeverity,
+    PolicyEngine,
+    PolicyRequest,
+    Tripwire,
+    TripwireState,
+    TripwireSystem,
+    TripwireType,
+    create_enforcement_layer,
+    create_policy_engine,
+    create_tripwire_system,
 )
-
 
 # =============================================================================
 # STATE DEFINITIONS
@@ -61,6 +70,7 @@ TRIPWIRE_STATES = [
 @dataclass
 class SystemState:
     """Complete system state snapshot."""
+
     boundary_mode: BoundaryMode
     is_halted: bool
     is_suspended: bool
@@ -68,13 +78,15 @@ class SystemState:
     tripwire_triggered: bool
 
     def __hash__(self):
-        return hash((
-            self.boundary_mode,
-            self.is_halted,
-            self.is_suspended,
-            self.is_isolated,
-            self.tripwire_triggered,
-        ))
+        return hash(
+            (
+                self.boundary_mode,
+                self.is_halted,
+                self.is_suspended,
+                self.is_isolated,
+                self.tripwire_triggered,
+            )
+        )
 
     def __eq__(self, other):
         return hash(self) == hash(other)
@@ -92,6 +104,7 @@ class SystemState:
 @dataclass
 class TransitionResult:
     """Result of a state transition."""
+
     success: bool
     from_state: SystemState
     to_state: SystemState
@@ -104,6 +117,7 @@ class TransitionResult:
 # =============================================================================
 # TEST FRAMEWORK
 # =============================================================================
+
 
 class PermutationTester:
     """Tests all state permutations for soft locks and dead ends."""
@@ -126,17 +140,21 @@ class PermutationTester:
                 for suspended in [False, True]:
                     for isolated in [False, True]:
                         for tripwire in [False, True]:
-                            states.append(SystemState(
-                                boundary_mode=mode,
-                                is_halted=halted,
-                                is_suspended=suspended,
-                                is_isolated=isolated,
-                                tripwire_triggered=tripwire,
-                            ))
+                            states.append(
+                                SystemState(
+                                    boundary_mode=mode,
+                                    is_halted=halted,
+                                    is_suspended=suspended,
+                                    is_isolated=isolated,
+                                    tripwire_triggered=tripwire,
+                                )
+                            )
 
         return states
 
-    def create_system_in_state(self, state: SystemState) -> Tuple[PolicyEngine, EnforcementLayer, TripwireSystem]:
+    def create_system_in_state(
+        self, state: SystemState
+    ) -> Tuple[PolicyEngine, EnforcementLayer, TripwireSystem]:
         """Create system components in a specific state."""
         engine = create_policy_engine(initial_mode=state.boundary_mode)
         enforcement = create_enforcement_layer()
@@ -152,12 +170,14 @@ class PermutationTester:
 
         # Set tripwire state
         if state.tripwire_triggered:
-            tripwires.add_tripwire(Tripwire(
-                id="state_tripwire",
-                tripwire_type=TripwireType.CUSTOM,
-                description="State tripwire",
-                condition=lambda: True,
-            ))
+            tripwires.add_tripwire(
+                Tripwire(
+                    id="state_tripwire",
+                    tripwire_type=TripwireType.CUSTOM,
+                    description="State tripwire",
+                    condition=lambda: True,
+                )
+            )
             tripwires.check_all()
 
         return engine, enforcement, tripwires
@@ -483,12 +503,14 @@ class PermutationTester:
                     enforcement.enforce(action, "chain_test", EnforcementSeverity.HIGH)
                 elif action_type == "tripwire":
                     if action:
-                        tripwires.add_tripwire(Tripwire(
-                            id=f"chain_{i}",
-                            tripwire_type=TripwireType.CUSTOM,
-                            description="Chain test",
-                            condition=lambda: True,
-                        ))
+                        tripwires.add_tripwire(
+                            Tripwire(
+                                id=f"chain_{i}",
+                                tripwire_type=TripwireType.CUSTOM,
+                                description="Chain test",
+                                condition=lambda: True,
+                            )
+                        )
                         tripwires.check_all()
 
             # Try to recover
@@ -582,6 +604,7 @@ class PermutationTester:
 # MAIN
 # =============================================================================
 
+
 def run_end_to_end_flow_tests():
     """
     Test complete end-to-end flows through the system.
@@ -626,8 +649,10 @@ def run_end_to_end_flow_tests():
     decision = engine.evaluate(request)
     test("Request evaluated", decision is not None)
     # Agent memory access gets ALLOW (special rule), other requests get AUDIT
-    test("Decision is ALLOW or AUDIT (trusted mode)",
-         decision.decision in [Decision.ALLOW, Decision.AUDIT])
+    test(
+        "Decision is ALLOW or AUDIT (trusted mode)",
+        decision.decision in [Decision.ALLOW, Decision.AUDIT],
+    )
 
     # Step 3: Check enforcement not blocking
     test("Not halted", not enforcement.is_halted)
@@ -635,8 +660,7 @@ def run_end_to_end_flow_tests():
 
     # Step 4: Complete flow - should work end to end
     flow_complete = (
-        decision.decision in [Decision.ALLOW, Decision.AUDIT] and
-        not enforcement.is_halted
+        decision.decision in [Decision.ALLOW, Decision.AUDIT] and not enforcement.is_halted
     )
     test("Flow completed successfully", flow_complete)
     print()
@@ -677,8 +701,10 @@ def run_end_to_end_flow_tests():
         if decision.decision == Decision.DENY:
             denial_count += 1
 
-    test(f"All {len(REQUEST_TYPES)} request types denied in lockdown",
-         denial_count == len(REQUEST_TYPES))
+    test(
+        f"All {len(REQUEST_TYPES)} request types denied in lockdown",
+        denial_count == len(REQUEST_TYPES),
+    )
     print()
 
     # Flow 4: Tripwire trigger flow
@@ -688,13 +714,15 @@ def run_end_to_end_flow_tests():
     enforcement = create_enforcement_layer()
 
     # Add trigger tripwire
-    tripwires.add_tripwire(Tripwire(
-        id="flow4_tripwire",
-        tripwire_type=TripwireType.CUSTOM,
-        description="Security event detected",
-        condition=lambda: True,
-        severity=4,
-    ))
+    tripwires.add_tripwire(
+        Tripwire(
+            id="flow4_tripwire",
+            tripwire_type=TripwireType.CUSTOM,
+            description="Security event detected",
+            condition=lambda: True,
+            severity=4,
+        )
+    )
 
     # Check tripwires
     events = tripwires.check_all()
@@ -806,13 +834,17 @@ def run_end_to_end_flow_tests():
     test("Halted", enforcement.is_halted)
 
     # All flags set
-    test("All enforcement flags active",
-         enforcement.is_halted and enforcement.is_suspended and enforcement.is_isolated)
+    test(
+        "All enforcement flags active",
+        enforcement.is_halted and enforcement.is_suspended and enforcement.is_isolated,
+    )
 
     # Single recovery
     enforcement.resume("valid_auth_code_12345")
-    test("Single resume clears halt and suspend",
-         not enforcement.is_halted and not enforcement.is_suspended)
+    test(
+        "Single resume clears halt and suspend",
+        not enforcement.is_halted and not enforcement.is_suspended,
+    )
     print()
 
     # Flow 9: Request chain permutations
@@ -839,8 +871,7 @@ def run_end_to_end_flow_tests():
             except Exception:
                 pass
 
-    test(f"All {total_chains} chains complete without errors",
-         total_chains == successful_chains)
+    test(f"All {total_chains} chains complete without errors", total_chains == successful_chains)
     print()
 
     # Summary

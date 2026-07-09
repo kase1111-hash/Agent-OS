@@ -22,7 +22,6 @@ from src.core.constitution import (
 from src.core.exceptions import KernelNotInitializedError, SupremeConstitutionError
 from src.core.models import AuthorityLevel, Rule, RuleType
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -378,8 +377,11 @@ class TestRuleApplies:
         k = self._kernel()
         rule = _make_rule(scope="all_agents", keywords=["harm"])
         ctx = RequestContext(
-            request_id="1", source="user", destination="sage",
-            intent="query", content="This could cause harm",
+            request_id="1",
+            source="user",
+            destination="sage",
+            intent="query",
+            content="This could cause harm",
         )
         assert k._rule_applies(rule, ctx) is True
 
@@ -388,8 +390,11 @@ class TestRuleApplies:
         k = self._kernel()
         rule = _make_rule(scope="sage", keywords=["test"])
         ctx = RequestContext(
-            request_id="1", source="user", destination="sage",
-            intent="query", content="test question",
+            request_id="1",
+            source="user",
+            destination="sage",
+            intent="query",
+            content="test question",
         )
         assert k._rule_applies(rule, ctx) is True
 
@@ -398,8 +403,11 @@ class TestRuleApplies:
         k = self._kernel()
         rule = _make_rule(scope="sage", keywords=["test"])
         ctx = RequestContext(
-            request_id="1", source="user", destination="muse",
-            intent="query", content="test question",
+            request_id="1",
+            source="user",
+            destination="muse",
+            intent="query",
+            content="test question",
         )
         assert k._rule_applies(rule, ctx) is False
 
@@ -408,8 +416,11 @@ class TestRuleApplies:
         k = self._kernel()
         rule = _make_rule(scope="all_agents", keywords=["delete"])
         ctx = RequestContext(
-            request_id="1", source="user", destination="sage",
-            intent="query", content="Please delete this data",
+            request_id="1",
+            source="user",
+            destination="sage",
+            intent="query",
+            content="Please delete this data",
         )
         assert k._rule_applies(rule, ctx) is True
 
@@ -418,8 +429,11 @@ class TestRuleApplies:
         k = self._kernel()
         rule = _make_rule(scope="all_agents", keywords=["memory"])
         ctx = RequestContext(
-            request_id="1", source="user", destination="sage",
-            intent="memory.store", content="Save this",
+            request_id="1",
+            source="user",
+            destination="sage",
+            intent="memory.store",
+            content="Save this",
         )
         assert k._rule_applies(rule, ctx) is True
 
@@ -428,8 +442,11 @@ class TestRuleApplies:
         k = self._kernel()
         rule = _make_rule(scope="all_agents", keywords=["delete", "remove"])
         ctx = RequestContext(
-            request_id="1", source="user", destination="sage",
-            intent="query.factual", content="What is physics?",
+            request_id="1",
+            source="user",
+            destination="sage",
+            intent="query.factual",
+            content="What is physics?",
         )
         assert k._rule_applies(rule, ctx) is False
 
@@ -438,8 +455,12 @@ class TestRuleApplies:
         k = self._kernel()
         rule = _make_rule(scope="all_agents", keywords={"memory", "store"})
         ctx = RequestContext(
-            request_id="1", source="user", destination="seshat",
-            intent="query", content="Save this", requires_memory=True,
+            request_id="1",
+            source="user",
+            destination="seshat",
+            intent="query",
+            content="Save this",
+            requires_memory=True,
         )
         assert k._rule_applies(rule, ctx) is True
 
@@ -448,8 +469,12 @@ class TestRuleApplies:
         k = self._kernel()
         rule = _make_rule(scope="all_agents", keywords={"security"})
         ctx = RequestContext(
-            request_id="1", source="user", destination="seshat",
-            intent="query", content="anything", requires_memory=True,
+            request_id="1",
+            source="user",
+            destination="seshat",
+            intent="query",
+            content="anything",
+            requires_memory=True,
         )
         assert k._rule_applies(rule, ctx) is False
 
@@ -468,8 +493,11 @@ class TestRuleViolated:
             keywords=["harm", "delete"],
         )
         ctx = RequestContext(
-            request_id="1", source="user", destination="sage",
-            intent="query", content="This could cause harm to someone",
+            request_id="1",
+            source="user",
+            destination="sage",
+            intent="query",
+            content="This could cause harm to someone",
         )
         assert k._rule_violated(rule, ctx) is True
 
@@ -481,8 +509,11 @@ class TestRuleViolated:
             keywords=["harm", "delete"],
         )
         ctx = RequestContext(
-            request_id="1", source="user", destination="sage",
-            intent="query", content="What is the weather today?",
+            request_id="1",
+            source="user",
+            destination="sage",
+            intent="query",
+            content="What is the weather today?",
         )
         assert k._rule_violated(rule, ctx) is False
 
@@ -494,8 +525,11 @@ class TestRuleViolated:
             keywords=["data", "storage"],
         )
         ctx = RequestContext(
-            request_id="1", source="user", destination="sage",
-            intent="memory.store", content="Put all data into storage now",
+            request_id="1",
+            source="user",
+            destination="sage",
+            intent="memory.store",
+            content="Put all data into storage now",
         )
         assert k._rule_violated(rule, ctx) is True
 
@@ -507,7 +541,9 @@ class TestRuleViolated:
             keywords=["consent", "memory"],
         )
         ctx = RequestContext(
-            request_id="1", source="user", destination="sage",
+            request_id="1",
+            source="user",
+            destination="sage",
             intent="memory.store",
             content="Store memory after user gives explicit consent and review",
         )
@@ -518,8 +554,11 @@ class TestRuleViolated:
         k = self._kernel()
         rule = _make_rule(rule_type=RuleType.MANDATE, keywords=[])
         ctx = RequestContext(
-            request_id="1", source="user", destination="sage",
-            intent="query", content="anything",
+            request_id="1",
+            source="user",
+            destination="sage",
+            intent="query",
+            content="anything",
         )
         assert k._rule_violated(rule, ctx) is False
 
@@ -532,8 +571,11 @@ class TestRuleViolated:
             keywords=["consent"],
         )
         ctx = RequestContext(
-            request_id="1", source="user", destination="sage",
-            intent="query", content="I need consent for this",
+            request_id="1",
+            source="user",
+            destination="sage",
+            intent="query",
+            content="I need consent for this",
             metadata={"mandate_compliance": {rule.id: True}},
         )
         assert k._rule_violated(rule, ctx) is False
@@ -547,8 +589,11 @@ class TestRuleViolated:
             keywords=["consent"],
         )
         ctx = RequestContext(
-            request_id="1", source="user", destination="sage",
-            intent="query", content="I need consent for this",
+            request_id="1",
+            source="user",
+            destination="sage",
+            intent="query",
+            content="I need consent for this",
             metadata={"mandate_compliance": {rule.id: False}},
         )
         assert k._rule_violated(rule, ctx) is True
@@ -558,8 +603,11 @@ class TestRuleViolated:
         k = self._kernel()
         rule = _make_rule(rule_type=RuleType.PRINCIPLE, keywords=["test"])
         ctx = RequestContext(
-            request_id="1", source="user", destination="sage",
-            intent="query", content="test content",
+            request_id="1",
+            source="user",
+            destination="sage",
+            intent="query",
+            content="test content",
         )
         assert k._rule_violated(rule, ctx) is False
 

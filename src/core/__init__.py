@@ -9,7 +9,7 @@ This module contains the foundational components of Agent OS:
 """
 
 from .constitution import ConstitutionalKernel
-from .enforcement import EnforcementEngine, EnforcementDecision
+from .enforcement import EnforcementDecision, EnforcementEngine
 from .models import (
     AuthorityLevel,
     ConflictType,

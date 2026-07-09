@@ -85,9 +85,11 @@ class ToolManifest:
         if not self.signature:
             import os
 
-            allow_unsigned = os.getenv(
-                "AGENT_OS_ALLOW_UNSIGNED_MANIFESTS", "false"
-            ).lower() in ("1", "true", "yes")
+            allow_unsigned = os.getenv("AGENT_OS_ALLOW_UNSIGNED_MANIFESTS", "false").lower() in (
+                "1",
+                "true",
+                "yes",
+            )
             if allow_unsigned:
                 logger.warning(
                     "Manifest for %s is unsigned — accepting (dev mode)",
@@ -109,8 +111,7 @@ class ToolManifest:
             return verify_message(content, sig_bytes, self.author)
         except ImportError:
             logger.warning(
-                "Agent identity module not available — rejecting manifest "
-                "for %s (fail-closed).",
+                "Agent identity module not available — rejecting manifest " "for %s (fail-closed).",
                 self.tool_name,
             )
             return False

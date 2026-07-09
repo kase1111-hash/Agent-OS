@@ -1380,9 +1380,7 @@ class SQLiteStorage(AttackStorage):
             }
 
             # Attack counts by status
-            cursor.execute(
-                "SELECT status, COUNT(*) FROM attacks GROUP BY status"
-            )
+            cursor.execute("SELECT status, COUNT(*) FROM attacks GROUP BY status")
             stats["attacks_by_status"] = dict(cursor.fetchall())
 
             # Total attacks
@@ -1390,9 +1388,7 @@ class SQLiteStorage(AttackStorage):
             stats["total_attacks"] = cursor.fetchone()[0]
 
             # Recommendation counts by status
-            cursor.execute(
-                "SELECT status, COUNT(*) FROM recommendations GROUP BY status"
-            )
+            cursor.execute("SELECT status, COUNT(*) FROM recommendations GROUP BY status")
             stats["recommendations_by_status"] = dict(cursor.fetchall())
 
             # Total recommendations
@@ -1400,15 +1396,11 @@ class SQLiteStorage(AttackStorage):
             stats["total_recommendations"] = cursor.fetchone()[0]
 
             # Patch counts by status
-            cursor.execute(
-                "SELECT status, COUNT(*) FROM patches GROUP BY status"
-            )
+            cursor.execute("SELECT status, COUNT(*) FROM patches GROUP BY status")
             stats["patches_by_status"] = dict(cursor.fetchall())
 
             # Vulnerability counts by status
-            cursor.execute(
-                "SELECT status, COUNT(*) FROM vulnerabilities GROUP BY status"
-            )
+            cursor.execute("SELECT status, COUNT(*) FROM vulnerabilities GROUP BY status")
             stats["vulnerabilities_by_status"] = dict(cursor.fetchall())
 
             # SIEM event counts
@@ -1815,9 +1807,7 @@ class MemoryStorage(AttackStorage):
         deleted = {}
         with self._lock:
             # SIEM events
-            old_events = [
-                e for e in self._siem_events.values() if e.timestamp < older_than
-            ]
+            old_events = [e for e in self._siem_events.values() if e.timestamp < older_than]
             for event in old_events:
                 del self._siem_events[event.event_id]
             deleted["siem_events"] = len(old_events)
@@ -1831,33 +1821,25 @@ class MemoryStorage(AttackStorage):
                     if a.detected_at < older_than and a.status in resolved_statuses
                 ]
             else:
-                old_attacks = [
-                    a for a in self._attacks.values() if a.detected_at < older_than
-                ]
+                old_attacks = [a for a in self._attacks.values() if a.detected_at < older_than]
             attack_ids = {a.attack_id for a in old_attacks}
             for attack in old_attacks:
                 del self._attacks[attack.attack_id]
             deleted["attacks"] = len(old_attacks)
 
             # Cascade deletes
-            old_recs = [
-                r for r in self._recommendations.values() if r.attack_id in attack_ids
-            ]
+            old_recs = [r for r in self._recommendations.values() if r.attack_id in attack_ids]
             rec_ids = {r.recommendation_id for r in old_recs}
             for rec in old_recs:
                 del self._recommendations[rec.recommendation_id]
             deleted["recommendations"] = len(old_recs)
 
-            old_patches = [
-                p for p in self._patches.values() if p.recommendation_id in rec_ids
-            ]
+            old_patches = [p for p in self._patches.values() if p.recommendation_id in rec_ids]
             for patch in old_patches:
                 del self._patches[patch.patch_id]
             deleted["patches"] = len(old_patches)
 
-            old_vulns = [
-                v for v in self._vulnerabilities.values() if v.attack_id in attack_ids
-            ]
+            old_vulns = [v for v in self._vulnerabilities.values() if v.attack_id in attack_ids]
             for vuln in old_vulns:
                 del self._vulnerabilities[vuln.vulnerability_id]
             deleted["vulnerabilities"] = len(old_vulns)

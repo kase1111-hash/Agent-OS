@@ -13,7 +13,6 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from ..auth_helpers import require_authenticated_user
-
 from ..intent_log import (
     IntentLogEntry,
     IntentLogQuery,

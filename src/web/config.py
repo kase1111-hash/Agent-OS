@@ -78,7 +78,7 @@ class WebConfig:
         if self.require_auth and not self.api_key:
             raise ConfigurationError(
                 "AGENT_OS_API_KEY must be set when AGENT_OS_REQUIRE_AUTH=true. "
-                "Generate a secure key with: python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+                'Generate a secure key with: python -c "import secrets; print(secrets.token_urlsafe(32))"'
             )
 
         # Warn if API key is too short

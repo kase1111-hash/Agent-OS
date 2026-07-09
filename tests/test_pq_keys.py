@@ -4,16 +4,18 @@ Tests for Post-Quantum Key Management
 Tests the PostQuantumKeyManager and related functionality.
 """
 
-import pytest
 import tempfile
-from pathlib import Path
 from datetime import timedelta
+from pathlib import Path
+
+import pytest
 
 
 def _check_liboqs_available() -> bool:
     """Check if liboqs is available for post-quantum cryptography."""
     try:
         import oqs
+
         return "Kyber768" in oqs.get_enabled_kem_mechanisms()
     except ImportError:
         return False
@@ -22,25 +24,23 @@ def _check_liboqs_available() -> bool:
 # Skip all tests if liboqs is not available
 pytestmark = pytest.mark.skipif(
     not _check_liboqs_available(),
-    reason="liboqs library required for post-quantum cryptography tests"
+    reason="liboqs library required for post-quantum cryptography tests",
 )
 
-
-from src.memory.pq_keys import (
-    PostQuantumKeyManager,
-    QuantumKeyType,
-    PQKeyPurpose,
-    PQSecurityLevel,
-    PQKeyMetadata,
-    PQStoredKey,
-    create_pq_key_manager,
-    check_pq_availability,
-    PQ_AVAILABLE,
-)
 
 from src.memory.keys import KeyStatus
+from src.memory.pq_keys import (
+    PQ_AVAILABLE,
+    PostQuantumKeyManager,
+    PQKeyMetadata,
+    PQKeyPurpose,
+    PQSecurityLevel,
+    PQStoredKey,
+    QuantumKeyType,
+    check_pq_availability,
+    create_pq_key_manager,
+)
 from src.memory.profiles import EncryptionTier
-
 
 # =============================================================================
 # Fixtures
@@ -537,7 +537,6 @@ class TestPQKeyMetadata:
 
 # Import KeyBinding for tests
 from src.memory.profiles import KeyBinding
-
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

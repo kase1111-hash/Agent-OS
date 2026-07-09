@@ -246,6 +246,7 @@ class ConstitutionRegistry:
         Raises ValueError if trying to register multiple supreme constitutions.
         """
         import logging
+
         logger = logging.getLogger(__name__)
 
         key = constitution.metadata.scope

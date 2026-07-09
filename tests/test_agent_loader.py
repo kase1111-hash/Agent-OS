@@ -2,15 +2,16 @@
 Tests for Agent OS Agent Loader and Registry
 """
 
-import pytest
 import tempfile
 from pathlib import Path
 
-from src.agents.interface import BaseAgent, AgentState, CapabilityType
+import pytest
+
 from src.agents.config import AgentConfig, ModelConfig
+from src.agents.interface import AgentState, BaseAgent, CapabilityType
 from src.agents.loader import (
-    AgentRegistry,
     AgentLoader,
+    AgentRegistry,
     RegisteredAgent,
     create_loader,
 )

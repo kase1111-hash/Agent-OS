@@ -108,9 +108,7 @@ def validate_ollama_endpoint(url: str) -> str:
                     ipaddress.ip_network("10.0.0.0/8"),
                 )
                 if not any(ip in net for net in allowed_private):
-                    raise SSRFProtectionError(
-                        f"Private IP address not allowed: {hostname}"
-                    )
+                    raise SSRFProtectionError(f"Private IP address not allowed: {hostname}")
     except ValueError:
         # Not an IP address, it's a hostname - that's fine
         pass
@@ -342,9 +340,7 @@ class ConnectionManager:
             RuntimeError: If the connection limit (MAX_CONNECTIONS) is reached.
         """
         if len(self.connections) >= self.MAX_CONNECTIONS:
-            raise RuntimeError(
-                f"Connection limit reached ({self.MAX_CONNECTIONS})"
-            )
+            raise RuntimeError(f"Connection limit reached ({self.MAX_CONNECTIONS})")
 
         await websocket.accept()
 

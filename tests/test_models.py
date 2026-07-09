@@ -2,20 +2,21 @@
 Tests for Agent OS Core Models
 """
 
-import pytest
 from datetime import datetime
 from pathlib import Path
 
+import pytest
+
 from src.core.models import (
     AuthorityLevel,
-    RuleType,
     ConflictType,
+    Constitution,
     ConstitutionMetadata,
+    ConstitutionRegistry,
     Rule,
     RuleConflict,
+    RuleType,
     ValidationResult,
-    Constitution,
-    ConstitutionRegistry,
 )
 
 

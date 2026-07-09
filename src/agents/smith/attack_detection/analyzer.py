@@ -22,7 +22,7 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
-from .detector import AttackEvent, AttackType, AttackSeverity
+from .detector import AttackEvent, AttackSeverity, AttackType
 from .patterns import AttackCategory, PatternMatch
 
 logger = logging.getLogger(__name__)
@@ -332,20 +332,20 @@ class CodebaseAnalyzer:
         findings = []
 
         # Get patterns for this attack type
-        search_patterns = patterns or self.VULNERABILITY_PATTERNS.get(
-            attack.attack_type, []
-        )
+        search_patterns = patterns or self.VULNERABILITY_PATTERNS.get(attack.attack_type, [])
 
         # Also extract patterns from attack indicators
         for ioc in attack.indicators_of_compromise:
             if ioc.startswith("signature:"):
                 sig = ioc.replace("signature:", "")
-                search_patterns.append({
-                    "pattern": sig,
-                    "description": f"Attack signature match: {sig[:50]}",
-                    "vuln_type": VulnerabilityType.INPUT_VALIDATION,
-                    "cwe": "CWE-20",
-                })
+                search_patterns.append(
+                    {
+                        "pattern": sig,
+                        "description": f"Attack signature match: {sig[:50]}",
+                        "vuln_type": VulnerabilityType.INPUT_VALIDATION,
+                        "cwe": "CWE-20",
+                    }
+                )
 
         # Search the codebase
         for pattern_def in search_patterns:
@@ -524,9 +524,11 @@ class CodebaseAnalyzer:
         code_snippet = "\n".join(lines[context_start:context_end])
 
         # Generate finding ID
-        finding_id = hashlib.sha256(
-            f"{file_path}:{line_num}:{attack.attack_id}".encode()
-        ).hexdigest()[:12].upper()
+        finding_id = (
+            hashlib.sha256(f"{file_path}:{line_num}:{attack.attack_id}".encode())
+            .hexdigest()[:12]
+            .upper()
+        )
 
         vuln_type = pattern_def.get("vuln_type", VulnerabilityType.INPUT_VALIDATION)
 
@@ -580,6 +582,7 @@ class AttackAnalyzer:
             VulnerabilityReport
         """
         import time
+
         start_time = time.time()
 
         # Generate report ID
@@ -688,8 +691,7 @@ class AttackAnalyzer:
         }
 
         finding.remediation_guidance = guidance.get(
-            finding.vulnerability_type,
-            "Review the code and apply security best practices."
+            finding.vulnerability_type, "Review the code and apply security best practices."
         )
 
     def _build_attack_chain(self, attack: AttackEvent) -> List[str]:
@@ -729,7 +731,9 @@ class AttackAnalyzer:
     def _generate_summary(self, report: VulnerabilityReport) -> str:
         """Generate a human-readable summary."""
         if not report.findings:
-            return f"Analysis of {report.attack_type.name} attack found no vulnerable code patterns."
+            return (
+                f"Analysis of {report.attack_type.name} attack found no vulnerable code patterns."
+            )
 
         high_risk = len([f for f in report.findings if f.risk_level.value >= RiskLevel.HIGH.value])
 
@@ -760,9 +764,7 @@ class AttackAnalyzer:
                     f"[CRITICAL] {finding.title} at {finding.location.file_path}:{finding.location.line_start}"
                 )
             elif finding.risk_level == RiskLevel.HIGH:
-                patches.append(
-                    f"[HIGH] {finding.title}: {finding.remediation_guidance[:100]}"
-                )
+                patches.append(f"[HIGH] {finding.title}: {finding.remediation_guidance[:100]}")
 
         # Add type-specific architectural changes
         if report.attack_type == AttackType.PROMPT_INJECTION:

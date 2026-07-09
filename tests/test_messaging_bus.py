@@ -2,26 +2,27 @@
 Tests for Agent OS Message Bus
 """
 
-import pytest
 import threading
 import time
 from typing import List
 from uuid import uuid4
 
+import pytest
+
+from src.messaging.bus import (
+    ChannelRouter,
+    ChannelStats,
+    InMemoryMessageBus,
+    Subscription,
+)
 from src.messaging.models import (
+    CheckStatus,
     FlowRequest,
     FlowResponse,
+    MessageStatus,
     RequestContent,
     ResponseContent,
-    MessageStatus,
-    CheckStatus,
     create_request,
-)
-from src.messaging.bus import (
-    InMemoryMessageBus,
-    ChannelRouter,
-    Subscription,
-    ChannelStats,
 )
 
 

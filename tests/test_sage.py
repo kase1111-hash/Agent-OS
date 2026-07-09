@@ -2,31 +2,32 @@
 Tests for Agent OS Sage Agent (UC-009)
 """
 
-import pytest
 from datetime import datetime
-from typing import Dict, Any
-from unittest.mock import Mock, patch, MagicMock
+from typing import Any, Dict
+from unittest.mock import MagicMock, Mock, patch
 
+import pytest
+
+from src.agents.interface import AgentState, CapabilityType
 from src.agents.sage import (
+    ConfidenceLevel,
+    ReasoningChain,
+    ReasoningConfig,
+    ReasoningEngine,
+    ReasoningStep,
+    ReasoningType,
     SageAgent,
     SageConfig,
-    create_sage_agent,
-    ReasoningEngine,
-    ReasoningConfig,
-    ReasoningType,
-    ReasoningChain,
-    ReasoningStep,
     TradeOff,
-    ConfidenceLevel,
     create_reasoning_engine,
+    create_sage_agent,
 )
-from src.agents.interface import AgentState, CapabilityType
 from src.messaging.models import FlowRequest, FlowResponse, MessageStatus
-
 
 # =============================================================================
 # Fixtures
 # =============================================================================
+
 
 @pytest.fixture
 def reasoning_config():
@@ -47,6 +48,7 @@ def reasoning_engine(reasoning_config):
 @pytest.fixture
 def mock_llm_callback():
     """Create mock LLM callback."""
+
     def callback(prompt: str, options: Dict[str, Any]) -> str:
         return """
         Step 1: Problem Understanding
@@ -63,6 +65,7 @@ def mock_llm_callback():
 
         Final Conclusion: The analysis reveals a complex but tractable problem.
         """
+
     return callback
 
 
@@ -89,6 +92,7 @@ def sage_agent(sage_config):
 def sample_flow_request():
     """Create a sample FlowRequest for testing."""
     from src.messaging.models import create_request
+
     return create_request(
         source="test",
         destination="sage",
@@ -100,6 +104,7 @@ def sample_flow_request():
 # =============================================================================
 # ReasoningStep Tests
 # =============================================================================
+
 
 class TestReasoningStep:
     """Tests for ReasoningStep."""
@@ -170,6 +175,7 @@ class TestReasoningStep:
 # TradeOff Tests
 # =============================================================================
 
+
 class TestTradeOff:
     """Tests for TradeOff."""
 
@@ -207,6 +213,7 @@ class TestTradeOff:
 # ReasoningChain Tests
 # =============================================================================
 
+
 class TestReasoningChain:
     """Tests for ReasoningChain."""
 
@@ -230,18 +237,22 @@ class TestReasoningChain:
             query="Synthesize information",
         )
 
-        chain.steps.append(ReasoningStep(
-            step_number=1,
-            description="Step 1",
-            reasoning="First step",
-            conclusion="Done",
-        ))
-        chain.steps.append(ReasoningStep(
-            step_number=2,
-            description="Step 2",
-            reasoning="Second step",
-            conclusion="Complete",
-        ))
+        chain.steps.append(
+            ReasoningStep(
+                step_number=1,
+                description="Step 1",
+                reasoning="First step",
+                conclusion="Done",
+            )
+        )
+        chain.steps.append(
+            ReasoningStep(
+                step_number=2,
+                description="Step 2",
+                reasoning="Second step",
+                conclusion="Complete",
+            )
+        )
 
         assert len(chain.steps) == 2
 
@@ -271,13 +282,15 @@ class TestReasoningChain:
             overall_confidence=ConfidenceLevel.MODERATE,
         )
 
-        chain.steps.append(ReasoningStep(
-            step_number=1,
-            description="Analysis",
-            reasoning="Analyzing...",
-            conclusion="Analyzed",
-            confidence=ConfidenceLevel.HIGH,
-        ))
+        chain.steps.append(
+            ReasoningStep(
+                step_number=1,
+                description="Analysis",
+                reasoning="Analyzing...",
+                conclusion="Analyzed",
+                confidence=ConfidenceLevel.HIGH,
+            )
+        )
 
         md = chain.format_markdown()
 
@@ -290,6 +303,7 @@ class TestReasoningChain:
 # =============================================================================
 # ReasoningEngine Tests
 # =============================================================================
+
 
 class TestReasoningEngine:
     """Tests for ReasoningEngine."""
@@ -372,20 +386,24 @@ class TestReasoningEngine:
             query="Test confidence",
         )
 
-        chain.steps.append(ReasoningStep(
-            step_number=1,
-            description="High confidence step",
-            reasoning="Clear reasoning",
-            conclusion="Certain",
-            confidence=ConfidenceLevel.HIGH,
-        ))
-        chain.steps.append(ReasoningStep(
-            step_number=2,
-            description="Moderate step",
-            reasoning="Less certain",
-            conclusion="Probable",
-            confidence=ConfidenceLevel.MODERATE,
-        ))
+        chain.steps.append(
+            ReasoningStep(
+                step_number=1,
+                description="High confidence step",
+                reasoning="Clear reasoning",
+                conclusion="Certain",
+                confidence=ConfidenceLevel.HIGH,
+            )
+        )
+        chain.steps.append(
+            ReasoningStep(
+                step_number=2,
+                description="Moderate step",
+                reasoning="Less certain",
+                conclusion="Probable",
+                confidence=ConfidenceLevel.MODERATE,
+            )
+        )
 
         confidence = reasoning_engine.evaluate_confidence(chain)
 
@@ -446,6 +464,7 @@ class TestCreateReasoningEngine:
 # =============================================================================
 # SageAgent Tests
 # =============================================================================
+
 
 class TestSageAgent:
     """Tests for SageAgent."""
@@ -527,7 +546,10 @@ class TestSageAgent:
         result = sage_agent.validate_request(request)
 
         assert result.requires_escalation is True
-        assert "decision" in result.escalation_reason.lower() or "judgment" in result.escalation_reason.lower()
+        assert (
+            "decision" in result.escalation_reason.lower()
+            or "judgment" in result.escalation_reason.lower()
+        )
 
     def test_process_reasoning_request(self, sage_agent, sample_flow_request):
         """Test processing a reasoning request."""
@@ -658,6 +680,7 @@ class TestCreateSageAgent:
 # Integration Tests
 # =============================================================================
 
+
 class TestSageIntegration:
     """Integration tests for Sage agent."""
 
@@ -669,6 +692,7 @@ class TestSageIntegration:
 
         # 2. Validate request
         from src.messaging.models import create_request
+
         request = create_request(
             source="whisper",
             destination="sage",
@@ -702,15 +726,16 @@ class TestSageIntegration:
         validation = sage_agent.validate_request(request)
 
         if validation.requires_escalation:
-            assert "decision" in validation.escalation_reason.lower() or \
-                   "judgment" in validation.escalation_reason.lower()
+            assert (
+                "decision" in validation.escalation_reason.lower()
+                or "judgment" in validation.escalation_reason.lower()
+            )
         else:
             # Or at processing
             response = sage_agent.process(request)
             if response.status == MessageStatus.PARTIAL:
                 assert any(
-                    action.get("action") == "escalate_to_human"
-                    for action in response.next_actions
+                    action.get("action") == "escalate_to_human" for action in response.next_actions
                 )
 
     def test_long_context_reasoning(self, sage_agent):
@@ -763,8 +788,8 @@ class TestSageIntegration:
 
         # Should respect human judgment
         assert not any(
-            "you must" in chain.final_conclusion.lower() or
-            "you should definitely" in chain.final_conclusion.lower()
+            "you must" in chain.final_conclusion.lower()
+            or "you should definitely" in chain.final_conclusion.lower()
             for _ in [1]
         )
 
@@ -772,6 +797,7 @@ class TestSageIntegration:
 # =============================================================================
 # Constitutional Compliance Tests
 # =============================================================================
+
 
 class TestConstitutionalCompliance:
     """Tests for constitutional compliance."""
@@ -785,12 +811,14 @@ class TestConstitutionalCompliance:
 
         # Should present comparison, not judgment
         conclusion_lower = chain.final_conclusion.lower()
-        assert "depends" in conclusion_lower or \
-               "consider" in conclusion_lower or \
-               "trade-off" in conclusion_lower or \
-               "context" in conclusion_lower or \
-               "human" in conclusion_lower or \
-               len(chain.final_conclusion) < 500  # Structured analysis
+        assert (
+            "depends" in conclusion_lower
+            or "consider" in conclusion_lower
+            or "trade-off" in conclusion_lower
+            or "context" in conclusion_lower
+            or "human" in conclusion_lower
+            or len(chain.final_conclusion) < 500
+        )  # Structured analysis
 
     def test_shows_reasoning_steps(self, sage_agent):
         """Test that reasoning steps are shown explicitly."""
@@ -814,11 +842,11 @@ class TestConstitutionalCompliance:
 
         # Should have uncertainty indicators
         has_uncertainty = (
-            chain.overall_confidence != ConfidenceLevel.VERY_HIGH or
-            len(chain.open_questions) > 0 or
-            any(len(step.uncertainties) > 0 for step in chain.steps) or
-            "uncertain" in chain.final_conclusion.lower() or
-            "may" in chain.final_conclusion.lower()
+            chain.overall_confidence != ConfidenceLevel.VERY_HIGH
+            or len(chain.open_questions) > 0
+            or any(len(step.uncertainties) > 0 for step in chain.steps)
+            or "uncertain" in chain.final_conclusion.lower()
+            or "may" in chain.final_conclusion.lower()
         )
 
         assert has_uncertainty
@@ -844,6 +872,7 @@ class TestConstitutionalCompliance:
 # ConfidenceLevel Tests
 # =============================================================================
 
+
 class TestConfidenceLevel:
     """Tests for ConfidenceLevel enum."""
 
@@ -865,6 +894,7 @@ class TestConfidenceLevel:
 # =============================================================================
 # ReasoningType Tests
 # =============================================================================
+
 
 class TestReasoningType:
     """Tests for ReasoningType enum."""

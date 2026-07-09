@@ -21,21 +21,23 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
-from .analyzer import VulnerabilityReport, VulnerabilityFinding, RiskLevel
-from .detector import AttackEvent, AttackType, AttackSeverity
+from .analyzer import RiskLevel, VulnerabilityFinding, VulnerabilityReport
+from .detector import AttackEvent, AttackSeverity, AttackType
 from .remediation import (
     Patch,
     PatchStatus,
-    RemediationPlan,
-    RemediationEngine,
     PatchType,
+    RemediationEngine,
+    RemediationPlan,
 )
+
 try:
     from .git_integration import (
         GitIntegration,
-        PullRequestInfo,
         PRStatus,
+        PullRequestInfo,
     )
+
     GIT_INTEGRATION_AVAILABLE = True
 except ImportError:
     GIT_INTEGRATION_AVAILABLE = False
@@ -313,7 +315,9 @@ class FixRecommendation:
             md.append("")
             for comment in self.review_comments:
                 status = ":white_check_mark:" if comment.resolved else ":speech_balloon:"
-                md.append(f"{status} **{comment.author}** ({comment.created_at.strftime('%Y-%m-%d %H:%M')}):")
+                md.append(
+                    f"{status} **{comment.author}** ({comment.created_at.strftime('%Y-%m-%d %H:%M')}):"
+                )
                 if comment.line_ref:
                     md.append(f"  > Re: `{comment.line_ref}`")
                 md.append(f"  {comment.content}")
@@ -463,9 +467,7 @@ class RecommendationSystem:
             except Exception as e:
                 logger.error(f"Recommendation callback error: {e}")
 
-        logger.info(
-            f"Created recommendation {rec_id} for attack {attack.attack_id}"
-        )
+        logger.info(f"Created recommendation {rec_id} for attack {attack.attack_id}")
 
         return recommendation
 
@@ -609,7 +611,9 @@ class RecommendationSystem:
         if patch_ids:
             # Partial approval
             all_patch_ids = {p.patch_id for p in rec.patches}
-            approved_ids = {pid for a in rec.approvals for pid in a.patch_ids if a.decision == "approve"}
+            approved_ids = {
+                pid for a in rec.approvals for pid in a.patch_ids if a.decision == "approve"
+            }
             if approved_ids == all_patch_ids:
                 rec.status = RecommendationStatus.APPROVED
             else:
@@ -743,9 +747,7 @@ class RecommendationSystem:
             RecommendationStatus.APPROVED,
             RecommendationStatus.PARTIALLY_APPROVED,
         ]:
-            logger.warning(
-                f"Recommendation {rec_id} is not approved (status: {rec.status.name})"
-            )
+            logger.warning(f"Recommendation {rec_id} is not approved (status: {rec.status.name})")
             return False, None
 
         try:
@@ -791,9 +793,7 @@ class RecommendationSystem:
             rec.pr_branch = pr_info.branch
             rec.updated_at = datetime.now()
 
-            logger.info(
-                f"Created PR #{pr_info.number} for recommendation {rec_id}: {pr_info.url}"
-            )
+            logger.info(f"Created PR #{pr_info.number} for recommendation {rec_id}: {pr_info.url}")
 
             return True, pr_info
 
@@ -887,20 +887,24 @@ class RecommendationSystem:
         ]
 
         if report.attack_chain:
-            lines.extend([
-                "## Attack Chain",
-                "",
-                *[f"{i}. {step}" for i, step in enumerate(report.attack_chain, 1)],
-                "",
-            ])
+            lines.extend(
+                [
+                    "## Attack Chain",
+                    "",
+                    *[f"{i}. {step}" for i, step in enumerate(report.attack_chain, 1)],
+                    "",
+                ]
+            )
 
         if attack.mitre_techniques:
-            lines.extend([
-                "## MITRE ATT&CK Mapping",
-                "",
-                *[f"- {tech}" for tech in attack.mitre_techniques],
-                "",
-            ])
+            lines.extend(
+                [
+                    "## MITRE ATT&CK Mapping",
+                    "",
+                    *[f"- {tech}" for tech in attack.mitre_techniques],
+                    "",
+                ]
+            )
 
         return "\n".join(lines)
 
@@ -910,7 +914,9 @@ class RecommendationSystem:
 
         code_patches = [p for p in plan.patches if p.patch_type == PatchType.CODE_FIX]
         pattern_patches = [p for p in plan.patches if p.patch_type == PatchType.PATTERN_UPDATE]
-        const_patches = [p for p in plan.patches if p.patch_type == PatchType.CONSTITUTIONAL_AMENDMENT]
+        const_patches = [
+            p for p in plan.patches if p.patch_type == PatchType.CONSTITUTIONAL_AMENDMENT
+        ]
 
         if code_patches:
             lines.append("### Code Changes")
@@ -975,13 +981,15 @@ class RecommendationSystem:
             for f in patch.files:
                 lines.append(f"- `{f.file_path}.bak` (auto-created on patch application)")
 
-        lines.extend([
-            "",
-            "### Manual Rollback",
-            "",
-            "Pattern and constitutional changes can be reverted by removing",
-            "the auto-generated entries marked with the attack ID.",
-        ])
+        lines.extend(
+            [
+                "",
+                "### Manual Rollback",
+                "",
+                "Pattern and constitutional changes can be reverted by removing",
+                "the auto-generated entries marked with the attack ID.",
+            ]
+        )
 
         return "\n".join(lines)
 

@@ -18,7 +18,6 @@ from src.messaging.models import (
     RequestContent,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -62,11 +61,13 @@ class TestSmithInitialization:
     def test_init_with_custom_config(self):
         """SmithAgent honors custom config."""
         smith = SmithAgent()
-        smith.initialize({
-            "strict_mode": False,
-            "allow_escalation": True,
-            "sensitivity_level": 3,
-        })
+        smith.initialize(
+            {
+                "strict_mode": False,
+                "allow_escalation": True,
+                "sensitivity_level": 3,
+            }
+        )
         assert smith.state.name == "READY"
 
     def test_init_with_attack_detection_disabled(self):
@@ -177,11 +178,7 @@ class TestSmithValidation:
         )
         result = smith.validate_request(request)
         # Should not pass validation cleanly — either errors, warnings, or not valid
-        has_issues = (
-            not result.is_valid
-            or len(result.errors) > 0
-            or len(result.warnings) > 0
-        )
+        has_issues = not result.is_valid or len(result.errors) > 0 or len(result.warnings) > 0
         assert has_issues
 
     def test_validate_subprocess_request(self):
@@ -328,6 +325,7 @@ class TestConstitutionalCheck:
     def test_create_constitutional_check_approved(self):
         """Smith can create an approved constitutional check."""
         from src.messaging.models import CheckStatus
+
         smith = _make_smith()
         check = smith.create_constitutional_check(approved=True)
         assert check is not None
@@ -336,6 +334,7 @@ class TestConstitutionalCheck:
     def test_create_constitutional_check_denied(self):
         """Smith can create a denied constitutional check with violations."""
         from src.messaging.models import CheckStatus
+
         smith = _make_smith()
         check = smith.create_constitutional_check(
             approved=False,
@@ -347,6 +346,7 @@ class TestConstitutionalCheck:
     def test_create_constitutional_check_conditional(self):
         """Smith can create a conditional check with constraints."""
         from src.messaging.models import CheckStatus
+
         smith = _make_smith()
         check = smith.create_constitutional_check(
             approved=True,

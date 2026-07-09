@@ -280,9 +280,7 @@ class PatternLibrary:
         """Get a pattern by ID."""
         return self._patterns.get(pattern_id)
 
-    def get_patterns_by_category(
-        self, category: AttackCategory
-    ) -> List[AttackPattern]:
+    def get_patterns_by_category(self, category: AttackCategory) -> List[AttackPattern]:
         """Get all patterns in a category."""
         pattern_ids = self._by_category.get(category, [])
         return [self._patterns[pid] for pid in pattern_ids if pid in self._patterns]

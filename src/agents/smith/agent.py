@@ -45,18 +45,19 @@ from .refusal_engine import RefusalEngine
 # Attack detection imports (optional feature)
 try:
     from .attack_detection import (
+        AttackAnalyzer,
         AttackDetector,
         AttackEvent,
         AttackSeverity,
-        AttackAnalyzer,
-        RemediationEngine,
-        RecommendationSystem,
         DetectorConfig,
-        create_attack_detector,
+        RecommendationSystem,
+        RemediationEngine,
         create_attack_analyzer,
-        create_remediation_engine,
+        create_attack_detector,
         create_recommendation_system,
+        create_remediation_engine,
     )
+
     ATTACK_DETECTION_AVAILABLE = True
 except ImportError:
     ATTACK_DETECTION_AVAILABLE = False
@@ -81,7 +82,6 @@ class SmithMetrics:
     attacks_mitigated: int = 0
     recommendations_generated: int = 0
     auto_lockdowns_triggered: int = 0
-
 
 
 class SmithAgent(BaseAgent):
@@ -504,7 +504,9 @@ class SmithAgent(BaseAgent):
         if attacks:
             output += "Recent Attacks:\n"
             for attack in attacks[:5]:
-                output += f"  [{attack['severity']}] {attack['attack_id']}: {attack['attack_type']}\n"
+                output += (
+                    f"  [{attack['severity']}] {attack['attack_id']}: {attack['attack_type']}\n"
+                )
         else:
             output += "No recent attacks detected.\n"
 
@@ -667,14 +669,10 @@ class SmithAgent(BaseAgent):
 
         # Trigger lockdown for catastrophic attacks
         if attack.severity.value >= 5:  # CATASTROPHIC
-            self.trigger_lockdown(
-                f"Catastrophic attack detected: {attack.attack_id}"
-            )
+            self.trigger_lockdown(f"Catastrophic attack detected: {attack.attack_id}")
         else:
             # Safe mode for critical attacks
-            self.trigger_safe_mode(
-                f"Critical attack detected: {attack.attack_id}"
-            )
+            self.trigger_safe_mode(f"Critical attack detected: {attack.attack_id}")
 
     def _analyze_and_remediate(self, attack: Any) -> None:
         """
@@ -695,9 +693,7 @@ class SmithAgent(BaseAgent):
             plan = self._remediation_engine.generate_remediation_plan(attack, report)
 
             if plan.patches:
-                logger.info(
-                    f"Generated {len(plan.patches)} patches for attack {attack.attack_id}"
-                )
+                logger.info(f"Generated {len(plan.patches)} patches for attack {attack.attack_id}")
 
                 # Create recommendation
                 if self._recommendation_system:
@@ -801,6 +797,7 @@ class SmithAgent(BaseAgent):
 
         try:
             from .attack_detection import RecommendationStatus
+
             pending = self._recommendation_system.list_recommendations(
                 status=RecommendationStatus.PENDING
             )

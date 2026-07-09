@@ -27,11 +27,11 @@ import ipaddress
 import json
 from urllib.parse import urlparse
 
+from src.core.exceptions import SSRFProtectionError
+
 # =============================================================================
 # Security: Endpoint Validation
 # =============================================================================
-
-from src.core.exceptions import SSRFProtectionError
 
 
 def validate_model_endpoint(url: str) -> str:
