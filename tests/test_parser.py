@@ -2,12 +2,13 @@
 Tests for Agent OS Constitution Parser
 """
 
-import pytest
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
-from src.core.parser import ConstitutionParser
+import pytest
+
 from src.core.models import AuthorityLevel, RuleType
+from src.core.parser import ConstitutionParser
 
 
 class TestConstitutionParser:

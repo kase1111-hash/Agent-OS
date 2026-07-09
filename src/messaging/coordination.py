@@ -124,8 +124,7 @@ class CoordinationMonitor:
                 entries.clear()
 
                 logger.warning(
-                    "Coordination alert: %d agents (%s) converged on %s:%s "
-                    "within %ds window",
+                    "Coordination alert: %d agents (%s) converged on %s:%s " "within %ds window",
                     len(distinct_agents),
                     ", ".join(distinct_agents),
                     action_type,

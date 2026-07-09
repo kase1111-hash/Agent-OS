@@ -34,6 +34,7 @@ dependencies = [
     "uvicorn[standard]>=0.32,<1.0",
     "jinja2>=3.1,<4.0",
     "cryptography>=42.0,<47.0",
+    "numpy>=1.24,<3.0",
 ]
 
 [project.optional-dependencies]

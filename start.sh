@@ -54,5 +54,5 @@ echo "  URL: http://localhost:$PORT"
 echo "  Press Ctrl+C to stop"
 echo ""
 
-# Start the server
-python -m uvicorn src.web.app:app --host "$HOST" --port "$PORT"
+# Start the server (get_app is a factory; there is no module-level `app`)
+python -m uvicorn src.web.app:get_app --factory --host "$HOST" --port "$PORT"

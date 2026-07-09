@@ -541,8 +541,14 @@ class ToolExecutor:
         """
         env = dict(os.environ)
         sensitive_prefixes = [
-            "AGENT_OS_API_KEY", "AGENT_OS_ENCRYPTION_KEY", "AGENT_OS_SESSION_SECRET",
-            "AWS_", "OPENAI_", "ANTHROPIC_", "HF_TOKEN", "GITHUB_TOKEN",
+            "AGENT_OS_API_KEY",
+            "AGENT_OS_ENCRYPTION_KEY",
+            "AGENT_OS_SESSION_SECRET",
+            "AWS_",
+            "OPENAI_",
+            "ANTHROPIC_",
+            "HF_TOKEN",
+            "GITHUB_TOKEN",
             "DATABASE_URL",
         ]
         for key in list(env.keys()):
@@ -576,11 +582,17 @@ class ToolExecutor:
                 params_file = f.name
 
             cmd = [
-                sys.executable, "-m", "src.tools.subprocess_runner",
-                "--tool-module", tool.__class__.__module__,
-                "--tool-class", tool.__class__.__name__,
-                "--tool-name", tool.name,
-                "--params-file", params_file,
+                sys.executable,
+                "-m",
+                "src.tools.subprocess_runner",
+                "--tool-module",
+                tool.__class__.__module__,
+                "--tool-class",
+                tool.__class__.__name__,
+                "--tool-name",
+                tool.name,
+                "--params-file",
+                params_file,
             ]
 
             result = subprocess.run(
@@ -596,7 +608,9 @@ class ToolExecutor:
                 logger.warning(
                     "Subprocess execution failed for tool '%s' (exit=%d), "
                     "falling back to in-process execution: %s",
-                    tool.name, result.returncode, stderr,
+                    tool.name,
+                    result.returncode,
+                    stderr,
                 )
                 return self._execute_in_process(tool, parameters, timeout)
 

@@ -28,7 +28,6 @@ from src.messaging.models import (
     ResponseContent,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -160,9 +159,7 @@ class TestResponseCreation:
         """_create_refused_response without explicit reason uses errors."""
         agent = _make_agent()
         request = _make_request()
-        response = agent._create_refused_response(
-            request, errors=["Error A", "Error B"]
-        )
+        response = agent._create_refused_response(request, errors=["Error A", "Error B"])
         assert response.status == MessageStatus.REFUSED
         assert "Error A" in response.content.reasoning
 
@@ -195,7 +192,9 @@ class TestHandleRequest:
     def test_handle_request_not_ready(self):
         """handle_request raises if agent not in READY state."""
         agent = BaseAgent(
-            name="test", description="Test", version="1.0",
+            name="test",
+            description="Test",
+            version="1.0",
         )
         # Not initialized, state is UNINITIALIZED
         request = _make_request()

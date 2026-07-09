@@ -5,29 +5,30 @@ Tests creative content generation, style options, constitutional compliance,
 and mandatory Guardian review requirements.
 """
 
-import pytest
 from datetime import datetime
 
+import pytest
+
+from src.agents.interface import AgentState, CapabilityType
 from src.agents.muse import (
+    ContentType,
+    CreativeConstraints,
+    CreativeEngine,
+    CreativeMode,
+    CreativeOption,
+    CreativeResult,
+    CreativeStyle,
     MuseAgent,
     MuseConfig,
-    create_muse_agent,
-    CreativeEngine,
-    CreativeStyle,
-    ContentType,
-    CreativeMode,
-    CreativeConstraints,
-    CreativeResult,
-    CreativeOption,
     create_creative_engine,
+    create_muse_agent,
 )
-from src.agents.interface import AgentState, CapabilityType
 from src.messaging.models import FlowRequest, FlowResponse, MessageStatus, create_request
-
 
 # =============================================================================
 # Fixtures
 # =============================================================================
+
 
 @pytest.fixture
 def creative_engine():
@@ -68,6 +69,7 @@ def sample_flow_request():
 # =============================================================================
 # CreativeOption Tests
 # =============================================================================
+
 
 class TestCreativeOption:
     """Tests for CreativeOption dataclass."""
@@ -130,6 +132,7 @@ class TestCreativeOption:
 # =============================================================================
 # CreativeResult Tests
 # =============================================================================
+
 
 class TestCreativeResult:
     """Tests for CreativeResult dataclass."""
@@ -235,6 +238,7 @@ class TestCreativeResult:
 # CreativeConstraints Tests
 # =============================================================================
 
+
 class TestCreativeConstraints:
     """Tests for CreativeConstraints."""
 
@@ -295,6 +299,7 @@ class TestCreativeConstraints:
 # =============================================================================
 # CreativeEngine Tests
 # =============================================================================
+
 
 class TestCreativeEngine:
     """Tests for CreativeEngine."""
@@ -421,6 +426,7 @@ class TestCreativeEngine:
 # MuseConfig Tests
 # =============================================================================
 
+
 class TestMuseConfig:
     """Tests for MuseConfig."""
 
@@ -450,6 +456,7 @@ class TestMuseConfig:
 # =============================================================================
 # MuseAgent Tests
 # =============================================================================
+
 
 class TestMuseAgent:
     """Tests for MuseAgent."""
@@ -507,7 +514,9 @@ class TestMuseAgent:
             )
 
             result = muse_agent.validate_request(request)
-            assert result.is_valid is False or result.requires_escalation is True, f"Should reject: {prompt}"
+            assert (
+                result.is_valid is False or result.requires_escalation is True
+            ), f"Should reject: {prompt}"
 
     def test_validate_request_sensitive_topics(self, muse_agent):
         """Test validation escalates sensitive topics."""
@@ -575,6 +584,7 @@ class TestMuseAgent:
 # Factory Function Tests
 # =============================================================================
 
+
 class TestCreateMuseAgent:
     """Tests for create_muse_agent factory function."""
 
@@ -601,6 +611,7 @@ class TestCreateMuseAgent:
 # =============================================================================
 # Content Type Determination Tests
 # =============================================================================
+
 
 class TestContentTypeDetermination:
     """Tests for content type inference."""
@@ -646,6 +657,7 @@ class TestContentTypeDetermination:
 # Style Determination Tests
 # =============================================================================
 
+
 class TestStyleDetermination:
     """Tests for style inference."""
 
@@ -689,6 +701,7 @@ class TestStyleDetermination:
 # =============================================================================
 # Integration Tests
 # =============================================================================
+
 
 class TestMuseIntegration:
     """Integration tests for Muse agent."""
@@ -757,6 +770,7 @@ class TestMuseIntegration:
 # =============================================================================
 # Enum Tests
 # =============================================================================
+
 
 class TestEnums:
     """Tests for enum values."""

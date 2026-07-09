@@ -32,6 +32,7 @@ from .models import (
     create_response,
 )
 
+
 def create_secure_message_bus(**kwargs) -> InMemoryMessageBus:
     """
     Create an InMemoryMessageBus with an AgentIdentityRegistry for

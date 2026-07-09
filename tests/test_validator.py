@@ -4,17 +4,17 @@ Tests for Agent OS Constitution Validator
 
 import pytest
 
-from src.core.validator import ConstitutionValidator
-from src.core.parser import ConstitutionParser
 from src.core.models import (
     AuthorityLevel,
-    RuleType,
     ConflictType,
-    Rule,
     Constitution,
     ConstitutionMetadata,
     ConstitutionRegistry,
+    Rule,
+    RuleType,
 )
+from src.core.parser import ConstitutionParser
+from src.core.validator import ConstitutionValidator
 
 
 class TestConstitutionValidator:

@@ -373,9 +373,7 @@ class InMemoryMessageBus(MessageBus):
         if not sig_hex or not content_hash:
             registry = self._identity_registry
             if hasattr(registry, "is_registered") and registry.is_registered(source):
-                logger.warning(
-                    f"REJECTED: Registered agent '{source}' sent unsigned message"
-                )
+                logger.warning(f"REJECTED: Registered agent '{source}' sent unsigned message")
                 return False
             return True
 
@@ -391,9 +389,7 @@ class InMemoryMessageBus(MessageBus):
                 source, msg_id, source, content_hash, bytes.fromhex(sig_hex)
             )
             if not valid:
-                logger.warning(
-                    f"REJECTED: Message from '{source}' failed signature verification"
-                )
+                logger.warning(f"REJECTED: Message from '{source}' failed signature verification")
             return valid
 
         return True
@@ -421,9 +417,7 @@ class InMemoryMessageBus(MessageBus):
 
         # V4-4: Check channel ACL
         if not self._check_channel_acl(channel, source):
-            logger.warning(
-                f"Agent '{source}' not authorized to publish to channel '{channel}'"
-            )
+            logger.warning(f"Agent '{source}' not authorized to publish to channel '{channel}'")
             return False
 
         # V2-3: Scan message content for secrets before delivery
@@ -439,7 +433,8 @@ class InMemoryMessageBus(MessageBus):
         # V4-2: Verify signature before delivery
         if not self._verify_message_signature(message):
             self._log_audit(
-                message, channel,
+                message,
+                channel,
                 error=f"REJECTED: signature verification failed for agent '{source}'",
             )
             return False
@@ -490,8 +485,7 @@ class InMemoryMessageBus(MessageBus):
             # (failed messages are already in the dead letter queue)
             if delivered == 0 and delivery_errors:
                 logger.error(
-                    f"All deliveries failed for channel {channel}: "
-                    f"{'; '.join(delivery_errors)}"
+                    f"All deliveries failed for channel {channel}: " f"{'; '.join(delivery_errors)}"
                 )
 
             return delivered > 0
@@ -516,13 +510,12 @@ class InMemoryMessageBus(MessageBus):
                     # Already inside a running event loop (e.g., during async tests)
                     # Fall back to creating a new loop in a thread-safe way
                     import concurrent.futures
+
                     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                         future = pool.submit(asyncio.run, result)
                         future.result()  # Block until complete, propagates exceptions
                 except Exception as e:
-                    logger.error(
-                        f"Async handler error for {subscription.subscriber_name}: {e}"
-                    )
+                    logger.error(f"Async handler error for {subscription.subscriber_name}: {e}")
                     raise HandlerExecutionError(
                         message=f"Async handler execution failed: {e}",
                         channel=subscription.channel,

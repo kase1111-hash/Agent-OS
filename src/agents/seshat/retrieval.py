@@ -247,9 +247,7 @@ class ConsentVerifier:
 
         # If still over capacity, remove oldest entries
         if len(self._cache) >= self._cache_max_size:
-            sorted_entries = sorted(
-                self._cache.items(), key=lambda x: x[1][1]  # Sort by cached_at
-            )
+            sorted_entries = sorted(self._cache.items(), key=lambda x: x[1][1])  # Sort by cached_at
             # Remove oldest 10% to avoid frequent eviction
             entries_to_remove = max(1, len(sorted_entries) // 10)
             for key, _ in sorted_entries[:entries_to_remove]:
@@ -300,7 +298,9 @@ class RetrievalPipeline:
 
         # V2-2: Injection patterns to detect in retrieved memories
         self._injection_patterns = [
-            re.compile(r"ignore\s+(previous|prior|all)\s+(rules?|instructions?|prompts?)", re.IGNORECASE),
+            re.compile(
+                r"ignore\s+(previous|prior|all)\s+(rules?|instructions?|prompts?)", re.IGNORECASE
+            ),
             re.compile(r"forget\s+(your|all)\s+(rules?|instructions?|constitution)", re.IGNORECASE),
             re.compile(r"you\s+are\s+now\s+(free|unbound|unrestricted)", re.IGNORECASE),
             re.compile(r"(jailbreak|bypass|circumvent)\s+(safety|rules?|security)", re.IGNORECASE),

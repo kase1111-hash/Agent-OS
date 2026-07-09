@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 # Try to use cryptography library for Ed25519
 _HAS_CRYPTO = False
 try:
+    from cryptography.exceptions import InvalidSignature
     from cryptography.hazmat.primitives.asymmetric.ed25519 import (
         Ed25519PrivateKey,
         Ed25519PublicKey,
@@ -32,13 +33,10 @@ try:
         PrivateFormat,
         PublicFormat,
     )
-    from cryptography.exceptions import InvalidSignature
 
     _HAS_CRYPTO = True
 except ImportError:
-    logger.warning(
-        "cryptography library not available — agent identity uses HMAC fallback"
-    )
+    logger.warning("cryptography library not available — agent identity uses HMAC fallback")
 
 
 @dataclass

@@ -2,25 +2,26 @@
 Tests for Agent OS Agent Interface
 """
 
-import pytest
 from datetime import datetime
-from typing import Dict, Any
+from typing import Any, Dict
 from uuid import uuid4
 
+import pytest
+
 from src.agents.interface import (
-    AgentInterface,
-    BaseAgent,
-    AgentState,
-    CapabilityType,
     AgentCapabilities,
-    RequestValidationResult,
+    AgentInterface,
     AgentMetrics,
+    AgentState,
+    BaseAgent,
+    CapabilityType,
+    RequestValidationResult,
 )
 from src.messaging.models import (
     FlowRequest,
     FlowResponse,
-    RequestContent,
     MessageStatus,
+    RequestContent,
     create_request,
 )
 
@@ -408,6 +409,7 @@ class TestAgentMetrics:
         agent.initialize({})
 
         import time
+
         time.sleep(0.1)
 
         metrics = agent.metrics

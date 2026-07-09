@@ -127,7 +127,7 @@ class RefinementResult:
             annotation = f"[{change.change_type.value}]"
             # Find the refined text at this location and add annotation
             if 0 <= change.location < len(annotated):
-                annotated = annotated[:change.location] + annotation + annotated[change.location:]
+                annotated = annotated[: change.location] + annotation + annotated[change.location :]
         return annotated
 
 

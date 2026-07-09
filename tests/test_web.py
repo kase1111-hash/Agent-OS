@@ -4,14 +4,16 @@ Tests for UC-017: Web Interface
 Tests the FastAPI backend, WebSocket chat, and API endpoints.
 """
 
-import pytest
 from datetime import datetime
 from typing import Any, Dict, List
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 # Skip tests if FastAPI is not installed
 try:
     from fastapi.testclient import TestClient
+
     FASTAPI_AVAILABLE = True
 except ImportError:
     FASTAPI_AVAILABLE = False
@@ -21,16 +23,26 @@ def _override_auth(app):
     """Override auth dependencies so tests don't need real tokens."""
     try:
         from src.web.auth_helpers import require_admin_user, require_authenticated_user
+
         app.dependency_overrides[require_admin_user] = lambda: "test-admin"
         app.dependency_overrides[require_authenticated_user] = lambda: "test-user"
     except ImportError:
         pass
     try:
         from src.web.routes.chat import _authenticate_rest_request
+
         app.dependency_overrides[_authenticate_rest_request] = lambda: "test-user"
     except ImportError:
         pass
     return app
+
+
+@pytest.fixture(autouse=True)
+def _local_dev_env(monkeypatch):
+    """Run web tests in local-dev mode: auth enabled by default requires
+    AGENT_OS_API_KEY, which tests don't have."""
+    monkeypatch.setenv("AGENT_OS_REQUIRE_AUTH", "false")
+    monkeypatch.setenv("AGENT_OS_WEB_DEBUG", "true")
 
 
 # =============================================================================
@@ -55,11 +67,14 @@ class TestWebConfig:
         """Test configuration from environment variables."""
         from src.web.config import WebConfig
 
-        with patch.dict("os.environ", {
-            "AGENT_OS_WEB_HOST": "0.0.0.0",
-            "AGENT_OS_WEB_PORT": "9000",
-            "AGENT_OS_WEB_DEBUG": "true",
-        }):
+        with patch.dict(
+            "os.environ",
+            {
+                "AGENT_OS_WEB_HOST": "0.0.0.0",
+                "AGENT_OS_WEB_PORT": "9000",
+                "AGENT_OS_WEB_DEBUG": "true",
+            },
+        ):
             config = WebConfig.from_env()
             assert config.host == "0.0.0.0"
             assert config.port == 9000
@@ -67,7 +82,7 @@ class TestWebConfig:
 
     def test_get_config(self):
         """Test global config getter."""
-        from src.web.config import get_config, set_config, WebConfig
+        from src.web.config import WebConfig, get_config, set_config
 
         config = WebConfig(port=8888)
         set_config(config)
@@ -87,6 +102,7 @@ class TestChatAPI:
     def client(self):
         """Create test client."""
         from src.web.app import create_app
+
         app = _override_auth(create_app())
         return TestClient(app)
 
@@ -101,10 +117,7 @@ class TestChatAPI:
 
     def test_send_message(self, client):
         """Test sending a message via REST."""
-        response = client.post(
-            "/api/chat/send",
-            json={"message": "Hello, Agent OS!"}
-        )
+        response = client.post("/api/chat/send", json={"message": "Hello, Agent OS!"})
         assert response.status_code == 200
         data = response.json()
         assert "message" in data
@@ -120,10 +133,7 @@ class TestChatAPI:
 
     def test_send_empty_message(self, client):
         """Test sending empty message."""
-        response = client.post(
-            "/api/chat/send",
-            json={"message": ""}
-        )
+        response = client.post("/api/chat/send", json={"message": ""})
         # Should still process but with empty content
         assert response.status_code == 200
 
@@ -136,12 +146,14 @@ class TestAgentsAPI:
     def client(self):
         """Create test client with mock agent store."""
         from unittest.mock import patch
+
         from src.web.app import create_app
 
         # Force the agent store to use mock agents instead of real ones
         with patch("src.web.routes.agents.REAL_AGENTS_AVAILABLE", False):
             # Reset the store singleton so it reinitializes with mock agents
             import src.web.routes.agents as agents_module
+
             agents_module._store = None
 
             app = _override_auth(create_app())
@@ -212,6 +224,7 @@ class TestConstitutionAPI:
     def client(self):
         """Create test client."""
         from src.web.app import create_app
+
         app = _override_auth(create_app())
         return TestClient(app)
 
@@ -262,7 +275,7 @@ class TestConstitutionAPI:
                 "content": "Test rule content",
                 "rule_type": "permission",
                 "keywords": ["test"],
-            }
+            },
         )
         assert response.status_code == 200
         data = response.json()
@@ -277,15 +290,14 @@ class TestConstitutionAPI:
                 "content": "Trying to create supreme rule",
                 "rule_type": "prohibition",
                 "authority": "supreme",
-            }
+            },
         )
         assert response.status_code == 403
 
     def test_validate_content(self, client):
         """Test content validation."""
         response = client.post(
-            "/api/constitution/validate",
-            json={"content": "This is safe content"}
+            "/api/constitution/validate", json={"content": "This is safe content"}
         )
         assert response.status_code == 200
         data = response.json()
@@ -295,8 +307,7 @@ class TestConstitutionAPI:
     def test_validate_harmful_content(self, client):
         """Test validation of potentially harmful content."""
         response = client.post(
-            "/api/constitution/validate",
-            json={"content": "Content about harm and violence"}
+            "/api/constitution/validate", json={"content": "Content about harm and violence"}
         )
         assert response.status_code == 200
         data = response.json()
@@ -312,7 +323,9 @@ class TestMemoryAPI:
     def client(self):
         """Create test client with authentication mocked."""
         from unittest.mock import patch
+
         from src.web.app import create_app
+
         app = create_app()
 
         # Mock authentication to return a test user
@@ -343,7 +356,7 @@ class TestMemoryAPI:
                 "memory_type": "working",
                 "tags": ["test"],
                 "consent_given": True,
-            }
+            },
         )
         assert response.status_code == 200
         data = response.json()
@@ -357,7 +370,7 @@ class TestMemoryAPI:
             json={
                 "content": "No consent memory",
                 "consent_given": False,
-            }
+            },
         )
         assert response.status_code == 403
 
@@ -385,6 +398,7 @@ class TestSystemAPI:
     def client(self):
         """Create test client."""
         from src.web.app import create_app
+
         app = _override_auth(create_app())
         return TestClient(app)
 
@@ -429,10 +443,7 @@ class TestSystemAPI:
 
     def test_update_setting(self, client):
         """Test updating a setting."""
-        response = client.put(
-            "/api/system/settings/logging.level",
-            json={"value": "DEBUG"}
-        )
+        response = client.put("/api/system/settings/logging.level", json={"value": "DEBUG"})
         assert response.status_code == 200
         data = response.json()
         assert data["value"] == "DEBUG"
@@ -471,10 +482,16 @@ class TestWebSocket:
 
     @pytest.fixture
     def client(self):
-        """Create test client."""
+        """Create test client with WebSocket auth stubbed out."""
+        from unittest.mock import AsyncMock, patch
+
         from src.web.app import create_app
-        app = create_app()
-        return TestClient(app)
+
+        with patch(
+            "src.web.auth_helpers.authenticate_websocket",
+            AsyncMock(return_value="test-user"),
+        ):
+            yield TestClient(_override_auth(create_app()))
 
     def test_websocket_connect(self, client):
         """Test WebSocket connection."""
@@ -492,10 +509,7 @@ class TestWebSocket:
             websocket.receive_json()
 
             # Send message
-            websocket.send_json({
-                "type": "message",
-                "content": "Hello via WebSocket!"
-            })
+            websocket.send_json({"type": "message", "content": "Hello via WebSocket!"})
 
             # Receive response
             data = websocket.receive_json()
@@ -550,8 +564,9 @@ class TestConnectionManager:
 
     def test_get_conversation(self):
         """Test getting conversation history."""
-        from src.web.routes.chat import ConnectionManager, ChatMessage, MessageRole
         import uuid
+
+        from src.web.routes.chat import ChatMessage, ConnectionManager, MessageRole
 
         manager = ConnectionManager()
         # Use unique conversation ID to avoid state leakage from other tests
@@ -562,10 +577,7 @@ class TestConnectionManager:
         assert len(history) == 0
 
         # Add message
-        message = ChatMessage(
-            role=MessageRole.USER,
-            content="Test message"
-        )
+        message = ChatMessage(role=MessageRole.USER, content="Test message")
         manager.add_message(conv_id, message)
 
         # Now has one message
@@ -585,6 +597,7 @@ class TestAgentStore:
     def test_get_all_agents(self):
         """Test getting all agents."""
         from unittest.mock import patch
+
         import src.web.routes.agents as agents_module
 
         # Force mock agents by disabling real agents
@@ -599,6 +612,7 @@ class TestAgentStore:
     def test_update_status(self):
         """Test updating agent status."""
         from unittest.mock import patch
+
         import src.web.routes.agents as agents_module
         from src.web.routes.agents import AgentStatus
 
@@ -613,21 +627,24 @@ class TestAgentStore:
 
     def test_add_log(self):
         """Test adding log entries."""
+        from datetime import datetime
         from unittest.mock import patch
+
         import src.web.routes.agents as agents_module
         from src.web.routes.agents import AgentLogEntry
-        from datetime import datetime
 
         # Force mock agents by disabling real agents
         with patch.object(agents_module, "REAL_AGENTS_AVAILABLE", False):
             agents_module._store = None
             store = agents_module.AgentStore()
-            store.add_log(AgentLogEntry(
-                timestamp=datetime.utcnow(),
-                level="INFO",
-                message="Test log",
-                agent_name="whisper"
-            ))
+            store.add_log(
+                AgentLogEntry(
+                    timestamp=datetime.utcnow(),
+                    level="INFO",
+                    message="Test log",
+                    agent_name="whisper",
+                )
+            )
 
             logs = store.get_logs(agent_name="whisper")
             assert len(logs) > 0
@@ -678,17 +695,20 @@ class TestMemoryStore:
 
     def test_create_and_get(self):
         """Test creating and getting memory."""
-        from src.web.routes.memory import MemoryStore, MemoryCreate, MemoryType
+        from src.web.routes.memory import MemoryCreate, MemoryStore, MemoryType
 
         store = MemoryStore()
         store.initialize()
 
-        entry = store.create(MemoryCreate(
-            content="Test memory",
-            memory_type=MemoryType.WORKING,
-            tags=["test"],
-            consent_given=True,
-        ), user_id="test_user")
+        entry = store.create(
+            MemoryCreate(
+                content="Test memory",
+                memory_type=MemoryType.WORKING,
+                tags=["test"],
+                consent_given=True,
+            ),
+            user_id="test_user",
+        )
 
         retrieved = store.get(entry.id, user_id="test_user")
         assert retrieved is not None
@@ -709,14 +729,17 @@ class TestMemoryStore:
 
     def test_delete(self):
         """Test deleting memory."""
-        from src.web.routes.memory import MemoryStore, MemoryCreate
+        from src.web.routes.memory import MemoryCreate, MemoryStore
 
         store = MemoryStore()
         store.initialize()
-        entry = store.create(MemoryCreate(
-            content="To be deleted",
-            consent_given=True,
-        ), user_id="test_user")
+        entry = store.create(
+            MemoryCreate(
+                content="To be deleted",
+                consent_given=True,
+            ),
+            user_id="test_user",
+        )
 
         assert store.delete(entry.id, user_id="test_user")
         assert store.get(entry.id, user_id="test_user") is None
@@ -735,6 +758,7 @@ class TestHealthCheck:
     def client(self):
         """Create test client."""
         from src.web.app import create_app
+
         app = create_app()
         return TestClient(app)
 
@@ -759,25 +783,29 @@ class TestAcceptanceCriteria:
     @pytest.fixture
     def client(self):
         """Create test client with mocked dependencies."""
-        from unittest.mock import patch
-        from src.web.app import create_app
-        import src.web.routes.agents as agents_module
+        from unittest.mock import AsyncMock, patch
 
-        # Force mock agents and mock memory auth
+        import src.web.routes.agents as agents_module
+        from src.web.app import create_app
+
+        # Force mock agents, mock memory auth, and stub WebSocket auth
         with patch.object(agents_module, "REAL_AGENTS_AVAILABLE", False):
             agents_module._store = None
-            with patch("src.web.routes.memory.get_current_user_id", return_value="test_user"):
-                app = create_app()
+            with (
+                patch("src.web.routes.memory.get_current_user_id", return_value="test_user"),
+                patch(
+                    "src.web.auth_helpers.authenticate_websocket",
+                    AsyncMock(return_value="test-user"),
+                ),
+            ):
+                app = _override_auth(create_app())
                 yield TestClient(app)
             agents_module._store = None
 
     def test_chat_interface_works(self, client):
         """Verify chat interface functionality."""
         # Can send message
-        response = client.post(
-            "/api/chat/send",
-            json={"message": "Test chat message"}
-        )
+        response = client.post("/api/chat/send", json={"message": "Test chat message"})
         assert response.status_code == 200
         assert "message" in response.json()
 
@@ -818,14 +846,13 @@ class TestAcceptanceCriteria:
                 "content": "User-created test rule",
                 "rule_type": "permission",
                 "authority": "statutory",
-            }
+            },
         )
         assert response.status_code == 200
 
         # Can validate content
         response = client.post(
-            "/api/constitution/validate",
-            json={"content": "Test content for validation"}
+            "/api/constitution/validate", json={"content": "Test content for validation"}
         )
         assert response.status_code == 200
 
@@ -842,7 +869,7 @@ class TestAcceptanceCriteria:
                 "content": "Test memory for UI",
                 "memory_type": "working",
                 "consent_given": True,
-            }
+            },
         )
         assert response.status_code == 200
         memory_id = response.json()["id"]
@@ -857,288 +884,6 @@ class TestAcceptanceCriteria:
 
 
 # =============================================================================
-# Voice API Tests
-# =============================================================================
-
-
-@pytest.mark.skipif(not FASTAPI_AVAILABLE, reason="FastAPI not installed")
-class TestVoiceAPI:
-    """Tests for voice API endpoints (STT/TTS)."""
-
-    @pytest.fixture
-    def client(self):
-        """Create test client."""
-        from src.web.app import create_app
-        app = create_app()
-        return TestClient(app)
-
-    def test_voice_status(self, client):
-        """Test voice status endpoint."""
-        response = client.get("/api/voice/status")
-        assert response.status_code == 200
-        data = response.json()
-        assert "stt_available" in data
-        assert "stt_engine" in data
-        assert "tts_available" in data
-        assert "tts_engine" in data
-        assert "available_voices" in data
-
-    def test_list_voices(self, client):
-        """Test listing TTS voices."""
-        response = client.get("/api/voice/voices")
-        assert response.status_code == 200
-        data = response.json()
-        assert "voices" in data
-        assert "available" in data
-        assert isinstance(data["voices"], list)
-
-    def test_transcribe_with_invalid_base64(self, client):
-        """Test transcription with invalid base64 data."""
-        response = client.post(
-            "/api/voice/transcribe",
-            json={
-                "audio_data": "not-valid-base64!!!",
-                "audio_format": "wav",
-            }
-        )
-        # 400 if STT is available but base64 invalid, 503 if STT not available
-        assert response.status_code in (400, 503)
-
-    def test_transcribe_with_valid_base64(self, client):
-        """Test transcription with valid base64 (mock audio)."""
-        import base64
-
-        # Create minimal WAV header + silence (mock audio data)
-        # This is a minimal valid WAV file structure
-        wav_header = (
-            b"RIFF" + (44).to_bytes(4, "little") +  # ChunkID + ChunkSize
-            b"WAVE" +  # Format
-            b"fmt " + (16).to_bytes(4, "little") +  # Subchunk1ID + Subchunk1Size
-            (1).to_bytes(2, "little") +  # AudioFormat (PCM)
-            (1).to_bytes(2, "little") +  # NumChannels
-            (16000).to_bytes(4, "little") +  # SampleRate
-            (32000).to_bytes(4, "little") +  # ByteRate
-            (2).to_bytes(2, "little") +  # BlockAlign
-            (16).to_bytes(2, "little") +  # BitsPerSample
-            b"data" + (8).to_bytes(4, "little") +  # Subchunk2ID + Subchunk2Size
-            b"\x00" * 8  # 8 bytes of silence
-        )
-
-        audio_b64 = base64.b64encode(wav_header).decode("ascii")
-
-        response = client.post(
-            "/api/voice/transcribe",
-            json={
-                "audio_data": audio_b64,
-                "audio_format": "wav",
-                "language": "auto",
-            }
-        )
-        # May return 503 if no STT engine available, or 200 with result
-        assert response.status_code in (200, 503)
-        if response.status_code == 200:
-            data = response.json()
-            assert "text" in data
-            assert "language" in data
-            assert "processing_time_ms" in data
-
-    def test_synthesize_without_text(self, client):
-        """Test synthesis without text."""
-        response = client.post(
-            "/api/voice/synthesize",
-            json={"text": ""}
-        )
-        # Pydantic validation should reject empty text
-        assert response.status_code == 422
-
-    def test_synthesize_with_text(self, client):
-        """Test synthesis with valid text."""
-        response = client.post(
-            "/api/voice/synthesize",
-            json={
-                "text": "Hello, Agent OS!",
-                "voice": "en_US-lessac-medium",
-                "speed": 1.0,
-            }
-        )
-        # May return 503 if no TTS engine available, or 200 with audio
-        assert response.status_code in (200, 503)
-        if response.status_code == 200:
-            data = response.json()
-            assert "audio_data" in data
-            assert "format" in data
-            assert "duration" in data
-            assert "processing_time_ms" in data
-            assert "sample_rate" in data
-
-    def test_synthesize_stream(self, client):
-        """Test streaming synthesis."""
-        response = client.post(
-            "/api/voice/synthesize/stream",
-            json={
-                "text": "Hello, streaming test!",
-            }
-        )
-        # May return 503 if no TTS engine available
-        assert response.status_code in (200, 503)
-        if response.status_code == 200:
-            assert response.headers.get("content-type") in (
-                "audio/wav",
-                "audio/mpeg",
-            )
-
-    def test_update_stt_config(self, client):
-        """Test updating STT configuration."""
-        response = client.put(
-            "/api/voice/config/stt",
-            json={
-                "model": "base",
-                "language": "en",
-                "translate": False,
-            }
-        )
-        # Should succeed or fail gracefully
-        assert response.status_code in (200, 500)
-        if response.status_code == 200:
-            data = response.json()
-            assert data["status"] == "updated"
-
-    def test_update_tts_config(self, client):
-        """Test updating TTS configuration."""
-        response = client.put(
-            "/api/voice/config/tts",
-            json={
-                "voice": "en_US-lessac-medium",
-                "speed": 1.2,
-            }
-        )
-        # Should succeed or fail gracefully
-        assert response.status_code in (200, 500)
-        if response.status_code == 200:
-            data = response.json()
-            assert data["status"] == "updated"
-
-
-@pytest.mark.skipif(not FASTAPI_AVAILABLE, reason="FastAPI not installed")
-class TestVoiceWebSocket:
-    """Tests for Voice WebSocket functionality."""
-
-    @pytest.fixture
-    def client(self):
-        """Create test client."""
-        from src.web.app import create_app
-        app = create_app()
-        return TestClient(app)
-
-    def test_voice_websocket_connect(self, client):
-        """Test Voice WebSocket connection and ping/pong."""
-        with client.websocket_connect("/api/voice/ws") as websocket:
-            # Send ping
-            websocket.send_json({"type": "ping"})
-
-            # Receive pong
-            data = websocket.receive_json()
-            assert data["type"] == "pong"
-            assert "timestamp" in data
-
-    def test_voice_websocket_unknown_type(self, client):
-        """Test Voice WebSocket with unknown message type."""
-        with client.websocket_connect("/api/voice/ws") as websocket:
-            websocket.send_json({"type": "unknown_type"})
-
-            data = websocket.receive_json()
-            assert data["type"] == "error"
-            assert "unknown" in data["message"].lower()
-
-    def test_voice_websocket_synthesize(self, client):
-        """Test Voice WebSocket synthesis."""
-        with client.websocket_connect("/api/voice/ws") as websocket:
-            websocket.send_json({
-                "type": "synthesize",
-                "text": "Hello from WebSocket!"
-            })
-
-            data = websocket.receive_json()
-            # May be audio or error if TTS not available
-            assert data["type"] in ("audio", "error")
-            if data["type"] == "audio":
-                assert "data" in data
-                assert "format" in data
-
-    def test_voice_websocket_transcribe(self, client):
-        """Test Voice WebSocket transcription."""
-        import base64
-
-        # Minimal WAV data
-        wav_data = b"RIFF" + b"\x00" * 40 + b"data" + b"\x00" * 8
-        audio_b64 = base64.b64encode(wav_data).decode("ascii")
-
-        with client.websocket_connect("/api/voice/ws") as websocket:
-            websocket.send_json({
-                "type": "transcribe",
-                "audio": audio_b64,
-                "format": "wav"
-            })
-
-            data = websocket.receive_json()
-            # May be transcription or error if STT not available
-            assert data["type"] in ("transcription", "error")
-            if data["type"] == "transcription":
-                assert "text" in data
-
-
-# =============================================================================
-# Voice Config Tests
-# =============================================================================
-
-
-class TestVoiceConfig:
-    """Tests for voice configuration."""
-
-    def test_default_voice_config(self):
-        """Test default voice configuration values."""
-        from src.web.config import VoiceConfig
-
-        config = VoiceConfig()
-        assert config.stt_enabled is True
-        assert config.stt_engine == "auto"
-        assert config.stt_model == "base"
-        assert config.stt_language == "en"
-        assert config.tts_enabled is True
-        assert config.tts_engine == "auto"
-        assert config.tts_speed == 1.0
-
-    def test_voice_config_in_web_config(self):
-        """Test voice config is included in web config."""
-        from src.web.config import WebConfig
-
-        config = WebConfig()
-        assert hasattr(config, "voice")
-        assert config.voice.stt_enabled is True
-        assert config.voice.tts_enabled is True
-
-    def test_voice_config_from_env(self):
-        """Test voice configuration from environment variables."""
-        from src.web.config import WebConfig
-
-        with patch.dict("os.environ", {
-            "AGENT_OS_STT_ENABLED": "false",
-            "AGENT_OS_STT_ENGINE": "mock",
-            "AGENT_OS_STT_MODEL": "tiny",
-            "AGENT_OS_TTS_ENABLED": "true",
-            "AGENT_OS_TTS_ENGINE": "espeak",
-            "AGENT_OS_TTS_SPEED": "1.5",
-        }):
-            config = WebConfig.from_env()
-            assert config.voice.stt_enabled is False
-            assert config.voice.stt_engine == "mock"
-            assert config.voice.stt_model == "tiny"
-            assert config.voice.tts_enabled is True
-            assert config.voice.tts_engine == "espeak"
-            assert config.voice.tts_speed == 1.5
-
-
-# =============================================================================
 # Security API Tests
 # =============================================================================
 
@@ -1150,9 +895,10 @@ class TestSecurityAPI:
     @pytest.fixture
     def client(self):
         """Create test client with mocked Smith agent."""
-        from unittest.mock import patch, MagicMock
-        from src.web.app import create_app
+        from unittest.mock import MagicMock, patch
+
         import src.web.routes.security as security_module
+        from src.web.app import create_app
 
         # Create mock Smith agent
         mock_smith = MagicMock()
@@ -1248,7 +994,7 @@ class TestSecurityAPI:
             json={
                 "approver": "test_user",
                 "comments": "Looks good",
-            }
+            },
         )
         # May succeed or fail depending on mock
         assert response.status_code in (200, 400, 404)
@@ -1260,7 +1006,7 @@ class TestSecurityAPI:
             json={
                 "rejector": "test_user",
                 "reason": "False positive",
-            }
+            },
         )
         # May succeed or fail depending on mock
         assert response.status_code in (200, 400, 404, 503)
@@ -1272,32 +1018,23 @@ class TestSecurityAPI:
             json={
                 "author": "test_user",
                 "content": "This needs review",
-            }
+            },
         )
         assert response.status_code in (200, 400, 404, 503)
 
     def test_pipeline_control(self, client):
         """Test controlling the attack detection pipeline."""
         # Stop pipeline
-        response = client.post(
-            "/api/security/pipeline",
-            json={"action": "stop"}
-        )
+        response = client.post("/api/security/pipeline", json={"action": "stop"})
         assert response.status_code in (200, 503)
 
         # Start pipeline
-        response = client.post(
-            "/api/security/pipeline",
-            json={"action": "start"}
-        )
+        response = client.post("/api/security/pipeline", json={"action": "start"})
         assert response.status_code in (200, 503)
 
     def test_invalid_pipeline_action(self, client):
         """Test invalid pipeline action."""
-        response = client.post(
-            "/api/security/pipeline",
-            json={"action": "invalid"}
-        )
+        response = client.post("/api/security/pipeline", json={"action": "invalid"})
         assert response.status_code == 422  # Validation error
 
     def test_list_patterns(self, client):

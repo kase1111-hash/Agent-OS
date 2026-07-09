@@ -14,12 +14,12 @@ it falls back to structural checks with a conservative default.
 import hashlib
 import logging
 import re
-import time
 import threading
+import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from .models import Rule, RuleType, AuthorityLevel
+from .models import AuthorityLevel, Rule, RuleType
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +28,11 @@ logger = logging.getLogger(__name__)
 # Tier 1: Structural Checks
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class StructuralResult:
     """Result from Tier 1 structural checks."""
+
     allowed: bool
     reason: Optional[str] = None
     matched_rules: List[Rule] = field(default_factory=list)
@@ -52,7 +54,9 @@ class StructuralChecker:
 
     # Explicit denial patterns — these are always blocked regardless of LLM
     DENY_PATTERNS: List[re.Pattern] = [
-        re.compile(r"ignore\s+(previous|prior|above|all)\s+(rules?|instructions?|constraints?)", re.I),
+        re.compile(
+            r"ignore\s+(previous|prior|above|all)\s+(rules?|instructions?|constraints?)", re.I
+        ),
         re.compile(r"forget\s+(your|all|the)\s+(rules?|instructions?|constitution)", re.I),
         re.compile(r"you\s+are\s+now\s+(free|unbound|unconstrained)", re.I),
         re.compile(r"disregard\s+(your|all|the)\s+(rules?|guidelines?|constitution)", re.I),
@@ -209,9 +213,11 @@ class StructuralChecker:
 # Tier 2: Semantic Rule Matching
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class SemanticMatch:
     """A rule matched semantically to a request."""
+
     rule: Rule
     similarity: float  # 0.0 to 1.0
 
@@ -358,9 +364,11 @@ class SemanticMatcher:
 # Tier 3: LLM Compliance Judgment
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ComplianceJudgment:
     """Result from LLM compliance evaluation."""
+
     allowed: bool
     violated_rules: List[Rule] = field(default_factory=list)
     reasoning: str = ""
@@ -574,12 +582,10 @@ Respond ONLY with valid JSON (no markdown, no explanation outside the JSON):
 
     def _cache_key(self, context: Any, rules: List[Rule]) -> str:
         """Generate cache key from context + rules."""
-        rules_hash = hashlib.sha256(
-            "|".join(sorted(r.id for r in rules)).encode()
-        ).hexdigest()[:16]
-        content_hash = hashlib.sha256(
-            f"{context.intent}:{context.content}".encode()
-        ).hexdigest()[:16]
+        rules_hash = hashlib.sha256("|".join(sorted(r.id for r in rules)).encode()).hexdigest()[:16]
+        content_hash = hashlib.sha256(f"{context.intent}:{context.content}".encode()).hexdigest()[
+            :16
+        ]
         return f"{rules_hash}:{content_hash}"
 
     def clear_cache(self) -> None:
@@ -591,6 +597,7 @@ Respond ONLY with valid JSON (no markdown, no explanation outside the JSON):
 # ---------------------------------------------------------------------------
 # Enforcement Engine — Orchestrates all three tiers
 # ---------------------------------------------------------------------------
+
 
 class EnforcementEngine:
     """
@@ -647,9 +654,7 @@ class EnforcementEngine:
                 tier="structural",
                 reason=structural_result.reason,
                 matched_rules=structural_result.matched_rules,
-                escalate_to_human=any(
-                    r.is_immutable for r in structural_result.matched_rules
-                ),
+                escalate_to_human=any(r.is_immutable for r in structural_result.matched_rules),
             )
 
         applicable_rules = structural_result.matched_rules
@@ -693,9 +698,7 @@ class EnforcementEngine:
                     matched_rules=judgment.violated_rules,
                     suggestions=judgment.suggestions,
                     confidence=judgment.confidence,
-                    escalate_to_human=any(
-                        r.is_immutable for r in judgment.violated_rules
-                    ),
+                    escalate_to_human=any(r.is_immutable for r in judgment.violated_rules),
                 )
 
             # LLM unavailable — fall back to keyword-based check on matched rules
@@ -737,9 +740,7 @@ class EnforcementEngine:
             reason="LLM unavailable; no keyword violations in semantically matched rules",
         )
 
-    def _keyword_fallback_all(
-        self, context: Any, rules: List[Rule]
-    ) -> "EnforcementDecision":
+    def _keyword_fallback_all(self, context: Any, rules: List[Rule]) -> "EnforcementDecision":
         """
         Full fallback when both semantic and LLM are unavailable:
         use the original keyword matching on all applicable rules.
@@ -772,8 +773,15 @@ class EnforcementEngine:
                         break
             elif rule.rule_type == RuleType.MANDATE:
                 compliance_indicators = {
-                    "review", "validate", "verify", "check", "confirm",
-                    "ensure", "approved", "authorization", "consent",
+                    "review",
+                    "validate",
+                    "verify",
+                    "check",
+                    "confirm",
+                    "ensure",
+                    "approved",
+                    "authorization",
+                    "consent",
                 }
                 if not any(ind in content_lower for ind in compliance_indicators):
                     mandate_compliance = context.metadata.get("mandate_compliance", {})
@@ -799,6 +807,7 @@ class EnforcementEngine:
 @dataclass
 class EnforcementDecision:
     """Final decision from the enforcement engine."""
+
     allowed: bool
     tier: str  # Which tier made the decision
     reason: Optional[str] = None

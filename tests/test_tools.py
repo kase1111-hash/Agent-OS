@@ -6,55 +6,48 @@ and sandboxed execution system.
 """
 
 import tempfile
-from pathlib import Path
 from datetime import datetime, timedelta
-from typing import Dict, Any
+from pathlib import Path
+from typing import Any, Dict
 
 import pytest
 
-from src.tools import (
-    # Interface
-    ToolInterface,
-    BaseTool,
-    FunctionTool,
-    ToolSchema,
-    ToolParameter,
-    ToolResult,
-    ToolInvocation,
-    ToolCategory,
-    ToolRiskLevel,
-    ToolStatus,
-    InvocationResult,
-    create_function_tool,
-    # Registry
-    ToolRegistry,
-    ToolRegistration,
-    ToolQuery,
-    create_registry,
-    # Permissions
-    PermissionManager,
-    PermissionGrant,
-    PermissionLevel,
-    GrantType,
-    RiskLimitPolicy,
-    create_permission_manager,
-    # Validation
-    ToolApprovalValidator,
-    ToolApprovalResult,
+from src.tools import (  # Interface; Registry; Permissions; Validation; Executor; Client
     ApprovalResult,
-    create_tool_validator,
-    # Executor
-    ToolExecutor,
+    BaseTool,
     ExecutionConfig,
     ExecutionMode,
     ExecutionState,
-    create_executor,
-    # Client
+    FunctionTool,
+    GrantType,
+    InvocationResult,
+    PermissionGrant,
+    PermissionLevel,
+    PermissionManager,
+    RiskLimitPolicy,
+    ToolApprovalResult,
+    ToolApprovalValidator,
+    ToolCategory,
+    ToolExecutor,
+    ToolInterface,
+    ToolInvocation,
+    ToolParameter,
+    ToolQuery,
+    ToolRegistration,
+    ToolRegistry,
+    ToolResult,
+    ToolRiskLevel,
+    ToolSchema,
     ToolsClient,
     ToolsClientConfig,
+    ToolStatus,
+    create_executor,
+    create_function_tool,
+    create_permission_manager,
+    create_registry,
+    create_tool_validator,
     create_tools_client,
 )
-
 
 # =============================================================================
 # Test Fixtures
@@ -277,10 +270,12 @@ class TestToolSchema:
             ],
         )
 
-        is_valid, errors = schema.validate_parameters({
-            "name": "test",
-            "unknown": "value",
-        })
+        is_valid, errors = schema.validate_parameters(
+            {
+                "name": "test",
+                "unknown": "value",
+            }
+        )
         assert not is_valid
         assert any("unknown" in e.lower() for e in errors)
 
@@ -728,9 +723,12 @@ class TestPermissionManager:
         manager = create_permission_manager()
 
         # Set strict policy
-        manager.set_policy("user123", RiskLimitPolicy(
-            max_risk_level=ToolRiskLevel.LOW,
-        ))
+        manager.set_policy(
+            "user123",
+            RiskLimitPolicy(
+                max_risk_level=ToolRiskLevel.LOW,
+            ),
+        )
 
         # Grant all tools
         manager.grant(
@@ -1045,9 +1043,11 @@ class TestToolsClient:
 
     def test_register_and_invoke(self):
         """Test full registration and invocation flow."""
-        client = create_tools_client(ToolsClientConfig(
-            auto_approve_low_risk=True,
-        ))
+        client = create_tools_client(
+            ToolsClientConfig(
+                auto_approve_low_risk=True,
+            )
+        )
 
         # Register tool
         registration = client.register_tool(EchoTool())
@@ -1068,9 +1068,11 @@ class TestToolsClient:
 
     def test_register_function(self):
         """Test registering a function as tool."""
-        client = create_tools_client(ToolsClientConfig(
-            auto_approve_low_risk=True,
-        ))
+        client = create_tools_client(
+            ToolsClientConfig(
+                auto_approve_low_risk=True,
+            )
+        )
 
         def multiply(a: int, b: int) -> int:
             return a * b
@@ -1101,9 +1103,11 @@ class TestToolsClient:
 
     def test_list_tools(self):
         """Test listing tools."""
-        client = create_tools_client(ToolsClientConfig(
-            auto_approve_low_risk=True,
-        ))
+        client = create_tools_client(
+            ToolsClientConfig(
+                auto_approve_low_risk=True,
+            )
+        )
 
         client.register_tool(EchoTool(), auto_approve=True)
         client.register_tool(FileWriteTool())  # Medium risk, not auto-approved
@@ -1117,9 +1121,11 @@ class TestToolsClient:
 
     def test_can_use_tool(self):
         """Test checking tool access."""
-        client = create_tools_client(ToolsClientConfig(
-            auto_approve_low_risk=True,
-        ))
+        client = create_tools_client(
+            ToolsClientConfig(
+                auto_approve_low_risk=True,
+            )
+        )
 
         client.register_tool(EchoTool())
 
@@ -1134,9 +1140,11 @@ class TestToolsClient:
 
     def test_grant_agent_permission(self):
         """Test granting permission to agent."""
-        client = create_tools_client(ToolsClientConfig(
-            auto_approve_low_risk=True,
-        ))
+        client = create_tools_client(
+            ToolsClientConfig(
+                auto_approve_low_risk=True,
+            )
+        )
 
         client.register_tool(EchoTool())
 
@@ -1150,9 +1158,11 @@ class TestToolsClient:
 
     def test_deny_permission(self):
         """Test denying permission."""
-        client = create_tools_client(ToolsClientConfig(
-            auto_approve_low_risk=True,
-        ))
+        client = create_tools_client(
+            ToolsClientConfig(
+                auto_approve_low_risk=True,
+            )
+        )
 
         client.register_tool(EchoTool())
         client.grant_permission("user123")  # All tools
@@ -1162,9 +1172,11 @@ class TestToolsClient:
 
     def test_set_risk_policy(self):
         """Test setting risk policy."""
-        client = create_tools_client(ToolsClientConfig(
-            auto_approve_low_risk=True,
-        ))
+        client = create_tools_client(
+            ToolsClientConfig(
+                auto_approve_low_risk=True,
+            )
+        )
 
         client.register_tool(FileWriteTool())
         client.register_function(
@@ -1211,9 +1223,11 @@ class TestToolsClient:
 
     def test_statistics(self):
         """Test getting statistics."""
-        client = create_tools_client(ToolsClientConfig(
-            auto_approve_low_risk=True,
-        ))
+        client = create_tools_client(
+            ToolsClientConfig(
+                auto_approve_low_risk=True,
+            )
+        )
 
         client.register_tool(EchoTool())
         client.grant_permission("user123", tool_name="echo")
@@ -1234,9 +1248,11 @@ class TestAcceptanceCriteria:
 
     def test_function_calling_api(self):
         """Verify function calling API works."""
-        client = create_tools_client(ToolsClientConfig(
-            auto_approve_low_risk=True,
-        ))
+        client = create_tools_client(
+            ToolsClientConfig(
+                auto_approve_low_risk=True,
+            )
+        )
 
         # Register function tool
         def greet(name: str) -> str:
@@ -1290,9 +1306,11 @@ class TestAcceptanceCriteria:
 
     def test_permission_layer(self):
         """Verify permission layer works."""
-        client = create_tools_client(ToolsClientConfig(
-            auto_approve_low_risk=True,
-        ))
+        client = create_tools_client(
+            ToolsClientConfig(
+                auto_approve_low_risk=True,
+            )
+        )
 
         client.register_tool(EchoTool())
         client.register_tool(FileWriteTool())
@@ -1351,20 +1369,24 @@ class TestAcceptanceCriteria:
 
     def test_audit_trail(self):
         """Verify audit trail is maintained."""
-        client = create_tools_client(ToolsClientConfig(
-            auto_approve_low_risk=True,
-        ))
+        client = create_tools_client(
+            ToolsClientConfig(
+                auto_approve_low_risk=True,
+            )
+        )
 
         audit_log = []
 
         def audit_handler(context):
-            audit_log.append({
-                "execution_id": context.execution_id,
-                "tool": context.invocation.tool_name,
-                "user": context.invocation.user_id,
-                "result": context.result.result.name if context.result else None,
-                "timestamp": datetime.now().isoformat(),
-            })
+            audit_log.append(
+                {
+                    "execution_id": context.execution_id,
+                    "tool": context.invocation.tool_name,
+                    "user": context.invocation.user_id,
+                    "result": context.result.result.name if context.result else None,
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
 
         client.add_audit_handler(audit_handler)
         client.register_tool(EchoTool())

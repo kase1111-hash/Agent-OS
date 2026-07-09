@@ -10,64 +10,58 @@ Tests cover:
 - Contracts client
 """
 
-import pytest
+import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
-import tempfile
 
-from src.contracts import (
-    # Store
-    ContractStore,
-    LearningContract,
-    ContractType,
-    ContractStatus,
-    ContractScope,
-    LearningScope,
-    ContractQuery,
-    create_contract_store,
-    # Validator
-    ContractValidator,
-    ValidationResult,
-    ValidationCode,
-    LearningRequest,
-    create_validator,
-    # Domains
-    ProhibitedDomainChecker,
-    ProhibitedDomain,
-    DomainCheckResult,
-    DomainCategory,
-    ProhibitionLevel,
-    create_domain_checker,
-    # Abstraction
+import pytest
+
+from src.contracts import (  # Store; Validator; Domains; Abstraction; Enforcement; Consent; Client
     AbstractionGuard,
-    AbstractionRule,
-    AbstractionResult,
     AbstractionLevel,
+    AbstractionResult,
+    AbstractionRule,
     AbstractionType,
-    create_abstraction_guard,
-    # Enforcement
-    LearningContractsEngine,
-    EnforcementResult,
-    EnforcementDecision,
-    EnforcementConfig,
-    create_learning_contracts_engine,
-    # Consent
+    ConsentDecision,
+    ConsentMode,
     ConsentPrompt,
     ConsentRequest,
-    ConsentDecision,
     ConsentResponse,
-    ConsentMode,
-    create_consent_prompt,
-    # Client
+    ContractQuery,
     ContractsClient,
     ContractsClientConfig,
+    ContractScope,
+    ContractStatus,
+    ContractStore,
+    ContractType,
+    ContractValidator,
+    DomainCategory,
+    DomainCheckResult,
+    EnforcementConfig,
+    EnforcementDecision,
+    EnforcementResult,
+    LearningContract,
+    LearningContractsEngine,
+    LearningRequest,
+    LearningScope,
+    ProhibitedDomain,
+    ProhibitedDomainChecker,
+    ProhibitionLevel,
+    ValidationCode,
+    ValidationResult,
+    create_abstraction_guard,
+    create_consent_prompt,
+    create_contract_store,
     create_contracts_client,
+    create_domain_checker,
+    create_learning_contracts_engine,
+    create_validator,
 )
-
 
 # =============================================================================
 # Contract Store Tests
 # =============================================================================
+
 
 class TestContractStore:
     """Tests for ContractStore."""
@@ -351,6 +345,7 @@ class TestContractStore:
 # Contract Validator Tests
 # =============================================================================
 
+
 class TestContractValidator:
     """Tests for ContractValidator."""
 
@@ -526,6 +521,7 @@ class TestContractValidator:
 # Prohibited Domain Checker Tests
 # =============================================================================
 
+
 class TestProhibitedDomainChecker:
     """Tests for ProhibitedDomainChecker."""
 
@@ -647,6 +643,7 @@ class TestProhibitedDomainChecker:
 # =============================================================================
 # Abstraction Guard Tests
 # =============================================================================
+
 
 class TestAbstractionGuard:
     """Tests for AbstractionGuard."""
@@ -787,9 +784,7 @@ class TestAbstractionGuard:
         """Test checking content identifiability."""
         guard = create_abstraction_guard()
 
-        result = guard.check_identifiability(
-            "John Smith (john@example.com) called 555-123-4567"
-        )
+        result = guard.check_identifiability("John Smith (john@example.com) called 555-123-4567")
 
         assert result["potential_names"] >= 1
         assert result["potential_emails"] == 1
@@ -817,6 +812,7 @@ class TestAbstractionGuard:
 # =============================================================================
 # Enforcement Engine Tests
 # =============================================================================
+
 
 class TestLearningContractsEngine:
     """Tests for LearningContractsEngine."""
@@ -988,6 +984,7 @@ class TestLearningContractsEngine:
 # Consent Prompt Tests
 # =============================================================================
 
+
 class TestConsentPrompt:
     """Tests for ConsentPrompt."""
 
@@ -1012,6 +1009,7 @@ class TestConsentPrompt:
 
     def test_callback_mode(self):
         """Test callback mode."""
+
         def consent_callback(request):
             return ConsentDecision(
                 request_id=request.request_id,
@@ -1130,6 +1128,7 @@ class TestConsentPrompt:
 # =============================================================================
 # Contracts Client Tests
 # =============================================================================
+
 
 class TestContractsClient:
     """Tests for ContractsClient."""
@@ -1315,6 +1314,7 @@ class TestContractsClient:
 # =============================================================================
 # Integration Tests
 # =============================================================================
+
 
 class TestLearningContractsIntegration:
     """Integration tests for the complete system."""

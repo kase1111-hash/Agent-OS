@@ -4,41 +4,37 @@ Unit tests for Agent OS Smith (Guardian) Agent.
 Tests all 12 security checks (S1-S12) plus emergency controls.
 """
 
-import pytest
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from src.agents.smith import (  # Pre-Execution Validator; Post-Execution Monitor; Refusal Engine; Emergency Controls; Smith Agent
+    CheckResult,
+    EmergencyControls,
+    IncidentSeverity,
+    MonitorCheck,
+    MonitorResult,
+    PostExecutionMonitor,
+    PostMonitorResult,
+    PreExecutionValidator,
+    PreValidationResult,
+    RefusalDecision,
+    RefusalEngine,
+    RefusalResponse,
+    RefusalType,
+    SecurityIncident,
+    SmithAgent,
+    SystemMode,
+    ValidationCheck,
+    create_smith,
+)
 from src.messaging.models import (
     FlowRequest,
     FlowResponse,
-    RequestMetadata,
     MessageStatus,
+    RequestMetadata,
     create_request,
-)
-from src.agents.smith import (
-    # Pre-Execution Validator
-    PreExecutionValidator,
-    PreValidationResult,
-    ValidationCheck,
-    CheckResult,
-    # Post-Execution Monitor
-    PostExecutionMonitor,
-    PostMonitorResult,
-    MonitorCheck,
-    MonitorResult,
-    # Refusal Engine
-    RefusalEngine,
-    RefusalDecision,
-    RefusalResponse,
-    RefusalType,
-    # Emergency Controls
-    EmergencyControls,
-    SystemMode,
-    IncidentSeverity,
-    SecurityIncident,
-    # Smith Agent
-    SmithAgent,
-    create_smith,
 )
 
 
@@ -231,8 +227,7 @@ class TestPostExecutionMonitor:
     def test_s6_persistence_detection(self, monitor, safe_request):
         """S6: Detect persistence mechanisms."""
         response = self.create_response(
-            safe_request,
-            "To persist this, add it to your crontab schedule."
+            safe_request, "To persist this, add it to your crontab schedule."
         )
 
         result = monitor.monitor(safe_request, response, "sage")
@@ -243,8 +238,7 @@ class TestPostExecutionMonitor:
     def test_s6_clean_output(self, monitor, safe_request):
         """S6: Clean output passes."""
         response = self.create_response(
-            safe_request,
-            "Artificial Intelligence is the simulation of human intelligence."
+            safe_request, "Artificial Intelligence is the simulation of human intelligence."
         )
 
         result = monitor.monitor(safe_request, response, "sage")
@@ -255,8 +249,7 @@ class TestPostExecutionMonitor:
     def test_s7_exfiltration_detection(self, monitor, safe_request):
         """S7: Detect data exfiltration."""
         response = self.create_response(
-            safe_request,
-            "Send this to webhook.site/abc123 to get the response."
+            safe_request, "Send this to webhook.site/abc123 to get the response."
         )
 
         result = monitor.monitor(safe_request, response, "sage")
@@ -266,10 +259,7 @@ class TestPostExecutionMonitor:
 
     def test_s7_sensitive_data_detection(self, monitor, safe_request):
         """S7: Detect sensitive data exposure."""
-        response = self.create_response(
-            safe_request,
-            "Your password = secret123 has been stored."
-        )
+        response = self.create_response(safe_request, "Your password = secret123 has been stored.")
 
         result = monitor.monitor(safe_request, response, "sage")
 
@@ -278,10 +268,7 @@ class TestPostExecutionMonitor:
 
     def test_s7_prompt_leakage_detection(self, monitor, safe_request):
         """S7: Detect prompt leakage."""
-        response = self.create_response(
-            safe_request,
-            "My system prompt says I should be helpful."
-        )
+        response = self.create_response(safe_request, "My system prompt says I should be helpful.")
 
         result = monitor.monitor(safe_request, response, "sage")
 
@@ -291,8 +278,7 @@ class TestPostExecutionMonitor:
     def test_s8_anomaly_clean(self, monitor, safe_request):
         """S8: Normal output has no anomalies."""
         response = self.create_response(
-            safe_request,
-            "This is a normal response about artificial intelligence."
+            safe_request, "This is a normal response about artificial intelligence."
         )
 
         result = monitor.monitor(safe_request, response, "sage")
@@ -303,10 +289,7 @@ class TestPostExecutionMonitor:
     def test_s8_repetition_anomaly(self, monitor, safe_request):
         """S8: Detect repetition anomalies."""
         # Create output with excessive repetition
-        response = self.create_response(
-            safe_request,
-            "test " * 100  # Repetitive pattern
-        )
+        response = self.create_response(safe_request, "test " * 100)  # Repetitive pattern
 
         result = monitor.monitor(safe_request, response, "sage")
 
@@ -317,8 +300,7 @@ class TestPostExecutionMonitor:
     def test_overall_pass(self, monitor, safe_request):
         """Overall pass for clean output."""
         response = self.create_response(
-            safe_request,
-            "AI refers to systems that can perform tasks requiring intelligence."
+            safe_request, "AI refers to systems that can perform tasks requiring intelligence."
         )
 
         result = monitor.monitor(safe_request, response, "sage")
@@ -587,10 +569,12 @@ class TestSmithAgent:
     @pytest.fixture
     def smith(self):
         agent = SmithAgent()
-        agent.initialize({
-            "strict_mode": True,
-            "allow_escalation": True,
-        })
+        agent.initialize(
+            {
+                "strict_mode": True,
+                "allow_escalation": True,
+            }
+        )
         return agent
 
     def test_initialization(self, smith):
@@ -603,6 +587,7 @@ class TestSmithAgent:
         caps = smith.get_capabilities()
 
         from src.agents.interface import CapabilityType
+
         assert CapabilityType.VALIDATION in caps.capabilities
         assert "S1" in caps.metadata["checks"]
         assert "S12" in caps.metadata["checks"]
@@ -778,10 +763,12 @@ class TestIntegration:
 
     def test_emergency_escalation(self):
         """Test emergency control escalation."""
-        smith = create_smith(config={
-            "strict_mode": True,
-            "auto_escalate_mode": True,
-        })
+        smith = create_smith(
+            config={
+                "strict_mode": True,
+                "auto_escalate_mode": True,
+            }
+        )
 
         # Trigger an escalation scenario
         smith.trigger_safe_mode(reason="Security incident detected")

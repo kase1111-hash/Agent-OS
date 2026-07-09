@@ -361,6 +361,7 @@ class FlowController:
             timeout: Maximum time to wait for pending tasks (seconds)
         """
         import logging
+
         logger = logging.getLogger(__name__)
 
         if wait:
@@ -370,8 +371,7 @@ class FlowController:
             logger.info("Flow executor shutdown complete")
         else:
             logger.warning(
-                "Shutting down flow executor without waiting - "
-                "pending tasks will be abandoned"
+                "Shutting down flow executor without waiting - " "pending tasks will be abandoned"
             )
             self._executor.shutdown(wait=False)
 

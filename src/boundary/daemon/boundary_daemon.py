@@ -365,11 +365,14 @@ class SmithDaemon:
             )
 
             # Publish to subscribers for attack detection
-            self._publish_event("security_violation", {
-                "type": "network_access",
-                "details": "External network access detected",
-                "timestamp": datetime.now().isoformat(),
-            })
+            self._publish_event(
+                "security_violation",
+                {
+                    "type": "network_access",
+                    "details": "External network access detected",
+                    "timestamp": datetime.now().isoformat(),
+                },
+            )
 
             if self.mode != BoundaryMode.TRUSTED:
                 self._enforcement.alert(
@@ -385,11 +388,14 @@ class SmithDaemon:
             )
 
             # Publish to subscribers for attack detection
-            self._publish_event("security_warning", {
-                "type": "suspicious_process",
-                "processes": state.suspicious_processes,
-                "timestamp": datetime.now().isoformat(),
-            })
+            self._publish_event(
+                "security_warning",
+                {
+                    "type": "suspicious_process",
+                    "processes": state.suspicious_processes,
+                    "timestamp": datetime.now().isoformat(),
+                },
+            )
 
     def _on_tripwire_triggered(self, event: TripwireEvent) -> None:
         """Handle tripwire triggers."""
@@ -436,11 +442,14 @@ class SmithDaemon:
         )
 
         # Publish to subscribers
-        self._publish_event("mode_change", {
-            "old_mode": old_mode.name,
-            "new_mode": new_mode.name,
-            "timestamp": datetime.now().isoformat(),
-        })
+        self._publish_event(
+            "mode_change",
+            {
+                "old_mode": old_mode.name,
+                "new_mode": new_mode.name,
+                "timestamp": datetime.now().isoformat(),
+            },
+        )
 
     def _on_enforcement(self, event: EnforcementEvent) -> None:
         """Handle enforcement events."""
@@ -452,13 +461,16 @@ class SmithDaemon:
         )
 
         # Publish to subscribers for attack detection
-        self._publish_event("enforcement", {
-            "action": event.action.name,
-            "reason": event.reason,
-            "success": event.success,
-            "severity": event.severity.name,
-            "timestamp": datetime.now().isoformat(),
-        })
+        self._publish_event(
+            "enforcement",
+            {
+                "action": event.action.name,
+                "reason": event.reason,
+                "success": event.success,
+                "severity": event.severity.name,
+                "timestamp": datetime.now().isoformat(),
+            },
+        )
 
     # =========================================================================
     # Event Subscription for Attack Detection Integration

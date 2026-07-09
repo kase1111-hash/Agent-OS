@@ -19,13 +19,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.agents.smith.attack_detection.patterns import (
-    AttackCategory,
-    AttackPattern,
-    PatternLibrary,
-    PatternMatch,
-    PatternType,
-    create_pattern_library,
+from src.agents.smith.attack_detection.analyzer import (
+    AttackAnalyzer,
+    CodeLocation,
+    RiskLevel,
+    VulnerabilityFinding,
+    VulnerabilityReport,
+    VulnerabilityType,
+    create_attack_analyzer,
 )
 from src.agents.smith.attack_detection.detector import (
     AttackDetector,
@@ -36,14 +37,20 @@ from src.agents.smith.attack_detection.detector import (
     DetectorConfig,
     create_attack_detector,
 )
-from src.agents.smith.attack_detection.analyzer import (
-    AttackAnalyzer,
-    CodeLocation,
-    RiskLevel,
-    VulnerabilityFinding,
-    VulnerabilityReport,
-    VulnerabilityType,
-    create_attack_analyzer,
+from src.agents.smith.attack_detection.patterns import (
+    AttackCategory,
+    AttackPattern,
+    PatternLibrary,
+    PatternMatch,
+    PatternType,
+    create_pattern_library,
+)
+from src.agents.smith.attack_detection.recommendation import (
+    FixRecommendation,
+    Priority,
+    RecommendationStatus,
+    RecommendationSystem,
+    create_recommendation_system,
 )
 from src.agents.smith.attack_detection.remediation import (
     Patch,
@@ -53,14 +60,6 @@ from src.agents.smith.attack_detection.remediation import (
     RemediationPlan,
     create_remediation_engine,
 )
-from src.agents.smith.attack_detection.recommendation import (
-    FixRecommendation,
-    Priority,
-    RecommendationStatus,
-    RecommendationSystem,
-    create_recommendation_system,
-)
-
 
 # ============================================================================
 # Pattern Library Tests
@@ -703,48 +702,57 @@ class TestModuleImports:
 
     def test_import_patterns(self):
         from src.agents.smith.attack_detection import patterns
+
         assert patterns.AttackPattern is not None
 
     def test_import_detector(self):
         from src.agents.smith.attack_detection import detector
+
         assert detector.AttackDetector is not None
 
     def test_import_analyzer(self):
         from src.agents.smith.attack_detection import analyzer
+
         assert analyzer.AttackAnalyzer is not None
 
     def test_import_remediation(self):
         from src.agents.smith.attack_detection import remediation
+
         assert remediation.RemediationEngine is not None
 
     def test_import_recommendation(self):
         from src.agents.smith.attack_detection import recommendation
+
         assert recommendation.RecommendationSystem is not None
 
     def test_import_all_from_init(self):
         from src.agents.smith.attack_detection import (
+            AttackAnalyzer,
             AttackDetector,
             AttackEvent,
-            AttackAnalyzer,
-            VulnerabilityReport,
-            RemediationEngine,
+            FixRecommendation,
             Patch,
             RecommendationSystem,
-            FixRecommendation,
+            RemediationEngine,
+            VulnerabilityReport,
         )
-        assert all([
-            AttackDetector,
-            AttackEvent,
-            AttackAnalyzer,
-            VulnerabilityReport,
-            RemediationEngine,
-            Patch,
-            RecommendationSystem,
-            FixRecommendation,
-        ])
+
+        assert all(
+            [
+                AttackDetector,
+                AttackEvent,
+                AttackAnalyzer,
+                VulnerabilityReport,
+                RemediationEngine,
+                Patch,
+                RecommendationSystem,
+                FixRecommendation,
+            ]
+        )
 
     def test_import_integration(self):
         from src.agents.smith.attack_detection import integration
+
         assert integration.connect_boundary_to_smith is not None
         assert integration.AttackDetectionPipeline is not None
         assert integration.setup_attack_detection_pipeline is not None
@@ -752,17 +760,20 @@ class TestModuleImports:
 
     def test_import_integration_from_init(self):
         from src.agents.smith.attack_detection import (
-            connect_boundary_to_smith,
             AttackDetectionPipeline,
-            setup_attack_detection_pipeline,
+            connect_boundary_to_smith,
             create_attack_alert_handler,
+            setup_attack_detection_pipeline,
         )
-        assert all([
-            connect_boundary_to_smith,
-            AttackDetectionPipeline,
-            setup_attack_detection_pipeline,
-            create_attack_alert_handler,
-        ])
+
+        assert all(
+            [
+                connect_boundary_to_smith,
+                AttackDetectionPipeline,
+                setup_attack_detection_pipeline,
+                create_attack_alert_handler,
+            ]
+        )
 
 
 # ============================================================================
@@ -820,6 +831,7 @@ class TestIntegrationModule:
                 assert "PROMPT_INJECTION" in content
         finally:
             import os
+
             os.unlink(log_path)
 
     def test_attack_detection_pipeline_creation(self):

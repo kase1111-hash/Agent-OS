@@ -168,6 +168,7 @@ class IntentLogStore:
             if self.db_path:
                 try:
                     import os
+
                     os.chmod(self.db_path, 0o600)
                     # Also restrict the WAL and SHM files if they exist
                     for suffix in ("-wal", "-shm"):
@@ -377,8 +378,7 @@ class IntentLogStore:
         """Create database tables."""
         cursor = self._connection.cursor()
 
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS intent_log (
                 entry_id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -394,51 +394,38 @@ class IntentLogStore:
                 entry_hash TEXT,
                 previous_hash TEXT
             )
-        """
-        )
+        """)
 
         # V6-3: Migration — add hash columns if table already exists without them
         try:
-            cursor.execute(
-                "ALTER TABLE intent_log ADD COLUMN entry_hash TEXT"
-            )
+            cursor.execute("ALTER TABLE intent_log ADD COLUMN entry_hash TEXT")
         except sqlite3.OperationalError:
             pass  # Column already exists
         try:
-            cursor.execute(
-                "ALTER TABLE intent_log ADD COLUMN previous_hash TEXT"
-            )
+            cursor.execute("ALTER TABLE intent_log ADD COLUMN previous_hash TEXT")
         except sqlite3.OperationalError:
             pass  # Column already exists
 
         # Indexes for common queries
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_intent_log_user_id
             ON intent_log(user_id)
-        """
-        )
+        """)
 
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_intent_log_user_created
             ON intent_log(user_id, created_at DESC)
-        """
-        )
+        """)
 
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_intent_log_session
             ON intent_log(session_id)
-        """
-        )
+        """)
 
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_intent_log_type
             ON intent_log(intent_type)
-        """
-        )
+        """)
 
         self._connection.commit()
 

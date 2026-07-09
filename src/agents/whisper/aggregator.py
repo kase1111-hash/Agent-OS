@@ -126,9 +126,7 @@ class ResponseAggregator:
 
     def _determine_strategy(self, flow_result: FlowResult) -> AggregationStrategy:
         """Determine best strategy based on flow using dispatch pattern."""
-        return self._ROUTING_TO_AGGREGATION.get(
-            flow_result.strategy_used, self.default_strategy
-        )
+        return self._ROUTING_TO_AGGREGATION.get(flow_result.strategy_used, self.default_strategy)
 
     def _first_success(self, results: List[AgentResult]) -> AggregatedResponse:
         """Use first successful response."""

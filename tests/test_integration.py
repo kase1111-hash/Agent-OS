@@ -5,18 +5,18 @@ These tests validate the kernel against the actual CONSTITUTION.md
 and agent constitutions in the repository.
 """
 
-import pytest
-from pathlib import Path
 import sys
+from pathlib import Path
+
+import pytest
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.core.parser import ConstitutionParser
-from src.core.validator import ConstitutionValidator
 from src.core.constitution import ConstitutionalKernel, RequestContext, create_kernel
 from src.core.models import AuthorityLevel, RuleType
-
+from src.core.parser import ConstitutionParser
+from src.core.validator import ConstitutionValidator
 
 # Get project root
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -152,8 +152,9 @@ class TestAgentConstitutions:
         for file_path in files:
             try:
                 constitution = parser.parse_file(file_path)
-                assert constitution.metadata.authority_level < AuthorityLevel.SUPREME, \
-                    f"{file_path} claims supreme authority"
+                assert (
+                    constitution.metadata.authority_level < AuthorityLevel.SUPREME
+                ), f"{file_path} claims supreme authority"
                 print(f"\n  Parsed: {file_path.relative_to(PROJECT_ROOT)}")
                 print(f"    Scope: {constitution.metadata.scope}")
                 print(f"    Rules: {constitution.rule_count}")
@@ -162,7 +163,7 @@ class TestAgentConstitutions:
 
     @pytest.mark.skipif(
         not CONSTITUTION_PATH.exists() or not AGENTS_DIR.exists(),
-        reason="Constitution files not found"
+        reason="Constitution files not found",
     )
     def test_validate_against_supreme(self, parser, validator):
         """Validate agent constitutions against supreme constitution."""
@@ -180,8 +181,7 @@ class TestAgentConstitutions:
                     print(f"  WARNING: {warning}")
 
             # Agent constitutions should be valid against supreme
-            assert result.is_valid, \
-                f"{file_path} violates supreme constitution: {result.errors}"
+            assert result.is_valid, f"{file_path} violates supreme constitution: {result.errors}"
 
 
 @pytest.mark.integration
@@ -295,9 +295,9 @@ class TestConstitutionStats:
         """Print statistics about CONSTITUTION.md."""
         constitution = parser.parse_file(CONSTITUTION_PATH)
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("CONSTITUTION.md Statistics")
-        print("="*60)
+        print("=" * 60)
         print(f"Version: {constitution.metadata.version}")
         print(f"Scope: {constitution.metadata.scope}")
         print(f"Authority: {constitution.metadata.authority_level.name}")
@@ -321,7 +321,7 @@ class TestConstitutionStats:
         for rule in constitution.get_rules_by_type(RuleType.PROHIBITION)[:3]:
             print(f"  - {rule.content[:70]}...")
 
-        print("="*60)
+        print("=" * 60)
 
 
 if __name__ == "__main__":

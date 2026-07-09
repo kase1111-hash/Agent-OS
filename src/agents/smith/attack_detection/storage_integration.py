@@ -382,9 +382,7 @@ class StorageIntegration:
             rec.application_result = result
             if self._storage.save_recommendation(rec):
                 # Also mark the attack as mitigated
-                self.mark_attack_mitigated(
-                    rec.attack_id, recommendation_id, f"Applied: {result}"
-                )
+                self.mark_attack_mitigated(rec.attack_id, recommendation_id, f"Applied: {result}")
                 return True
         return False
 
@@ -464,7 +462,11 @@ class StorageIntegration:
             patch_id=patch.patch_id,
             recommendation_id=recommendation_id,
             file_path=str(patch.file_path),
-            patch_type=patch.patch_type.name if hasattr(patch.patch_type, "name") else str(patch.patch_type),
+            patch_type=(
+                patch.patch_type.name
+                if hasattr(patch.patch_type, "name")
+                else str(patch.patch_type)
+            ),
             description=patch.description,
             original_content=getattr(patch, "original_content", ""),
             patched_content=getattr(patch, "patched_content", ""),
@@ -717,7 +719,11 @@ class StorageIntegration:
             timestamp=siem_event.timestamp,
             source=siem_event.source,
             event_type=siem_event.event_type,
-            severity=siem_event.severity.value if hasattr(siem_event.severity, "value") else int(siem_event.severity),
+            severity=(
+                siem_event.severity.value
+                if hasattr(siem_event.severity, "value")
+                else int(siem_event.severity)
+            ),
             category=siem_event.category,
             description=siem_event.description,
             raw_data=siem_event.raw_data,

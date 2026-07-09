@@ -2,48 +2,49 @@
 Tests for Agent OS Seshat (Memory Agent)
 """
 
-import pytest
-import numpy as np
 from datetime import datetime, timedelta
 from unittest.mock import Mock, patch
 
-from src.agents.seshat.embeddings import (
-    EmbeddingResult,
-    EmbeddingBatch,
-    EmbeddingCache,
-    EmbeddingModel,
-    MockEmbeddingModel,
-    EmbeddingEngine,
-    create_embedding_engine,
-)
-from src.agents.seshat.vectorstore import (
-    VectorBackend,
-    VectorDocument,
-    SearchResult,
-    SearchQuery,
-    InMemoryVectorStore,
-    create_vector_store,
-)
-from src.agents.seshat.retrieval import (
-    ContextType,
-    MemoryEntry,
-    RetrievalResult,
-    RAGContext,
-    ConsentVerifier,
-    RetrievalPipeline,
-    HybridRetriever,
-)
+import numpy as np
+import pytest
+
 from src.agents.seshat.agent import (
-    SeshatConfig,
     SeshatAgent,
+    SeshatConfig,
     create_seshat_agent,
 )
-from src.messaging.models import create_request, MessageStatus
-
+from src.agents.seshat.embeddings import (
+    EmbeddingBatch,
+    EmbeddingCache,
+    EmbeddingEngine,
+    EmbeddingModel,
+    EmbeddingResult,
+    MockEmbeddingModel,
+    create_embedding_engine,
+)
+from src.agents.seshat.retrieval import (
+    ConsentVerifier,
+    ContextType,
+    HybridRetriever,
+    MemoryEntry,
+    RAGContext,
+    RetrievalPipeline,
+    RetrievalResult,
+)
+from src.agents.seshat.vectorstore import (
+    InMemoryVectorStore,
+    SearchQuery,
+    SearchResult,
+    VectorBackend,
+    VectorDocument,
+    create_vector_store,
+)
+from src.messaging.models import MessageStatus, create_request
 
 # =============================================================================
 # Embedding Tests
 # =============================================================================
+
 
 class TestEmbeddingCache:
     """Tests for embedding cache."""
@@ -108,7 +109,7 @@ class TestEmbeddingCache:
         cache.get("hash1")
         cache.get("nonexistent")
 
-        assert cache.hit_rate == pytest.approx(2/3, rel=0.01)
+        assert cache.hit_rate == pytest.approx(2 / 3, rel=0.01)
 
 
 class TestMockEmbeddingModel:
@@ -224,6 +225,7 @@ class TestEmbeddingEngine:
 # Vector Store Tests
 # =============================================================================
 
+
 class TestInMemoryVectorStore:
     """Tests for in-memory vector store."""
 
@@ -252,15 +254,15 @@ class TestInMemoryVectorStore:
     def test_search(self, store):
         """Test similarity search."""
         # Add documents
-        store.add(VectorDocument(
-            doc_id="doc1", content="first", embedding=np.array([1.0, 0.0, 0.0])
-        ))
-        store.add(VectorDocument(
-            doc_id="doc2", content="second", embedding=np.array([0.0, 1.0, 0.0])
-        ))
-        store.add(VectorDocument(
-            doc_id="doc3", content="third", embedding=np.array([0.9, 0.1, 0.0])
-        ))
+        store.add(
+            VectorDocument(doc_id="doc1", content="first", embedding=np.array([1.0, 0.0, 0.0]))
+        )
+        store.add(
+            VectorDocument(doc_id="doc2", content="second", embedding=np.array([0.0, 1.0, 0.0]))
+        )
+        store.add(
+            VectorDocument(doc_id="doc3", content="third", embedding=np.array([0.9, 0.1, 0.0]))
+        )
 
         # Search for similar to [1, 0, 0]
         query = SearchQuery(embedding=np.array([1.0, 0.0, 0.0]), top_k=2)
@@ -272,16 +274,22 @@ class TestInMemoryVectorStore:
 
     def test_search_with_consent_filter(self, store):
         """Test search with consent filtering."""
-        store.add(VectorDocument(
-            doc_id="doc1", content="first",
-            embedding=np.array([1.0, 0.0, 0.0]),
-            consent_id="consent_a"
-        ))
-        store.add(VectorDocument(
-            doc_id="doc2", content="second",
-            embedding=np.array([1.0, 0.0, 0.0]),
-            consent_id="consent_b"
-        ))
+        store.add(
+            VectorDocument(
+                doc_id="doc1",
+                content="first",
+                embedding=np.array([1.0, 0.0, 0.0]),
+                consent_id="consent_a",
+            )
+        )
+        store.add(
+            VectorDocument(
+                doc_id="doc2",
+                content="second",
+                embedding=np.array([1.0, 0.0, 0.0]),
+                consent_id="consent_b",
+            )
+        )
 
         # Search with consent filter
         query = SearchQuery(
@@ -295,9 +303,9 @@ class TestInMemoryVectorStore:
 
     def test_delete(self, store):
         """Test document deletion."""
-        store.add(VectorDocument(
-            doc_id="doc1", content="test", embedding=np.array([1.0, 0.0, 0.0])
-        ))
+        store.add(
+            VectorDocument(doc_id="doc1", content="test", embedding=np.array([1.0, 0.0, 0.0]))
+        )
 
         assert store.count() == 1
         store.delete("doc1")
@@ -305,21 +313,30 @@ class TestInMemoryVectorStore:
 
     def test_delete_by_consent(self, store):
         """Test deletion by consent ID."""
-        store.add(VectorDocument(
-            doc_id="doc1", content="one",
-            embedding=np.array([1.0, 0.0, 0.0]),
-            consent_id="consent_x"
-        ))
-        store.add(VectorDocument(
-            doc_id="doc2", content="two",
-            embedding=np.array([0.0, 1.0, 0.0]),
-            consent_id="consent_x"
-        ))
-        store.add(VectorDocument(
-            doc_id="doc3", content="three",
-            embedding=np.array([0.0, 0.0, 1.0]),
-            consent_id="consent_y"
-        ))
+        store.add(
+            VectorDocument(
+                doc_id="doc1",
+                content="one",
+                embedding=np.array([1.0, 0.0, 0.0]),
+                consent_id="consent_x",
+            )
+        )
+        store.add(
+            VectorDocument(
+                doc_id="doc2",
+                content="two",
+                embedding=np.array([0.0, 1.0, 0.0]),
+                consent_id="consent_x",
+            )
+        )
+        store.add(
+            VectorDocument(
+                doc_id="doc3",
+                content="three",
+                embedding=np.array([0.0, 0.0, 1.0]),
+                consent_id="consent_y",
+            )
+        )
 
         deleted = store.delete_by_consent("consent_x")
 
@@ -328,12 +345,12 @@ class TestInMemoryVectorStore:
 
     def test_clear(self, store):
         """Test clearing store."""
-        store.add(VectorDocument(
-            doc_id="doc1", content="test", embedding=np.array([1.0, 0.0, 0.0])
-        ))
-        store.add(VectorDocument(
-            doc_id="doc2", content="test2", embedding=np.array([0.0, 1.0, 0.0])
-        ))
+        store.add(
+            VectorDocument(doc_id="doc1", content="test", embedding=np.array([1.0, 0.0, 0.0]))
+        )
+        store.add(
+            VectorDocument(doc_id="doc2", content="test2", embedding=np.array([0.0, 1.0, 0.0]))
+        )
 
         store.clear()
         assert store.count() == 0
@@ -357,6 +374,7 @@ class TestCreateVectorStore:
 # =============================================================================
 # Retrieval Pipeline Tests
 # =============================================================================
+
 
 class TestConsentVerifier:
     """Tests for consent verifier."""
@@ -495,15 +513,9 @@ class TestHybridRetriever:
 
     def test_hybrid_retrieve(self, retriever):
         """Test hybrid retrieval."""
+        retriever._pipeline.store_memory("Python programming basics", ContextType.KNOWLEDGE, "test")
         retriever._pipeline.store_memory(
-            "Python programming basics",
-            ContextType.KNOWLEDGE,
-            "test"
-        )
-        retriever._pipeline.store_memory(
-            "Advanced Python techniques",
-            ContextType.KNOWLEDGE,
-            "test"
+            "Advanced Python techniques", ContextType.KNOWLEDGE, "test"
         )
 
         result = retriever.retrieve("Python programming", top_k=2)
@@ -514,6 +526,7 @@ class TestHybridRetriever:
 # =============================================================================
 # Seshat Agent Tests
 # =============================================================================
+
 
 class TestSeshatConfig:
     """Tests for Seshat configuration."""
@@ -528,11 +541,13 @@ class TestSeshatConfig:
 
     def test_from_dict(self):
         """Test creating config from dictionary."""
-        config = SeshatConfig.from_dict({
-            "embedding_model": "custom-model",
-            "vector_backend": "MEMORY",
-            "use_mock_embeddings": True,
-        })
+        config = SeshatConfig.from_dict(
+            {
+                "embedding_model": "custom-model",
+                "vector_backend": "MEMORY",
+                "use_mock_embeddings": True,
+            }
+        )
 
         assert config.embedding_model == "custom-model"
         assert config.use_mock_embeddings is True
@@ -736,6 +751,7 @@ class TestCreateSeshatAgent:
 # Integration Tests
 # =============================================================================
 
+
 class TestSeshatIntegration:
     """Integration tests for Seshat."""
 
@@ -779,8 +795,12 @@ class TestSeshatIntegration:
     def test_consent_based_deletion(self, agent):
         """Test right-to-forget functionality."""
         # Store with consent
-        agent.store_memory("User preference 1", ContextType.KNOWLEDGE, "user", consent_id="user_consent")
-        agent.store_memory("User preference 2", ContextType.KNOWLEDGE, "user", consent_id="user_consent")
+        agent.store_memory(
+            "User preference 1", ContextType.KNOWLEDGE, "user", consent_id="user_consent"
+        )
+        agent.store_memory(
+            "User preference 2", ContextType.KNOWLEDGE, "user", consent_id="user_consent"
+        )
 
         # Forget
         count = agent.forget_by_consent("user_consent")

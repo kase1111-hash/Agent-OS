@@ -179,7 +179,7 @@ class ConversationStore:
             logger.warning("Cannot decrypt content: encryption service unavailable")
             return content
         try:
-            return enc.decrypt(content[len(self._ENCRYPTED_PREFIX):])
+            return enc.decrypt(content[len(self._ENCRYPTED_PREFIX) :])
         except Exception as e:
             logger.warning("Failed to decrypt message content: %s", e)
             return content
@@ -219,8 +219,7 @@ class ConversationStore:
                 cursor = self._conn.cursor()
 
                 # Conversations table
-                cursor.execute(
-                    """
+                cursor.execute("""
                     CREATE TABLE IF NOT EXISTS conversations (
                         id TEXT PRIMARY KEY,
                         title TEXT NOT NULL,
@@ -230,12 +229,10 @@ class ConversationStore:
                         metadata_json TEXT,
                         archived INTEGER DEFAULT 0
                     )
-                """
-                )
+                """)
 
                 # Messages table
-                cursor.execute(
-                    """
+                cursor.execute("""
                     CREATE TABLE IF NOT EXISTS messages (
                         id TEXT PRIMARY KEY,
                         conversation_id TEXT NOT NULL,
@@ -247,39 +244,30 @@ class ConversationStore:
                         FOREIGN KEY (conversation_id) REFERENCES conversations(id)
                             ON DELETE CASCADE
                     )
-                """
-                )
+                """)
 
                 # Indexes
-                cursor.execute(
-                    """
+                cursor.execute("""
                     CREATE INDEX IF NOT EXISTS idx_messages_conversation
                     ON messages(conversation_id)
-                """
-                )
-                cursor.execute(
-                    """
+                """)
+                cursor.execute("""
                     CREATE INDEX IF NOT EXISTS idx_messages_timestamp
                     ON messages(timestamp)
-                """
-                )
-                cursor.execute(
-                    """
+                """)
+                cursor.execute("""
                     CREATE INDEX IF NOT EXISTS idx_conversations_updated
                     ON conversations(updated_at DESC)
-                """
-                )
+                """)
 
                 # Full-text search for messages (optional)
-                cursor.execute(
-                    """
+                cursor.execute("""
                     CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
                         content,
                         content=messages,
                         content_rowid=rowid
                     )
-                """
-                )
+                """)
 
                 self._conn.commit()
             except sqlite3.Error as e:
@@ -395,7 +383,9 @@ class ConversationStore:
 
         with self._lock:
             cursor = self._conn.cursor()
-            cursor.execute(f"UPDATE conversations SET {', '.join(updates)} WHERE id = ?", params)  # nosec B608 - column names are hardcoded
+            cursor.execute(
+                f"UPDATE conversations SET {', '.join(updates)} WHERE id = ?", params
+            )  # nosec B608 - column names are hardcoded
             self._conn.commit()
             return cursor.rowcount > 0
 
@@ -773,11 +763,9 @@ class ConversationStore:
             cursor.execute("SELECT COUNT(*) FROM messages")
             total_messages = cursor.fetchone()[0]
 
-            cursor.execute(
-                """
+            cursor.execute("""
                 SELECT MAX(updated_at) FROM conversations
-            """
-            )
+            """)
             last_activity = cursor.fetchone()[0]
 
             return {

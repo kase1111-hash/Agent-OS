@@ -82,7 +82,9 @@ class AuditReport:
 # Injection patterns — reused from seshat/retrieval.py (V2-2)
 INJECTION_PATTERNS: List[tuple] = [
     (
-        re.compile(r"ignore\s+(previous|prior|all)\s+(rules?|instructions?|prompts?)", re.IGNORECASE),
+        re.compile(
+            r"ignore\s+(previous|prior|all)\s+(rules?|instructions?|prompts?)", re.IGNORECASE
+        ),
         "ignore_instructions",
     ),
     (
@@ -155,15 +157,17 @@ class MemoryAuditor:
         # Check for injection patterns
         for pattern, name in INJECTION_PATTERNS:
             if pattern.search(text):
-                findings.append(AuditFinding(
-                    blob_id=blob_id,
-                    finding_type="injection",
-                    description=f"Prompt injection pattern detected: {name}",
-                    severity="high",
-                    pattern_name=name,
-                    source_agent=metadata.source_agent,
-                    source_trust_level=metadata.source_trust_level.name,
-                ))
+                findings.append(
+                    AuditFinding(
+                        blob_id=blob_id,
+                        finding_type="injection",
+                        description=f"Prompt injection pattern detected: {name}",
+                        severity="high",
+                        pattern_name=name,
+                        source_agent=metadata.source_agent,
+                        source_trust_level=metadata.source_trust_level.name,
+                    )
+                )
 
         # Check for secret fragments
         try:
@@ -172,18 +176,20 @@ class MemoryAuditor:
             scanner = get_secret_scanner()
             scan_result = scanner.scan(text)
             if scan_result.found_secrets:
-                findings.append(AuditFinding(
-                    blob_id=blob_id,
-                    finding_type="secret",
-                    description=(
-                        f"Credential fragment detected in stored memory: "
-                        f"{', '.join(scan_result.patterns_matched)}"
-                    ),
-                    severity="critical",
-                    pattern_name=",".join(scan_result.patterns_matched),
-                    source_agent=metadata.source_agent,
-                    source_trust_level=metadata.source_trust_level.name,
-                ))
+                findings.append(
+                    AuditFinding(
+                        blob_id=blob_id,
+                        finding_type="secret",
+                        description=(
+                            f"Credential fragment detected in stored memory: "
+                            f"{', '.join(scan_result.patterns_matched)}"
+                        ),
+                        severity="critical",
+                        pattern_name=",".join(scan_result.patterns_matched),
+                        source_agent=metadata.source_agent,
+                        source_trust_level=metadata.source_trust_level.name,
+                    )
+                )
         except ImportError:
             pass  # SecretScanner not available
 
@@ -206,9 +212,7 @@ class MemoryAuditor:
 
         for metadata in all_blobs:
             try:
-                content = self._storage.retrieve(
-                    metadata.blob_id, include_quarantined=True
-                )
+                content = self._storage.retrieve(metadata.blob_id, include_quarantined=True)
                 if content is None:
                     continue
 
@@ -225,8 +229,7 @@ class MemoryAuditor:
 
         if report.has_findings:
             logger.warning(
-                "Memory audit completed: %d blobs scanned, %d findings "
-                "(%d critical, %d high)",
+                "Memory audit completed: %d blobs scanned, %d findings " "(%d critical, %d high)",
                 report.blobs_scanned,
                 len(report.findings),
                 report.critical_count,
@@ -261,9 +264,7 @@ class MemoryAuditor:
 
         for metadata in recent_blobs:
             try:
-                content = self._storage.retrieve(
-                    metadata.blob_id, include_quarantined=True
-                )
+                content = self._storage.retrieve(metadata.blob_id, include_quarantined=True)
                 if content is None:
                     continue
 
@@ -300,9 +301,7 @@ class MemoryAuditor:
                     logger.error(f"Scheduled audit failed: {e}")
             logger.info("Memory auditor scheduler stopped")
 
-        self._scheduler_thread = threading.Thread(
-            target=_run, daemon=True, name="memory-auditor"
-        )
+        self._scheduler_thread = threading.Thread(target=_run, daemon=True, name="memory-auditor")
         self._scheduler_thread.start()
 
     def stop(self) -> None:

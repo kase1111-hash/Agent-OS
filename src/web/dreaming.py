@@ -90,11 +90,7 @@ class DreamingService:
             operation: Description of the operation
         """
         if self._can_update():
-            self._do_update(
-                message=f"Starting: {operation}",
-                phase="starting",
-                operation=operation
-            )
+            self._do_update(message=f"Starting: {operation}", phase="starting", operation=operation)
         else:
             # Store for potential later update
             self._pending_message = f"Starting: {operation}"
@@ -108,11 +104,7 @@ class DreamingService:
             operation: Description of the operation
         """
         if self._can_update():
-            self._do_update(
-                message=f"Running: {operation}",
-                phase="running",
-                operation=operation
-            )
+            self._do_update(message=f"Running: {operation}", phase="running", operation=operation)
         else:
             self._pending_message = f"Running: {operation}"
             self._pending_phase = "running"
@@ -126,9 +118,7 @@ class DreamingService:
         """
         if self._can_update():
             self._do_update(
-                message=f"Completed: {operation}",
-                phase="completed",
-                operation=operation
+                message=f"Completed: {operation}", phase="completed", operation=operation
             )
             self._completed_at = time.monotonic()
         else:
@@ -152,15 +142,15 @@ class DreamingService:
             # If we have pending updates and can update now, apply them
             if self._pending_message and self._can_update():
                 self._do_update(
-                    self._pending_message,
-                    self._pending_phase or "running",
-                    self._status.operation
+                    self._pending_message, self._pending_phase or "running", self._status.operation
                 )
 
             # Auto-return to idle after completion delay
-            if (self._status.phase == "completed" and
-                self._completed_at is not None and
-                (time.monotonic() - self._completed_at) >= self.IDLE_DELAY):
+            if (
+                self._status.phase == "completed"
+                and self._completed_at is not None
+                and (time.monotonic() - self._completed_at) >= self.IDLE_DELAY
+            ):
                 self._status.message = "Idle"
                 self._status.phase = "idle"
                 self._status.operation = None

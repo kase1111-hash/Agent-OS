@@ -31,7 +31,7 @@ Example usage:
 import asyncio
 import logging
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 if TYPE_CHECKING:
     from src.agents.smith.agent import SmithAgent
@@ -39,27 +39,28 @@ if TYPE_CHECKING:
 
 try:
     from .notifications import (
-        NotificationManager,
-        NotificationConfig,
         NotificationChannel,
+        NotificationConfig,
+        NotificationManager,
         NotificationPriority,
         SecurityAlert,
-        create_notification_manager,
         create_alert_from_attack,
         create_console_channel,
-        create_slack_channel,
         create_email_channel,
+        create_notification_manager,
         create_pagerduty_channel,
+        create_slack_channel,
         create_webhook_channel,
     )
+
     NOTIFICATIONS_AVAILABLE = True
 except ImportError:
     NOTIFICATIONS_AVAILABLE = False
 from .config import (
     AttackDetectionConfig,
     ConfigLoader,
-    load_config,
     SeverityLevel,
+    load_config,
 )
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,7 @@ def connect_boundary_to_smith(
     Returns:
         A cleanup function to disconnect
     """
+
     def event_handler(event_type: str, event_data: Dict[str, Any]) -> None:
         """Handle boundary daemon events."""
         # Route to appropriate Smith method based on event type
@@ -202,13 +204,23 @@ class AttackDetectionPipeline:
                 # Create alert from attack
                 alert = create_alert_from_attack(
                     attack_id=attack.attack_id,
-                    attack_type=attack.attack_type.name if hasattr(attack.attack_type, 'name') else str(attack.attack_type),
-                    severity=attack.severity.name if hasattr(attack.severity, 'name') else str(attack.severity),
+                    attack_type=(
+                        attack.attack_type.name
+                        if hasattr(attack.attack_type, "name")
+                        else str(attack.attack_type)
+                    ),
+                    severity=(
+                        attack.severity.name
+                        if hasattr(attack.severity, "name")
+                        else str(attack.severity)
+                    ),
                     description=attack.description,
-                    source=attack.source if hasattr(attack, 'source') else None,
-                    target=attack.target if hasattr(attack, 'target') else None,
-                    indicators=attack.indicators if hasattr(attack, 'indicators') else [],
-                    mitre_tactics=attack.mitre_techniques if hasattr(attack, 'mitre_techniques') else [],
+                    source=attack.source if hasattr(attack, "source") else None,
+                    target=attack.target if hasattr(attack, "target") else None,
+                    indicators=attack.indicators if hasattr(attack, "indicators") else [],
+                    mitre_tactics=(
+                        attack.mitre_techniques if hasattr(attack, "mitre_techniques") else []
+                    ),
                     recommendations=[],
                 )
 
@@ -249,7 +261,9 @@ class AttackDetectionPipeline:
             "running": self._running,
             "smith_status": self.smith.get_attack_detection_status(),
             "daemon_connected": self.daemon is not None and self._disconnect_fn is not None,
-            "notification_channels": self.notification_manager.get_channel_status() if self.notification_manager else {},
+            "notification_channels": (
+                self.notification_manager.get_channel_status() if self.notification_manager else {}
+            ),
         }
 
         if self.daemon:
@@ -343,9 +357,10 @@ def create_attack_alert_handler(
     Returns:
         Callback function for attack events
     """
+
     def handler(attack: Any) -> None:
         """Handle attack alerts."""
-        severity = attack.severity.value if hasattr(attack.severity, 'value') else attack.severity
+        severity = attack.severity.value if hasattr(attack.severity, "value") else attack.severity
 
         # Log the attack
         logger.warning(
@@ -358,22 +373,26 @@ def create_attack_alert_handler(
         if log_to_file:
             try:
                 import json
+
                 with open(log_to_file, "a") as f:
-                    f.write(json.dumps({
-                        "timestamp": datetime.now().isoformat(),
-                        "attack_id": attack.attack_id,
-                        "type": attack.attack_type.name,
-                        "severity": attack.severity.name,
-                        "description": attack.description,
-                    }) + "\n")
+                    f.write(
+                        json.dumps(
+                            {
+                                "timestamp": datetime.now().isoformat(),
+                                "attack_id": attack.attack_id,
+                                "type": attack.attack_type.name,
+                                "severity": attack.severity.name,
+                                "description": attack.description,
+                            }
+                        )
+                        + "\n"
+                    )
             except Exception as e:
                 logger.error(f"Failed to log attack to file: {e}")
 
         # Check if lockdown should be recommended
         if severity >= trigger_lockdown_severity:
-            logger.critical(
-                f"LOCKDOWN RECOMMENDED for attack {attack.attack_id}"
-            )
+            logger.critical(f"LOCKDOWN RECOMMENDED for attack {attack.attack_id}")
 
     return handler
 
@@ -445,7 +464,9 @@ def setup_pipeline_from_config(
                     SeverityLevel.CRITICAL: NotificationPriority.URGENT,
                     SeverityLevel.CATASTROPHIC: NotificationPriority.CRITICAL,
                 }
-                min_severity = severity_map.get(channel_cfg.min_severity, NotificationPriority.MEDIUM)
+                min_severity = severity_map.get(
+                    channel_cfg.min_severity, NotificationPriority.MEDIUM
+                )
 
                 if channel_cfg.type == NotificationChannelType.SLACK:
                     if channel_cfg.webhook_url:
@@ -458,7 +479,11 @@ def setup_pipeline_from_config(
                         notification_manager.add_channel(name, channel)
 
                 elif channel_cfg.type == NotificationChannelType.EMAIL:
-                    if channel_cfg.smtp_host and channel_cfg.from_address and channel_cfg.to_addresses:
+                    if (
+                        channel_cfg.smtp_host
+                        and channel_cfg.from_address
+                        and channel_cfg.to_addresses
+                    ):
                         name, channel = create_email_channel(
                             name=channel_cfg.name,
                             smtp_host=channel_cfg.smtp_host,
@@ -498,7 +523,9 @@ def setup_pipeline_from_config(
                     )
                     notification_manager.add_channel(name, channel)
 
-                logger.info(f"Configured notification channel: {channel_cfg.name} ({channel_cfg.type.value})")
+                logger.info(
+                    f"Configured notification channel: {channel_cfg.name} ({channel_cfg.type.value})"
+                )
 
             except Exception as e:
                 logger.error(f"Failed to configure notification channel {channel_cfg.name}: {e}")
@@ -516,7 +543,9 @@ def setup_pipeline_from_config(
     if auto_start:
         pipeline.start()
 
-    logger.info(f"Attack detection pipeline configured from {'file' if config_path else 'defaults'}")
+    logger.info(
+        f"Attack detection pipeline configured from {'file' if config_path else 'defaults'}"
+    )
 
     return pipeline
 

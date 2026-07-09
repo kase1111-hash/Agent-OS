@@ -47,7 +47,9 @@ def _safe_tar_extract(tar: tarfile.TarFile, path: Path) -> None:
             # Resolve the link target
             link_target = Path(member.linkname)
             if link_target.is_absolute() or ".." in link_target.parts:
-                logger.warning(f"Skipping dangerous symlink in tar: {member.name} -> {member.linkname}")
+                logger.warning(
+                    f"Skipping dangerous symlink in tar: {member.name} -> {member.linkname}"
+                )
                 continue
 
         # Safe to extract

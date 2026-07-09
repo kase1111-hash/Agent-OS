@@ -29,11 +29,11 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from .analyzer import (
+    CodeLocation,
+    RiskLevel,
     VulnerabilityFinding,
     VulnerabilityReport,
     VulnerabilityType,
-    CodeLocation,
-    RiskLevel,
 )
 from .detector import AttackEvent, AttackType
 
@@ -404,7 +404,7 @@ class PatchGenerator:
             finding.vulnerability_type,
             f"### Amendment: Security Enhancement\n"
             f"Additional security measures required for: {finding.title}\n"
-            f"Generated in response to attack: {attack.attack_id}\n"
+            f"Generated in response to attack: {attack.attack_id}\n",
         )
 
 
@@ -491,18 +491,13 @@ class RemediationEngine:
 
         # Estimate risk reduction
         if report.risk_score > 0:
-            plan.estimated_risk_reduction = min(
-                0.8,
-                len(plan.patches) * 0.15
-            )
+            plan.estimated_risk_reduction = min(0.8, len(plan.patches) * 0.15)
 
         # Store plan
         with self._lock:
             self._plans[plan_id] = plan
 
-        logger.info(
-            f"Generated remediation plan {plan_id} with {len(plan.patches)} patches"
-        )
+        logger.info(f"Generated remediation plan {plan_id} with {len(plan.patches)} patches")
 
         return plan
 
@@ -526,8 +521,8 @@ class RemediationEngine:
         patch.status = PatchStatus.TESTING
 
         # Create temporary directory for testing
-        import tempfile
         import shutil
+        import tempfile
 
         with tempfile.TemporaryDirectory() as tmpdir:
             tmppath = Path(tmpdir)
@@ -547,14 +542,13 @@ class RemediationEngine:
 
                 # Add new files
                 for file_path, content in patch.new_files.items():
-                    target = test_codebase / Path(file_path).relative_to(
-                        self.codebase_root
-                    )
+                    target = test_codebase / Path(file_path).relative_to(self.codebase_root)
                     target.parent.mkdir(parents=True, exist_ok=True)
                     target.write_text(content)
 
                 # Run tests
                 import time
+
                 start = time.time()
 
                 result = subprocess.run(
@@ -611,9 +605,7 @@ class RemediationEngine:
         patch.test_result = test_result
         patch.status = PatchStatus.TEST_PASSED if test_result.passed else PatchStatus.TEST_FAILED
 
-        logger.info(
-            f"Patch {patch_id} test {'PASSED' if test_result.passed else 'FAILED'}"
-        )
+        logger.info(f"Patch {patch_id} test {'PASSED' if test_result.passed else 'FAILED'}")
 
         return test_result
 
@@ -698,7 +690,10 @@ class RemediationEngine:
         # Safety checks
         if not force:
             if patch.status not in [PatchStatus.APPROVED, PatchStatus.TEST_PASSED]:
-                return False, f"Patch must be approved or tested. Current status: {patch.status.name}"
+                return (
+                    False,
+                    f"Patch must be approved or tested. Current status: {patch.status.name}",
+                )
 
             if not self.allow_auto_apply:
                 return False, "Automatic patch application is disabled"
@@ -759,11 +754,7 @@ class RemediationEngine:
 
     def list_plans(self) -> List[RemediationPlan]:
         """List all remediation plans."""
-        return sorted(
-            self._plans.values(),
-            key=lambda p: p.created_at,
-            reverse=True
-        )
+        return sorted(self._plans.values(), key=lambda p: p.created_at, reverse=True)
 
     def _generate_patch_for_finding(
         self,
@@ -875,7 +866,9 @@ class RemediationEngine:
         """Generate a summary for the remediation plan."""
         code_fixes = len([p for p in plan.patches if p.patch_type == PatchType.CODE_FIX])
         pattern_updates = len([p for p in plan.patches if p.patch_type == PatchType.PATTERN_UPDATE])
-        const_amendments = len([p for p in plan.patches if p.patch_type == PatchType.CONSTITUTIONAL_AMENDMENT])
+        const_amendments = len(
+            [p for p in plan.patches if p.patch_type == PatchType.CONSTITUTIONAL_AMENDMENT]
+        )
 
         summary = f"Remediation plan for {report.attack_type.name} attack. "
         summary += f"Contains {len(plan.patches)} patch(es): "

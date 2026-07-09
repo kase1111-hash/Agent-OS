@@ -70,8 +70,7 @@ class MigrationRunner:
 
     def _init_migrations_table(self) -> None:
         """Create the migrations tracking table if needed."""
-        self._connection.execute(
-            f"""
+        self._connection.execute(f"""
             CREATE TABLE IF NOT EXISTS {self.MIGRATIONS_TABLE} (
                 version TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -81,8 +80,7 @@ class MigrationRunner:
                 execution_time_ms REAL NOT NULL,
                 error_message TEXT
             )
-        """
-        )
+        """)
         self._connection.commit()
 
     def discover_migrations(self) -> Dict[str, Type[Migration]]:
@@ -129,13 +127,11 @@ class MigrationRunner:
     def get_applied_migrations(self) -> List[MigrationRecord]:
         """Get list of all applied migrations."""
         conn = self._get_connection()
-        cursor = conn.execute(
-            f"""
+        cursor = conn.execute(f"""
             SELECT * FROM {self.MIGRATIONS_TABLE}
             WHERE success = 1
             ORDER BY version
-        """
-        )
+        """)
         return [
             MigrationRecord(
                 version=row["version"],

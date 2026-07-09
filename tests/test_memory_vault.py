@@ -13,44 +13,18 @@ Covers:
 """
 
 import os
-import tempfile
-import pytest
 import shutil
+import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from src.memory.profiles import (
-    EncryptionTier,
-    EncryptionProfile,
-    KeyDerivation,
-    KeyBinding,
-    ProfileManager,
-    WORKING_PROFILE,
-    PRIVATE_PROFILE,
-    SEALED_PROFILE,
-    VAULTED_PROFILE,
-)
-from src.memory.keys import (
-    KeyManager,
-    KeyStatus,
-    DerivedKey,
-)
-from src.memory.storage import (
-    BlobStorage,
-    BlobMetadata,
-    BlobType,
-    BlobStatus,
-)
-from src.memory.index import (
-    VaultIndex,
-    ConsentRecord,
-    AccessType,
-)
+import pytest
+
 from src.memory.consent import (
     ConsentManager,
     ConsentOperation,
-    ConsentStatus,
     ConsentPolicy,
+    ConsentStatus,
 )
 from src.memory.deletion import (
     DeletionManager,
@@ -61,10 +35,37 @@ from src.memory.genesis import (
     GenesisProofSystem,
     GenesisRecord,
 )
+from src.memory.index import (
+    AccessType,
+    ConsentRecord,
+    VaultIndex,
+)
+from src.memory.keys import (
+    DerivedKey,
+    KeyManager,
+    KeyStatus,
+)
+from src.memory.profiles import (
+    PRIVATE_PROFILE,
+    SEALED_PROFILE,
+    VAULTED_PROFILE,
+    WORKING_PROFILE,
+    EncryptionProfile,
+    EncryptionTier,
+    KeyBinding,
+    KeyDerivation,
+    ProfileManager,
+)
+from src.memory.storage import (
+    BlobMetadata,
+    BlobStatus,
+    BlobStorage,
+    BlobType,
+)
 from src.memory.vault import (
     MemoryVault,
-    VaultConfig,
     StoreResult,
+    VaultConfig,
     create_vault,
 )
 
@@ -137,6 +138,7 @@ def memory_vault(temp_dir):
 # Profile Tests
 # ============================================================================
 
+
 class TestEncryptionProfiles:
     """Tests for encryption profiles."""
 
@@ -205,6 +207,7 @@ class TestEncryptionProfiles:
 # ============================================================================
 # Key Manager Tests
 # ============================================================================
+
 
 class TestKeyManager:
     """Tests for key management."""
@@ -301,6 +304,7 @@ class TestKeyManager:
 # Blob Storage Tests
 # ============================================================================
 
+
 class TestBlobStorage:
     """Tests for encrypted blob storage."""
 
@@ -340,6 +344,7 @@ class TestBlobStorage:
         metadata = blob_storage.store(data, EncryptionTier.PRIVATE)
 
         import hashlib
+
         expected_hash = hashlib.sha256(data).hexdigest()
         assert metadata.content_hash == expected_hash
 
@@ -413,6 +418,7 @@ class TestBlobStorage:
 # Index Tests
 # ============================================================================
 
+
 class TestVaultIndex:
     """Tests for vault index database."""
 
@@ -438,29 +444,33 @@ class TestVaultIndex:
     def test_query_blobs_by_tier(self, vault_index):
         """Test querying blobs by tier."""
         for i in range(3):
-            vault_index.index_blob(BlobMetadata(
-                blob_id=f"private_{i}",
-                key_id=f"key_{i}",
-                tier=EncryptionTier.PRIVATE,
-                blob_type=BlobType.TEXT,
+            vault_index.index_blob(
+                BlobMetadata(
+                    blob_id=f"private_{i}",
+                    key_id=f"key_{i}",
+                    tier=EncryptionTier.PRIVATE,
+                    blob_type=BlobType.TEXT,
+                    size_bytes=100,
+                    encrypted_size=120,
+                    content_hash=f"hash_{i}",
+                    created_at=datetime.now(),
+                    modified_at=datetime.now(),
+                )
+            )
+
+        vault_index.index_blob(
+            BlobMetadata(
+                blob_id="sealed_0",
+                key_id="key_s0",
+                tier=EncryptionTier.SEALED,
+                blob_type=BlobType.BINARY,
                 size_bytes=100,
                 encrypted_size=120,
-                content_hash=f"hash_{i}",
+                content_hash="hash_s0",
                 created_at=datetime.now(),
                 modified_at=datetime.now(),
-            ))
-
-        vault_index.index_blob(BlobMetadata(
-            blob_id="sealed_0",
-            key_id="key_s0",
-            tier=EncryptionTier.SEALED,
-            blob_type=BlobType.BINARY,
-            size_bytes=100,
-            encrypted_size=120,
-            content_hash="hash_s0",
-            created_at=datetime.now(),
-            modified_at=datetime.now(),
-        ))
+            )
+        )
 
         private_blobs = vault_index.query_blobs(tier=EncryptionTier.PRIVATE)
         assert len(private_blobs) == 3
@@ -520,17 +530,19 @@ class TestVaultIndex:
     def test_statistics(self, vault_index):
         """Test statistics gathering."""
         for i in range(5):
-            vault_index.index_blob(BlobMetadata(
-                blob_id=f"stat_blob_{i}",
-                key_id=f"key_{i}",
-                tier=EncryptionTier.PRIVATE,
-                blob_type=BlobType.TEXT,
-                size_bytes=100,
-                encrypted_size=120,
-                content_hash=f"hash_{i}",
-                created_at=datetime.now(),
-                modified_at=datetime.now(),
-            ))
+            vault_index.index_blob(
+                BlobMetadata(
+                    blob_id=f"stat_blob_{i}",
+                    key_id=f"key_{i}",
+                    tier=EncryptionTier.PRIVATE,
+                    blob_type=BlobType.TEXT,
+                    size_bytes=100,
+                    encrypted_size=120,
+                    content_hash=f"hash_{i}",
+                    created_at=datetime.now(),
+                    modified_at=datetime.now(),
+                )
+            )
 
         stats = vault_index.get_statistics()
         assert stats["total_blobs"] >= 5
@@ -539,6 +551,7 @@ class TestVaultIndex:
 # ============================================================================
 # Consent Tests
 # ============================================================================
+
 
 class TestConsentManager:
     """Tests for consent management."""
@@ -585,10 +598,13 @@ class TestConsentManager:
             operations=[ConsentOperation.READ],
         )
 
-        assert consent_manager.revoke_consent(
-            consent.consent_id,
-            revoked_by="admin",
-        ) is True
+        assert (
+            consent_manager.revoke_consent(
+                consent.consent_id,
+                revoked_by="admin",
+            )
+            is True
+        )
 
         decision = consent_manager.verify_consent(
             consent_id=consent.consent_id,
@@ -614,6 +630,7 @@ class TestConsentManager:
 # ============================================================================
 # Deletion Tests
 # ============================================================================
+
 
 class TestDeletionManager:
     """Tests for deletion management."""
@@ -668,6 +685,7 @@ class TestDeletionManager:
 # ============================================================================
 # Genesis Proof Tests
 # ============================================================================
+
 
 class TestGenesisProofs:
     """Tests for genesis proof system."""
@@ -746,6 +764,7 @@ class TestGenesisProofs:
 # ============================================================================
 # Memory Vault Integration Tests
 # ============================================================================
+
 
 class TestMemoryVault:
     """Integration tests for Memory Vault."""
@@ -963,6 +982,7 @@ class TestMemoryVault:
 # ============================================================================
 # Security Tests
 # ============================================================================
+
 
 class TestVaultSecurity:
     """Security-focused tests."""

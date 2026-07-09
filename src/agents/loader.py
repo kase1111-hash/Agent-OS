@@ -347,9 +347,11 @@ class AgentLoader:
         """
         import os
 
-        allow_unsigned = os.getenv(
-            "AGENT_OS_ALLOW_UNSIGNED_AGENTS", "false"
-        ).lower() in ("1", "true", "yes")
+        allow_unsigned = os.getenv("AGENT_OS_ALLOW_UNSIGNED_AGENTS", "false").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
 
         try:
             # Find the module file
@@ -374,9 +376,11 @@ class AgentLoader:
         """
         import os
 
-        allow_unsigned = os.getenv(
-            "AGENT_OS_ALLOW_UNSIGNED_AGENTS", "false"
-        ).lower() in ("1", "true", "yes")
+        allow_unsigned = os.getenv("AGENT_OS_ALLOW_UNSIGNED_AGENTS", "false").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
 
         try:
             from src.agents.smith.instruction_integrity import InstructionIntegrityValidator

@@ -432,8 +432,7 @@ class UserStore:
                 return secret
         except Exception as e:
             logger.warning(
-                f"Failed to load/create persistent secret: {e}. "
-                "Using ephemeral session secret."
+                f"Failed to load/create persistent secret: {e}. " "Using ephemeral session secret."
             )
             return secrets.token_bytes(32)
 
@@ -451,6 +450,7 @@ class UserStore:
         # V6-1: Use configurable config directory
         try:
             from src.utils.paths import get_machine_salt_path
+
             salt_path = get_machine_salt_path()
         except ImportError:
             salt_path = Path.home() / ".agent-os" / ".machine_salt"
@@ -625,8 +625,7 @@ class UserStore:
         cursor = self._connection.cursor()
 
         # Users table
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 user_id TEXT PRIMARY KEY,
                 username TEXT UNIQUE NOT NULL,
@@ -641,12 +640,10 @@ class UserStore:
                 is_active INTEGER DEFAULT 1,
                 metadata_json TEXT
             )
-        """
-        )
+        """)
 
         # Sessions table
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS sessions (
                 session_id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -659,12 +656,10 @@ class UserStore:
                 is_active INTEGER DEFAULT 1,
                 FOREIGN KEY (user_id) REFERENCES users(user_id)
             )
-        """
-        )
+        """)
 
         # Scoped API keys table
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS api_keys (
                 key_id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -676,35 +671,24 @@ class UserStore:
                 is_active INTEGER DEFAULT 1,
                 FOREIGN KEY (user_id) REFERENCES users(user_id)
             )
-        """
-        )
+        """)
 
         # Indexes
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)
-        """
-        )
-        cursor.execute(
-            """
+        """)
+        cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)
-        """
-        )
-        cursor.execute(
-            """
+        """)
+        cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token)
-        """
-        )
-        cursor.execute(
-            """
+        """)
+        cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)
-        """
-        )
-        cursor.execute(
-            """
+        """)
+        cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash)
-        """
-        )
+        """)
 
         self._connection.commit()
 
@@ -952,7 +936,9 @@ class UserStore:
 
         with self._lock:
             cursor = self._connection.cursor()
-            cursor.execute(f"UPDATE users SET {', '.join(updates)} WHERE user_id = ?", params)  # nosec B608 - column names are hardcoded
+            cursor.execute(
+                f"UPDATE users SET {', '.join(updates)} WHERE user_id = ?", params
+            )  # nosec B608 - column names are hardcoded
             self._connection.commit()
             return cursor.rowcount > 0
 

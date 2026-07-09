@@ -2,16 +2,17 @@
 Tests for Agent OS Agent Configuration System
 """
 
-import pytest
 import os
 import tempfile
 from pathlib import Path
 
+import pytest
+
 from src.agents.config import (
     AgentConfig,
-    ModelConfig,
-    ConstitutionBinding,
     ConfigLoader,
+    ConstitutionBinding,
+    ModelConfig,
     create_default_config,
     generate_config_template,
 )

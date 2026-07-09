@@ -64,20 +64,24 @@ class RequirementsChecker:
         version_str = f"{version.major}.{version.minor}.{version.micro}"
 
         if version.major == 3 and version.minor >= 10:
-            self.add_result(CheckResult(
-                name="Python Version",
-                status=Status.PASS,
-                message=f"Python {version_str}",
-                details={"version": version_str, "path": sys.executable},
-            ))
+            self.add_result(
+                CheckResult(
+                    name="Python Version",
+                    status=Status.PASS,
+                    message=f"Python {version_str}",
+                    details={"version": version_str, "path": sys.executable},
+                )
+            )
         else:
-            self.add_result(CheckResult(
-                name="Python Version",
-                status=Status.FAIL,
-                message=f"Python {version_str} (requires 3.10+)",
-                details={"version": version_str},
-                fix_hint="Install Python 3.10 or newer from https://python.org",
-            ))
+            self.add_result(
+                CheckResult(
+                    name="Python Version",
+                    status=Status.FAIL,
+                    message=f"Python {version_str} (requires 3.10+)",
+                    details={"version": version_str},
+                    fix_hint="Install Python 3.10 or newer from https://python.org",
+                )
+            )
 
     def check_memory(self) -> None:
         """Check available system memory."""
@@ -94,27 +98,29 @@ class RequirementsChecker:
             else:
                 # macOS/Windows fallback
                 import ctypes
+
                 if platform.system() == "Darwin":
                     result = subprocess.run(
-                        ["sysctl", "-n", "hw.memsize"],
-                        capture_output=True, text=True
+                        ["sysctl", "-n", "hw.memsize"], capture_output=True, text=True
                     )
                     total_gb = int(result.stdout.strip()) / (1024**3)
                 elif platform.system() == "Windows":
                     kernel32 = ctypes.windll.kernel32
                     c_ulonglong = ctypes.c_ulonglong
+
                     class MEMORYSTATUSEX(ctypes.Structure):
                         _fields_ = [
-                            ('dwLength', ctypes.c_ulong),
-                            ('dwMemoryLoad', ctypes.c_ulong),
-                            ('ullTotalPhys', c_ulonglong),
-                            ('ullAvailPhys', c_ulonglong),
-                            ('ullTotalPageFile', c_ulonglong),
-                            ('ullAvailPageFile', c_ulonglong),
-                            ('ullTotalVirtual', c_ulonglong),
-                            ('ullAvailVirtual', c_ulonglong),
-                            ('ullAvailExtendedVirtual', c_ulonglong),
+                            ("dwLength", ctypes.c_ulong),
+                            ("dwMemoryLoad", ctypes.c_ulong),
+                            ("ullTotalPhys", c_ulonglong),
+                            ("ullAvailPhys", c_ulonglong),
+                            ("ullTotalPageFile", c_ulonglong),
+                            ("ullAvailPageFile", c_ulonglong),
+                            ("ullTotalVirtual", c_ulonglong),
+                            ("ullAvailVirtual", c_ulonglong),
+                            ("ullAvailExtendedVirtual", c_ulonglong),
                         ]
+
                     stat = MEMORYSTATUSEX()
                     stat.dwLength = ctypes.sizeof(stat)
                     kernel32.GlobalMemoryStatusEx(ctypes.byref(stat))
@@ -135,19 +141,27 @@ class RequirementsChecker:
                 status = Status.FAIL
                 message = f"{total_gb:.1f} GB (insufficient, 8GB minimum)"
 
-            self.add_result(CheckResult(
-                name="System Memory",
-                status=status,
-                message=message,
-                details={"total_gb": round(total_gb, 2)},
-                fix_hint="Agent OS requires at least 8GB RAM, 16GB recommended" if status != Status.PASS else None,
-            ))
+            self.add_result(
+                CheckResult(
+                    name="System Memory",
+                    status=status,
+                    message=message,
+                    details={"total_gb": round(total_gb, 2)},
+                    fix_hint=(
+                        "Agent OS requires at least 8GB RAM, 16GB recommended"
+                        if status != Status.PASS
+                        else None
+                    ),
+                )
+            )
         except Exception as e:
-            self.add_result(CheckResult(
-                name="System Memory",
-                status=Status.SKIP,
-                message=f"Could not determine: {e}",
-            ))
+            self.add_result(
+                CheckResult(
+                    name="System Memory",
+                    status=Status.SKIP,
+                    message=f"Could not determine: {e}",
+                )
+            )
 
     def check_disk_space(self) -> None:
         """Check available disk space."""
@@ -165,19 +179,27 @@ class RequirementsChecker:
                 status = Status.FAIL
                 message = f"{free_gb:.1f} GB free (insufficient)"
 
-            self.add_result(CheckResult(
-                name="Disk Space",
-                status=status,
-                message=message,
-                details={"free_gb": round(free_gb, 2), "total_gb": round(total / (1024**3), 2)},
-                fix_hint="Agent OS requires at least 20GB free disk space" if status == Status.FAIL else None,
-            ))
+            self.add_result(
+                CheckResult(
+                    name="Disk Space",
+                    status=status,
+                    message=message,
+                    details={"free_gb": round(free_gb, 2), "total_gb": round(total / (1024**3), 2)},
+                    fix_hint=(
+                        "Agent OS requires at least 20GB free disk space"
+                        if status == Status.FAIL
+                        else None
+                    ),
+                )
+            )
         except Exception as e:
-            self.add_result(CheckResult(
-                name="Disk Space",
-                status=Status.SKIP,
-                message=f"Could not determine: {e}",
-            ))
+            self.add_result(
+                CheckResult(
+                    name="Disk Space",
+                    status=Status.SKIP,
+                    message=f"Could not determine: {e}",
+                )
+            )
 
     def check_gpu(self) -> None:
         """Check for GPU availability."""
@@ -185,16 +207,19 @@ class RequirementsChecker:
             # Check for NVIDIA GPU
             result = subprocess.run(
                 ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"],
-                capture_output=True, text=True
+                capture_output=True,
+                text=True,
             )
             if result.returncode == 0 and result.stdout.strip():
                 gpu_info = result.stdout.strip().split("\n")[0]
-                self.add_result(CheckResult(
-                    name="GPU",
-                    status=Status.PASS,
-                    message=f"NVIDIA: {gpu_info}",
-                    details={"type": "nvidia", "info": gpu_info},
-                ))
+                self.add_result(
+                    CheckResult(
+                        name="GPU",
+                        status=Status.PASS,
+                        message=f"NVIDIA: {gpu_info}",
+                        details={"type": "nvidia", "info": gpu_info},
+                    )
+                )
                 return
         except FileNotFoundError:
             pass
@@ -202,142 +227,170 @@ class RequirementsChecker:
         # Check for CUDA via PyTorch
         try:
             import torch
+
             if torch.cuda.is_available():
                 gpu_name = torch.cuda.get_device_name(0)
-                self.add_result(CheckResult(
-                    name="GPU",
-                    status=Status.PASS,
-                    message=f"CUDA available: {gpu_name}",
-                    details={"type": "cuda", "name": gpu_name},
-                ))
+                self.add_result(
+                    CheckResult(
+                        name="GPU",
+                        status=Status.PASS,
+                        message=f"CUDA available: {gpu_name}",
+                        details={"type": "cuda", "name": gpu_name},
+                    )
+                )
                 return
         except ImportError:
             pass
 
         # Check for Apple Silicon
         if platform.system() == "Darwin" and platform.processor() == "arm":
-            self.add_result(CheckResult(
-                name="GPU",
-                status=Status.PASS,
-                message="Apple Silicon (Metal acceleration available)",
-                details={"type": "apple_silicon"},
-            ))
+            self.add_result(
+                CheckResult(
+                    name="GPU",
+                    status=Status.PASS,
+                    message="Apple Silicon (Metal acceleration available)",
+                    details={"type": "apple_silicon"},
+                )
+            )
             return
 
-        self.add_result(CheckResult(
-            name="GPU",
-            status=Status.WARN,
-            message="No GPU detected (CPU inference will be slower)",
-            fix_hint="GPU is optional but recommended for better performance",
-        ))
+        self.add_result(
+            CheckResult(
+                name="GPU",
+                status=Status.WARN,
+                message="No GPU detected (CPU inference will be slower)",
+                fix_hint="GPU is optional but recommended for better performance",
+            )
+        )
 
     def check_ollama(self) -> None:
         """Check if Ollama is installed and running."""
         # Check if installed
         ollama_path = shutil.which("ollama")
         if not ollama_path:
-            self.add_result(CheckResult(
-                name="Ollama",
-                status=Status.FAIL,
-                message="Not installed",
-                fix_hint="Install Ollama from https://ollama.com",
-            ))
+            self.add_result(
+                CheckResult(
+                    name="Ollama",
+                    status=Status.FAIL,
+                    message="Not installed",
+                    fix_hint="Install Ollama from https://ollama.com",
+                )
+            )
             return
 
         # Check if running
         try:
             import urllib.request
+
             req = urllib.request.Request("http://localhost:11434/api/tags", method="GET")
             with urllib.request.urlopen(req, timeout=5) as resp:
                 data = json.loads(resp.read().decode())
                 models = [m["name"] for m in data.get("models", [])]
 
             if models:
-                self.add_result(CheckResult(
-                    name="Ollama",
-                    status=Status.PASS,
-                    message=f"Running with {len(models)} model(s): {', '.join(models[:3])}",
-                    details={"models": models},
-                ))
+                self.add_result(
+                    CheckResult(
+                        name="Ollama",
+                        status=Status.PASS,
+                        message=f"Running with {len(models)} model(s): {', '.join(models[:3])}",
+                        details={"models": models},
+                    )
+                )
             else:
-                self.add_result(CheckResult(
+                self.add_result(
+                    CheckResult(
+                        name="Ollama",
+                        status=Status.WARN,
+                        message="Running but no models installed",
+                        fix_hint="Run: ollama pull mistral",
+                    )
+                )
+        except Exception:
+            self.add_result(
+                CheckResult(
                     name="Ollama",
                     status=Status.WARN,
-                    message="Running but no models installed",
-                    fix_hint="Run: ollama pull mistral",
-                ))
-        except Exception:
-            self.add_result(CheckResult(
-                name="Ollama",
-                status=Status.WARN,
-                message="Installed but not running",
-                details={"path": ollama_path},
-                fix_hint="Start Ollama with: ollama serve",
-            ))
+                    message="Installed but not running",
+                    details={"path": ollama_path},
+                    fix_hint="Start Ollama with: ollama serve",
+                )
+            )
 
     def check_docker(self) -> None:
         """Check if Docker is available."""
         docker_path = shutil.which("docker")
         if not docker_path:
-            self.add_result(CheckResult(
-                name="Docker",
-                status=Status.SKIP,
-                message="Not installed (optional)",
-            ))
+            self.add_result(
+                CheckResult(
+                    name="Docker",
+                    status=Status.SKIP,
+                    message="Not installed (optional)",
+                )
+            )
             return
 
         try:
-            result = subprocess.run(
-                ["docker", "info"],
-                capture_output=True, text=True, timeout=10
-            )
+            result = subprocess.run(["docker", "info"], capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
-                self.add_result(CheckResult(
-                    name="Docker",
-                    status=Status.PASS,
-                    message="Installed and running",
-                ))
+                self.add_result(
+                    CheckResult(
+                        name="Docker",
+                        status=Status.PASS,
+                        message="Installed and running",
+                    )
+                )
             else:
-                self.add_result(CheckResult(
+                self.add_result(
+                    CheckResult(
+                        name="Docker",
+                        status=Status.WARN,
+                        message="Installed but not running",
+                        fix_hint="Start Docker daemon",
+                    )
+                )
+        except subprocess.TimeoutExpired:
+            self.add_result(
+                CheckResult(
                     name="Docker",
                     status=Status.WARN,
-                    message="Installed but not running",
-                    fix_hint="Start Docker daemon",
-                ))
-        except subprocess.TimeoutExpired:
-            self.add_result(CheckResult(
-                name="Docker",
-                status=Status.WARN,
-                message="Installed but not responding",
-            ))
+                    message="Installed but not responding",
+                )
+            )
 
     def check_redis(self) -> None:
         """Check if Redis is available."""
         try:
             import socket
+
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(2)
             result = sock.connect_ex(("localhost", 6379))
             sock.close()
 
             if result == 0:
-                self.add_result(CheckResult(
-                    name="Redis",
-                    status=Status.PASS,
-                    message="Running on localhost:6379",
-                ))
+                self.add_result(
+                    CheckResult(
+                        name="Redis",
+                        status=Status.PASS,
+                        message="Running on localhost:6379",
+                    )
+                )
             else:
-                self.add_result(CheckResult(
+                self.add_result(
+                    CheckResult(
+                        name="Redis",
+                        status=Status.SKIP,
+                        message="Not running (optional, will use in-memory rate limiting)",
+                    )
+                )
+        except Exception:
+            self.add_result(
+                CheckResult(
                     name="Redis",
                     status=Status.SKIP,
-                    message="Not running (optional, will use in-memory rate limiting)",
-                ))
-        except Exception:
-            self.add_result(CheckResult(
-                name="Redis",
-                status=Status.SKIP,
-                message="Not detected (optional)",
-            ))
+                    message="Not detected (optional)",
+                )
+            )
 
     def check_python_packages(self) -> None:
         """Check critical Python packages."""
@@ -346,6 +399,8 @@ class RequirementsChecker:
             "uvicorn": "ASGI server",
             "pydantic": "Data validation",
             "cryptography": "Encryption",
+            "yaml": "Constitution parsing",
+            "numpy": "Seshat memory agent vector math",
         }
 
         missing = []
@@ -359,38 +414,47 @@ class RequirementsChecker:
                 missing.append(package)
 
         if not missing:
-            self.add_result(CheckResult(
-                name="Python Packages",
-                status=Status.PASS,
-                message=f"All {len(installed)} critical packages installed",
-                details={"installed": installed},
-            ))
+            self.add_result(
+                CheckResult(
+                    name="Python Packages",
+                    status=Status.PASS,
+                    message=f"All {len(installed)} critical packages installed",
+                    details={"installed": installed},
+                )
+            )
         else:
-            self.add_result(CheckResult(
-                name="Python Packages",
-                status=Status.FAIL,
-                message=f"Missing: {', '.join(missing)}",
-                details={"missing": missing, "installed": installed},
-                fix_hint="Run: pip install -r requirements.txt",
-            ))
+            self.add_result(
+                CheckResult(
+                    name="Python Packages",
+                    status=Status.FAIL,
+                    message=f"Missing: {', '.join(missing)}",
+                    details={"missing": missing, "installed": installed},
+                    fix_hint="Run: pip install -r requirements.txt",
+                )
+            )
 
     def check_network(self) -> None:
         """Check network connectivity."""
         try:
             import urllib.request
+
             req = urllib.request.Request("https://www.google.com", method="HEAD")
             with urllib.request.urlopen(req, timeout=5):
-                self.add_result(CheckResult(
-                    name="Network",
-                    status=Status.PASS,
-                    message="Internet connectivity available",
-                ))
+                self.add_result(
+                    CheckResult(
+                        name="Network",
+                        status=Status.PASS,
+                        message="Internet connectivity available",
+                    )
+                )
         except Exception:
-            self.add_result(CheckResult(
-                name="Network",
-                status=Status.WARN,
-                message="No internet (may affect model downloads)",
-            ))
+            self.add_result(
+                CheckResult(
+                    name="Network",
+                    status=Status.WARN,
+                    message="No internet (may affect model downloads)",
+                )
+            )
 
     def run_all_checks(self) -> None:
         """Run all requirement checks."""
@@ -477,19 +541,11 @@ class RequirementsChecker:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Check system requirements for Agent OS"
-    )
+    parser = argparse.ArgumentParser(description="Check system requirements for Agent OS")
     parser.add_argument(
-        "-v", "--verbose",
-        action="store_true",
-        help="Show detailed output during checks"
+        "-v", "--verbose", action="store_true", help="Show detailed output during checks"
     )
-    parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Output results as JSON"
-    )
+    parser.add_argument("--json", action="store_true", help="Output results as JSON")
     args = parser.parse_args()
 
     checker = RequirementsChecker(verbose=args.verbose or not args.json)

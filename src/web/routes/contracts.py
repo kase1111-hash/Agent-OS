@@ -692,7 +692,9 @@ async def get_templates(
 
 
 @router.get("/templates/{template_id}", response_model=ContractTemplateModel)
-async def get_template_by_id(template_id: str, user_id: str = Depends(require_authenticated_user)) -> ContractTemplateModel:
+async def get_template_by_id(
+    template_id: str, user_id: str = Depends(require_authenticated_user)
+) -> ContractTemplateModel:
     """Get a specific template by ID."""
     store = get_store()
     template = store.get_template(template_id)

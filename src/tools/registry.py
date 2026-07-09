@@ -173,9 +173,7 @@ class ToolRegistry:
         # V6-4: Verify manifest signature if provided
         if manifest is not None:
             if not manifest.verify_signature():
-                raise ValueError(
-                    f"Manifest signature verification failed for tool '{tool.name}'"
-                )
+                raise ValueError(f"Manifest signature verification failed for tool '{tool.name}'")
             logger.info(
                 f"Manifest verified for tool '{tool.name}' "
                 f"(author={manifest.author}, version={manifest.version})"

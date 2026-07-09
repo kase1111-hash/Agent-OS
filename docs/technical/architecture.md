@@ -808,10 +808,12 @@ The reference implementation includes the following completed components:
 | Boundary Daemon (`src/boundary/`) | ✅ Complete | ~800 |
 | Web Interface (`src/web/`) | ✅ Complete | ~600 |
 | Security API (`src/web/routes/security.py`) | ✅ Complete | ~800 |
-| Voice Interface (`src/voice/`) | ✅ Complete | ~500 |
-| Mobile Backend (`src/mobile/`) | ✅ Complete | ~900 |
-| Federation (`src/federation/`) | ✅ Complete | ~1,200 |
-| Agent SDK (`src/sdk/`) | ✅ Complete | ~800 |
-| Ceremony (`src/ceremony/`) | ✅ Complete | ~600 |
+| Contracts (`src/contracts/`) | ✅ Complete | ~3,000 |
+| Tool Integration (`src/tools/`) | ✅ Complete | ~2,500 |
+| Utilities (`src/utils/`) | ✅ Complete | ~2,000 |
+
+> **Note:** Peripheral modules (voice, mobile, multimodal, federation, SDK,
+> ceremony, installer, value ledger) were removed in the phase-1 scope trim
+> to keep the project focused on constitutional AI governance.
 
 **Total Implementation:** ~72,000+ lines of Python across 260+ files

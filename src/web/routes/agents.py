@@ -432,7 +432,9 @@ async def list_agents(
 
 
 @router.get("/{agent_name}", response_model=AgentInfo, responses={**NOT_FOUND_RESPONSE})
-async def get_agent(agent_name: str, user_id: str = Depends(require_authenticated_user)) -> AgentInfo:
+async def get_agent(
+    agent_name: str, user_id: str = Depends(require_authenticated_user)
+) -> AgentInfo:
     """
     Get detailed information about a specific agent.
 
@@ -458,7 +460,9 @@ async def get_agent(agent_name: str, user_id: str = Depends(require_authenticate
 
 
 @router.get("/{agent_name}/metrics", response_model=AgentMetrics)
-async def get_agent_metrics(agent_name: str, user_id: str = Depends(require_authenticated_user)) -> AgentMetrics:
+async def get_agent_metrics(
+    agent_name: str, user_id: str = Depends(require_authenticated_user)
+) -> AgentMetrics:
     """Get performance metrics for an agent."""
     store = get_store()
     agent = store.get(agent_name)
@@ -637,7 +641,9 @@ async def get_all_logs(
 
 
 @router.get("/stats/overview", response_model=AgentsOverviewResponse)
-async def get_agents_overview(user_id: str = Depends(require_authenticated_user)) -> AgentsOverviewResponse:
+async def get_agents_overview(
+    user_id: str = Depends(require_authenticated_user),
+) -> AgentsOverviewResponse:
     """
     Get overview statistics for all agents.
 

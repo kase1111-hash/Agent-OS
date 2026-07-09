@@ -18,6 +18,9 @@ httpx>=0.28,<1.0
 # Cryptography (AES-256-GCM encryption, key derivation, signing)
 cryptography>=42.0,<47.0
 
+# Vector math for Seshat memory agent (embeddings, similarity search)
+numpy>=1.24,<3.0
+
 # Web interface (UC-017)
 fastapi>=0.115,<1.0
 uvicorn[standard]>=0.32,<1.0

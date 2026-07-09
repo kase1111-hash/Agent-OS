@@ -257,9 +257,7 @@ class MemoryVault:
             self._vault_id = self._genesis.get_genesis().vault_id
             is_valid, message = self._genesis.verify_genesis()
             if not is_valid:
-                raise GenesisVerificationError(
-                    f"Genesis verification failed: {message}"
-                )
+                raise GenesisVerificationError(f"Genesis verification failed: {message}")
 
         self._initialized = True
         logger.info(f"Memory Vault initialized: {self._vault_id}")
@@ -420,7 +418,7 @@ class MemoryVault:
             )
 
         # Check blob status - don't return sealed or corrupted blobs
-        if hasattr(metadata, 'status'):
+        if hasattr(metadata, "status"):
             if metadata.status == BlobStatus.SEALED:
                 return RetrieveResult(
                     success=False,
@@ -450,7 +448,7 @@ class MemoryVault:
         else:
             # No consent_id - check if blob was stored before consent tracking was enabled
             # For security, require explicit consent for blobs without consent tracking
-            if hasattr(metadata, 'requires_consent') and metadata.requires_consent:
+            if hasattr(metadata, "requires_consent") and metadata.requires_consent:
                 return RetrieveResult(
                     success=False,
                     blob_id=blob_id,
