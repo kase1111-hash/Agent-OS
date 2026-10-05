@@ -65,6 +65,7 @@ class AgentOS {
     }
 
     init() {
+        this.setupActionDelegation();
         this.setupNavigation();
         this.setupChat();
         this.setupModal();
@@ -85,6 +86,48 @@ class AgentOS {
         if (this.debugMode) {
             this.toggleDebugMode(true, false);
         }
+    }
+
+    /**
+     * Dispatch UI actions declared in markup.
+     *
+     * The Content-Security-Policy (script-src 'self') blocks inline on* handlers,
+     * so controls declare data-action (click), data-change-action or
+     * data-submit-action naming an AgentOS method. Optional data-arg supplies a
+     * leading string argument; data-pass appends the event, the element's
+     * checked/value/int value, or the element itself.
+     */
+    setupActionDelegation() {
+        const dispatch = (el, action, event) => {
+            const handler = this[action];
+            if (typeof handler !== 'function') {
+                console.error(`Unknown UI action: ${action}`);
+                return;
+            }
+            const args = [];
+            if (el.dataset.arg !== undefined) args.push(el.dataset.arg);
+            switch (el.dataset.pass) {
+                case 'event': args.push(event); break;
+                case 'checked': args.push(el.checked); break;
+                case 'value': args.push(el.value); break;
+                case 'int': args.push(parseInt(el.value, 10)); break;
+                case 'element': args.push(el); break;
+            }
+            handler.apply(this, args);
+        };
+
+        document.addEventListener('click', (e) => {
+            const el = e.target.closest('[data-action]');
+            if (el) dispatch(el, el.dataset.action, e);
+        });
+        document.addEventListener('change', (e) => {
+            const el = e.target.closest('[data-change-action]');
+            if (el) dispatch(el, el.dataset.changeAction, e);
+        });
+        document.addEventListener('submit', (e) => {
+            const el = e.target.closest('[data-submit-action]');
+            if (el) dispatch(el, el.dataset.submitAction, e);
+        });
     }
 
     // =========================================================================
@@ -150,7 +193,7 @@ class AgentOS {
 
     showLoginModal() {
         this.showModal('Sign In', `
-            <form id="login-form" onsubmit="app.handleLogin(event)">
+            <form id="login-form" data-submit-action="handleLogin" data-pass="event">
                 <div class="form-group">
                     <label for="login-username">Username or Email</label>
                     <input type="text" id="login-username" placeholder="Enter your username or email" required autofocus>
@@ -165,17 +208,17 @@ class AgentOS {
                         Remember me for 30 days
                     </label>
                 </div>
-                <div id="login-error" class="form-error" style="display: none;"></div>
+                <div id="login-error" class="form-error is-hidden"></div>
             </form>
         `, `
-            <button class="btn btn-secondary" onclick="app.hideModal()">Cancel</button>
-            <button class="btn btn-primary" onclick="app.handleLogin(event)">Sign In</button>
+            <button class="btn btn-secondary" data-action="hideModal">Cancel</button>
+            <button class="btn btn-primary" data-action="handleLogin" data-pass="event">Sign In</button>
         `);
     }
 
     showRegisterModal() {
         this.showModal('Create Account', `
-            <form id="register-form" onsubmit="app.handleRegister(event)">
+            <form id="register-form" data-submit-action="handleRegister" data-pass="event">
                 <div class="form-group">
                     <label for="register-username">Username *</label>
                     <input type="text" id="register-username" placeholder="Choose a username (3+ characters)" required minlength="3" maxlength="50" autofocus>
@@ -196,11 +239,11 @@ class AgentOS {
                     <label for="register-password-confirm">Confirm Password *</label>
                     <input type="password" id="register-password-confirm" placeholder="Confirm your password" required>
                 </div>
-                <div id="register-error" class="form-error" style="display: none;"></div>
+                <div id="register-error" class="form-error is-hidden"></div>
             </form>
         `, `
-            <button class="btn btn-secondary" onclick="app.hideModal()">Cancel</button>
-            <button class="btn btn-primary" onclick="app.handleRegister(event)">Create Account</button>
+            <button class="btn btn-secondary" data-action="hideModal">Cancel</button>
+            <button class="btn btn-primary" data-action="handleRegister" data-pass="event">Create Account</button>
         `);
     }
 
@@ -233,6 +276,7 @@ class AgentOS {
             if (response.ok && data.success) {
                 this.setAuthenticatedUser(data.user);
                 this.hideModal();
+                this.loadInitialData();
                 this.showNotification('Welcome back, ' + (data.user.display_name || data.user.username) + '!', 'success');
             } else {
                 this.showFormError(errorDiv, data.detail || 'Login failed');
@@ -286,6 +330,7 @@ class AgentOS {
             if (response.ok && data.success) {
                 this.setAuthenticatedUser(data.user);
                 this.hideModal();
+                this.loadInitialData();
                 this.showNotification('Account created! Welcome, ' + (data.user.display_name || data.user.username) + '!', 'success');
             } else {
                 this.showFormError(errorDiv, data.detail || 'Registration failed');
@@ -314,11 +359,11 @@ class AgentOS {
         document.getElementById('user-dropdown').classList.remove('active');
 
         this.showModal('Edit Profile', `
-            <form id="profile-form" onsubmit="app.handleProfileUpdate(event)">
+            <form id="profile-form" data-submit-action="handleProfileUpdate" data-pass="event">
                 <div class="form-group">
                     <label for="profile-username">Username</label>
                     <input type="text" id="profile-username" value="${this.escapeHtml(this.currentUser.username)}" readonly disabled>
-                    <small style="color: var(--text-muted);">Username cannot be changed</small>
+                    <small class="text-muted">Username cannot be changed</small>
                 </div>
                 <div class="form-group">
                     <label for="profile-display-name">Display Name</label>
@@ -328,11 +373,11 @@ class AgentOS {
                     <label for="profile-email">Email</label>
                     <input type="email" id="profile-email" value="${this.escapeHtml(this.currentUser.email || '')}" placeholder="Enter your email address">
                 </div>
-                <div id="profile-error" class="form-error" style="display: none;"></div>
+                <div id="profile-error" class="form-error is-hidden"></div>
             </form>
         `, `
-            <button class="btn btn-secondary" onclick="app.hideModal()">Cancel</button>
-            <button class="btn btn-primary" onclick="app.handleProfileUpdate(event)">Save Changes</button>
+            <button class="btn btn-secondary" data-action="hideModal">Cancel</button>
+            <button class="btn btn-primary" data-action="handleProfileUpdate" data-pass="event">Save Changes</button>
         `);
     }
 
@@ -374,7 +419,7 @@ class AgentOS {
         document.getElementById('user-dropdown').classList.remove('active');
 
         this.showModal('Change Password', `
-            <form id="password-form" onsubmit="app.handlePasswordChange(event)">
+            <form id="password-form" data-submit-action="handlePasswordChange" data-pass="event">
                 <div class="form-group">
                     <label for="current-password">Current Password *</label>
                     <input type="password" id="current-password" placeholder="Enter your current password" required>
@@ -387,11 +432,11 @@ class AgentOS {
                     <label for="confirm-new-password">Confirm New Password *</label>
                     <input type="password" id="confirm-new-password" placeholder="Confirm your new password" required>
                 </div>
-                <div id="password-error" class="form-error" style="display: none;"></div>
+                <div id="password-error" class="form-error is-hidden"></div>
             </form>
         `, `
-            <button class="btn btn-secondary" onclick="app.hideModal()">Cancel</button>
-            <button class="btn btn-primary" onclick="app.handlePasswordChange(event)">Change Password</button>
+            <button class="btn btn-secondary" data-action="hideModal">Cancel</button>
+            <button class="btn btn-primary" data-action="handlePasswordChange" data-pass="event">Change Password</button>
         `);
     }
 
@@ -448,7 +493,7 @@ class AgentOS {
 
             this.showModal('Active Sessions', `
                 <div class="sessions-list">
-                    ${sessions.length === 0 ? '<p style="color: var(--text-muted);">No active sessions</p>' :
+                    ${sessions.length === 0 ? '<p class="text-muted">No active sessions</p>' :
                         sessions.map(session => `
                             <div class="session-item">
                                 <div class="session-info">
@@ -460,14 +505,14 @@ class AgentOS {
                                         <span>Last active: ${new Date(session.last_activity).toLocaleString()}</span>
                                     </div>
                                 </div>
-                                <button class="btn btn-danger btn-small" onclick="app.revokeSession('${session.session_id}')">Revoke</button>
+                                <button class="btn btn-danger btn-small" data-action="revokeSession" data-arg="${session.session_id}">Revoke</button>
                             </div>
                         `).join('')
                     }
                 </div>
             `, `
-                <button class="btn btn-secondary" onclick="app.hideModal()">Close</button>
-                ${sessions.length > 1 ? '<button class="btn btn-danger" onclick="app.logoutAll()">Sign Out All</button>' : ''}
+                <button class="btn btn-secondary" data-action="hideModal">Close</button>
+                ${sessions.length > 1 ? '<button class="btn btn-danger" data-action="logoutAll">Sign Out All</button>' : ''}
             `);
         } catch (error) {
             console.error('Failed to load sessions:', error);
@@ -509,7 +554,7 @@ class AgentOS {
         notification.className = `notification notification-${type}`;
         notification.innerHTML = `
             <span>${this.escapeHtml(message)}</span>
-            <button onclick="this.parentElement.remove()">&times;</button>
+            <button data-action="dismissNotification" data-pass="element">&times;</button>
         `;
 
         // Add to page
@@ -527,6 +572,10 @@ class AgentOS {
             notification.classList.add('fade-out');
             setTimeout(() => notification.remove(), 300);
         }, 5000);
+    }
+
+    dismissNotification(closeButton) {
+        closeButton.parentElement.remove();
     }
 
     // Navigation
@@ -830,10 +879,10 @@ class AgentOS {
                     </div>
                 </div>
                 <div class="agent-actions">
-                    <button class="btn btn-secondary" onclick="app.viewAgent('${agent.name}')">View</button>
+                    <button class="btn btn-secondary" data-action="viewAgent" data-arg="${agent.name}">View</button>
                     ${agent.status === 'active'
-                        ? `<button class="btn btn-danger" onclick="app.stopAgent('${agent.name}')">Stop</button>`
-                        : `<button class="btn btn-primary" onclick="app.startAgent('${agent.name}')">Start</button>`
+                        ? `<button class="btn btn-danger" data-action="stopAgent" data-arg="${agent.name}">Stop</button>`
+                        : `<button class="btn btn-primary" data-action="startAgent" data-arg="${agent.name}">Start</button>`
                     }
                 </div>
             </div>
@@ -910,11 +959,11 @@ class AgentOS {
     renderSections(sections) {
         const container = document.getElementById('sections-list');
         container.innerHTML = `
-            <div class="section-item active" data-section="all" onclick="app.loadConstitution()">
+            <div class="section-item active" data-section="all" data-action="loadConstitution">
                 All Rules
             </div>
         ` + sections.map(section => `
-            <div class="section-item" data-section="${section.id}" onclick="app.filterRulesBySection('${section.id}')">
+            <div class="section-item" data-section="${section.id}" data-action="filterRulesBySection" data-arg="${section.id}">
                 ${section.title}
                 <span class="section-count">${section.rules ? section.rules.length : 0}</span>
             </div>
@@ -936,9 +985,9 @@ class AgentOS {
                 </div>
                 <div class="rule-actions">
                     ${!rule.is_immutable ? `
-                        <button class="btn btn-secondary btn-small" onclick="app.editRule('${rule.id}')">Edit</button>
-                        <button class="btn btn-danger btn-small" onclick="app.deleteRule('${rule.id}')">Delete</button>
-                    ` : '<span style="color: var(--text-muted); font-size: 0.8rem;">Immutable</span>'}
+                        <button class="btn btn-secondary btn-small" data-action="editRule" data-arg="${rule.id}">Edit</button>
+                        <button class="btn btn-danger btn-small" data-action="deleteRule" data-arg="${rule.id}">Delete</button>
+                    ` : '<span class="text-muted text-small">Immutable</span>'}
                 </div>
             </div>
         `).join('');
@@ -986,7 +1035,7 @@ class AgentOS {
                     <option value="statutory">Statutory - User-defined rules</option>
                     <option value="agent">Agent - Agent-specific rules</option>
                 </select>
-                <small style="color: var(--text-muted);">Note: Supreme and Constitutional rules can only be set during the ceremony process.</small>
+                <small class="text-muted">Note: Supreme and Constitutional rules can only be set during the ceremony process.</small>
             </div>
             <div class="form-group">
                 <label>Keywords (comma-separated)</label>
@@ -1005,8 +1054,8 @@ class AgentOS {
                 </select>
             </div>
         `, `
-            <button class="btn btn-secondary" onclick="app.hideModal()">Cancel</button>
-            <button class="btn btn-primary" onclick="app.confirmAddRule()">Add Rule</button>
+            <button class="btn btn-secondary" data-action="hideModal">Cancel</button>
+            <button class="btn btn-primary" data-action="confirmAddRule">Add Rule</button>
         `);
     }
 
@@ -1097,8 +1146,8 @@ class AgentOS {
                     <input type="text" id="edit-rule-keywords" value="${rule.keywords.join(', ')}">
                 </div>
             `, `
-                <button class="btn btn-secondary" onclick="app.hideModal()">Cancel</button>
-                <button class="btn btn-primary" onclick="app.confirmEditRule('${ruleId}')">Save Changes</button>
+                <button class="btn btn-secondary" data-action="hideModal">Cancel</button>
+                <button class="btn btn-primary" data-action="confirmEditRule" data-arg="${ruleId}">Save Changes</button>
             `);
         } catch (error) {
             this.showError('Failed to load rule');
@@ -1225,7 +1274,7 @@ class AgentOS {
             <div class="memory-card">
                 <div class="memory-header">
                     <span class="memory-type ${memory.memory_type}">${memory.memory_type}</span>
-                    <button class="btn btn-danger" onclick="app.deleteMemory('${memory.id}')">Delete</button>
+                    <button class="btn btn-danger" data-action="deleteMemory" data-arg="${memory.id}">Delete</button>
                 </div>
                 <div class="memory-content">${this.escapeHtml(memory.content)}</div>
                 <div class="memory-tags">
@@ -1274,11 +1323,11 @@ class AgentOS {
                     <input type="checkbox" id="memory-consent" checked>
                     I consent to storing this memory
                 </label>
-                <small style="color: var(--text-muted);">Required for memory storage per constitutional requirements.</small>
+                <small class="text-muted">Required for memory storage per constitutional requirements.</small>
             </div>
         `, `
-            <button class="btn btn-secondary" onclick="app.hideModal()">Cancel</button>
-            <button class="btn btn-primary" onclick="app.confirmAddMemory()">Store Memory</button>
+            <button class="btn btn-secondary" data-action="hideModal">Cancel</button>
+            <button class="btn btn-primary" data-action="confirmAddMemory">Store Memory</button>
         `);
     }
 
@@ -1370,7 +1419,7 @@ class AgentOS {
     renderTemplates(templates) {
         const container = document.getElementById('templates-list');
         container.innerHTML = templates.map(template => `
-            <div class="template-card" onclick="app.createFromTemplate('${template.id}')">
+            <div class="template-card" data-action="createFromTemplate" data-arg="${template.id}">
                 <div class="template-name">${template.name}</div>
                 <div class="template-type ${template.contract_type.toLowerCase()}">${template.contract_type}</div>
                 <div class="template-description">${template.description}</div>
@@ -1385,7 +1434,7 @@ class AgentOS {
             container.innerHTML = `
                 <div class="empty-state">
                     <p>No contracts found</p>
-                    <p style="color: var(--text-muted);">Create a contract using the templates on the left</p>
+                    <p class="text-muted">Create a contract using the templates on the left</p>
                 </div>
             `;
             return;
@@ -1408,9 +1457,9 @@ class AgentOS {
                     }
                 </div>
                 <div class="contract-actions">
-                    <button class="btn btn-secondary" onclick="app.viewContract('${contract.id}')">View</button>
+                    <button class="btn btn-secondary" data-action="viewContract" data-arg="${contract.id}">View</button>
                     ${contract.status === 'ACTIVE'
-                        ? `<button class="btn btn-danger" onclick="app.revokeContract('${contract.id}')">Revoke</button>`
+                        ? `<button class="btn btn-danger" data-action="revokeContract" data-arg="${contract.id}">Revoke</button>`
                         : ''
                     }
                 </div>
@@ -1465,8 +1514,8 @@ class AgentOS {
                     <input type="number" id="contract-duration" value="${template.default_duration_days || ''}" placeholder="365">
                 </div>
             `, `
-                <button class="btn btn-secondary" onclick="app.hideModal()">Cancel</button>
-                <button class="btn btn-primary" onclick="app.confirmCreateFromTemplate('${templateId}')">Create Contract</button>
+                <button class="btn btn-secondary" data-action="hideModal">Cancel</button>
+                <button class="btn btn-primary" data-action="confirmCreateFromTemplate" data-arg="${templateId}">Create Contract</button>
             `);
         } catch (error) {
             this.showError('Failed to load template');
@@ -1523,8 +1572,8 @@ class AgentOS {
                     <textarea id="contract-description" placeholder="Describe the purpose of this contract..."></textarea>
                 </div>
             `, `
-                <button class="btn btn-secondary" onclick="app.hideModal()">Cancel</button>
-                <button class="btn btn-primary" onclick="app.confirmCreateContract()">Create Contract</button>
+                <button class="btn btn-secondary" data-action="hideModal">Cancel</button>
+                <button class="btn btn-primary" data-action="confirmCreateContract">Create Contract</button>
             `);
         } catch (error) {
             this.showError('Failed to load contract types');
@@ -1660,7 +1709,7 @@ class AgentOS {
                 <div class="health-item">
                     <span class="health-dot ${h.status}"></span>
                     <span>${h.name}</span>
-                    <span style="margin-left: auto; color: var(--text-muted);">
+                    <span class="text-muted ml-auto">
                         ${h.latency_ms ? h.latency_ms.toFixed(1) + 'ms' : ''}
                     </span>
                 </div>
@@ -1684,17 +1733,17 @@ class AgentOS {
     renderSettingInput(setting) {
         if (setting.data_type === 'boolean') {
             return `<input type="checkbox" ${setting.value ? 'checked' : ''}
-                    onchange="app.updateSetting('${setting.key}', this.checked)">`;
+                    data-change-action="updateSystemSetting" data-arg="${setting.key}" data-pass="checked">`;
         } else if (setting.data_type === 'number') {
             return `<input type="number" value="${setting.value}"
-                    onchange="app.updateSetting('${setting.key}', parseInt(this.value))">`;
+                    data-change-action="updateSystemSetting" data-arg="${setting.key}" data-pass="int">`;
         } else {
             return `<input type="text" value="${setting.value}"
-                    onchange="app.updateSetting('${setting.key}', this.value)">`;
+                    data-change-action="updateSystemSetting" data-arg="${setting.key}" data-pass="value">`;
         }
     }
 
-    async updateSetting(key, value) {
+    async updateSystemSetting(key, value) {
         try {
             await fetch(`/api/system/settings/${key}`, {
                 method: 'PUT',
@@ -1750,14 +1799,14 @@ class AgentOS {
             container.innerHTML = `
                 <div class="empty-state">
                     <p>No images generated yet</p>
-                    <p style="color: var(--text-muted);">Use the form on the left to generate your first image</p>
+                    <p class="text-muted">Use the form on the left to generate your first image</p>
                 </div>
             `;
             return;
         }
 
         container.innerHTML = images.map(image => `
-            <div class="gallery-item" onclick="app.viewImage('${image.id}')">
+            <div class="gallery-item" data-action="viewImage" data-arg="${image.id}">
                 <img src="${image.thumbnail_url}" alt="${this.escapeHtml(image.prompt)}" loading="lazy">
                 <div class="gallery-overlay">
                     <span class="gallery-prompt">${this.escapeHtml(image.prompt.substring(0, 50))}${image.prompt.length > 50 ? '...' : ''}</span>
@@ -1905,20 +1954,20 @@ class AgentOS {
 
             this.showModal('Image Details', `
                 <div class="image-viewer">
-                    <img src="${image.full_url}" alt="${this.escapeHtml(image.prompt)}" style="max-width: 100%; max-height: 60vh; object-fit: contain;">
+                    <img src="${image.full_url}" alt="${this.escapeHtml(image.prompt)}" class="image-preview">
                 </div>
-                <div class="image-details" style="margin-top: 1rem;">
+                <div class="image-details mt-1">
                     <div class="form-group">
                         <label>Prompt</label>
-                        <textarea readonly style="height: auto;">${this.escapeHtml(image.prompt)}</textarea>
+                        <textarea readonly class="h-auto">${this.escapeHtml(image.prompt)}</textarea>
                     </div>
                     ${image.negative_prompt ? `
                         <div class="form-group">
                             <label>Negative Prompt</label>
-                            <textarea readonly style="height: auto;">${this.escapeHtml(image.negative_prompt)}</textarea>
+                            <textarea readonly class="h-auto">${this.escapeHtml(image.negative_prompt)}</textarea>
                         </div>
                     ` : ''}
-                    <div class="form-row" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+                    <div class="form-row grid-cols-3">
                         <div class="form-group">
                             <label>Model</label>
                             <input type="text" value="${image.model}" readonly>
@@ -1932,7 +1981,7 @@ class AgentOS {
                             <input type="text" value="${image.seed}" readonly>
                         </div>
                     </div>
-                    <div class="form-row" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+                    <div class="form-row grid-cols-2">
                         <div class="form-group">
                             <label>Steps</label>
                             <input type="text" value="${image.steps}" readonly>
@@ -1944,9 +1993,9 @@ class AgentOS {
                     </div>
                 </div>
             `, `
-                <button class="btn btn-secondary" onclick="app.hideModal()">Close</button>
-                <button class="btn btn-primary" onclick="app.downloadImage('${imageId}')">Download</button>
-                <button class="btn btn-danger" onclick="app.deleteImage('${imageId}')">Delete</button>
+                <button class="btn btn-secondary" data-action="hideModal">Close</button>
+                <button class="btn btn-primary" data-action="downloadImage" data-arg="${imageId}">Download</button>
+                <button class="btn btn-danger" data-action="deleteImage" data-arg="${imageId}">Delete</button>
             `);
         } catch (error) {
             console.error('Failed to view image:', error);
@@ -2158,6 +2207,10 @@ class AgentOS {
         }
     }
 
+    closeDebugPanel() {
+        this.toggleDebugMode(false);
+    }
+
     minimizeDebugPanel() {
         const panel = document.getElementById('debug-panel');
         if (panel) {
@@ -2212,7 +2265,7 @@ class AgentOS {
                 <span class="debug-log-level ${log.level}">${log.level}</span>
                 <span class="debug-log-message">${this.escapeHtml(log.message)}</span>
             </div>
-        `).join('') || '<div style="color: var(--text-muted); padding: 1rem;">No logs yet</div>';
+        `).join('') || '<div class="text-muted pad-1">No logs yet</div>';
     }
 
     renderNetworkLogs() {
@@ -2226,7 +2279,7 @@ class AgentOS {
                 <span class="debug-network-status ${log.success ? 'success' : 'error'}">${log.status}</span>
                 <span class="debug-network-time">${log.duration}ms</span>
             </div>
-        `).join('') || '<div style="color: var(--text-muted); padding: 1rem;">No network requests yet</div>';
+        `).join('') || '<div class="text-muted pad-1">No network requests yet</div>';
     }
 
     updateDebugState() {
@@ -2493,14 +2546,14 @@ class AgentOS {
             const container = document.getElementById('conversation-list');
 
             if (conversations.length === 0) {
-                container.innerHTML = '<p style="color: var(--text-muted); padding: 0.5rem;">No conversations yet</p>';
+                container.innerHTML = '<p class="text-muted pad-half">No conversations yet</p>';
                 return;
             }
 
             container.innerHTML = conversations.map(conv => `
-                <div class="conversation-item" onclick="app.loadConversation('${conv.id}')">
-                    <div style="font-weight: 500;">${this.escapeHtml(conv.title)}</div>
-                    <div style="font-size: 0.8rem; color: var(--text-muted);">${conv.message_count} messages</div>
+                <div class="conversation-item" data-action="loadConversation" data-arg="${conv.id}">
+                    <div class="font-medium">${this.escapeHtml(conv.title)}</div>
+                    <div class="text-muted text-small">${conv.message_count} messages</div>
                 </div>
             `).join('');
         } catch (error) {
@@ -2551,7 +2604,7 @@ document.getElementById('memory-search')?.addEventListener('input', async (e) =>
             <div class="memory-card">
                 <div class="memory-header">
                     <span class="memory-type ${result.entry.memory_type}">${result.entry.memory_type}</span>
-                    <span style="color: var(--primary-color);">Score: ${(result.similarity_score * 100).toFixed(0)}%</span>
+                    <span class="text-primary">Score: ${(result.similarity_score * 100).toFixed(0)}%</span>
                 </div>
                 <div class="memory-content">${app.escapeHtml(result.entry.content)}</div>
                 <div class="memory-tags">

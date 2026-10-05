@@ -2794,3 +2794,70 @@ input::placeholder, textarea::placeholder {
         gap: 0.25rem;
     }
 }
+
+/* ==========================================================================
+   Utilities
+   The CSP (style-src 'self') blocks inline style attributes, so markup uses
+   these classes instead. .is-hidden sets the initial state only; scripts
+   reveal elements by setting element.style.display, which overrides it.
+   ========================================================================== */
+
+.is-hidden {
+    display: none;
+}
+
+.text-muted {
+    color: var(--text-muted);
+}
+
+.text-primary {
+    color: var(--primary-color);
+}
+
+.text-small {
+    font-size: 0.8rem;
+}
+
+.font-medium {
+    font-weight: 500;
+}
+
+.ml-auto {
+    margin-left: auto;
+}
+
+.mt-1 {
+    margin-top: 1rem;
+}
+
+.pad-half {
+    padding: 0.5rem;
+}
+
+.pad-1 {
+    padding: 1rem;
+}
+
+.h-auto {
+    height: auto;
+}
+
+.grid-cols-2,
+.grid-cols-3 {
+    display: grid;
+    gap: 1rem;
+}
+
+.grid-cols-2 {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.grid-cols-3 {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.image-preview {
+    max-width: 100%;
+    max-height: 60vh;
+    object-fit: contain;
+}

@@ -32,12 +32,12 @@
             <div class="nav-user">
                 <!-- Shows when not logged in -->
                 <div id="auth-buttons" class="auth-buttons">
-                    <button class="btn btn-secondary btn-small" onclick="app.showLoginModal()" data-tooltip="Sign in to your account" data-tooltip-position="bottom">Sign In</button>
-                    <button class="btn btn-primary btn-small" onclick="app.showRegisterModal()" data-tooltip="Create a new account" data-tooltip-position="bottom">Sign Up</button>
+                    <button class="btn btn-secondary btn-small" data-action="showLoginModal" data-tooltip="Sign in to your account" data-tooltip-position="bottom">Sign In</button>
+                    <button class="btn btn-primary btn-small" data-action="showRegisterModal" data-tooltip="Create a new account" data-tooltip-position="bottom">Sign Up</button>
                 </div>
                 <!-- Shows when logged in -->
-                <div id="user-menu" class="user-menu" style="display: none;">
-                    <button class="user-menu-btn" onclick="app.toggleUserDropdown()" data-tooltip="Account options" data-tooltip-position="bottom">
+                <div id="user-menu" class="user-menu is-hidden">
+                    <button class="user-menu-btn" data-action="toggleUserDropdown" data-tooltip="Account options" data-tooltip-position="bottom">
                         <span class="user-avatar" id="user-avatar">U</span>
                         <span class="user-name" id="user-display-name">User</span>
                         <svg class="dropdown-arrow" viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M7 10l5 5 5-5z"/></svg>
@@ -48,20 +48,20 @@
                             <span class="dropdown-role" id="dropdown-role">user</span>
                         </div>
                         <div class="dropdown-divider"></div>
-                        <button class="dropdown-item" onclick="app.showProfileModal()">
+                        <button class="dropdown-item" data-action="showProfileModal">
                             <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
                             Profile
                         </button>
-                        <button class="dropdown-item" onclick="app.showChangePasswordModal()">
+                        <button class="dropdown-item" data-action="showChangePasswordModal">
                             <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
                             Change Password
                         </button>
-                        <button class="dropdown-item" onclick="app.showSessionsModal()">
+                        <button class="dropdown-item" data-action="showSessionsModal">
                             <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M4 6h18V4H4c-1.1 0-2 .9-2 2v11H0v3h14v-3H4V6zm19 2h-6c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1zm-1 9h-4v-7h4v7z"/></svg>
                             Sessions
                         </button>
                         <div class="dropdown-divider"></div>
-                        <button class="dropdown-item dropdown-item-danger" onclick="app.logout()">
+                        <button class="dropdown-item dropdown-item-danger" data-action="logout">
                             <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
                             Sign Out
                         </button>
@@ -193,7 +193,7 @@
                                 Generate Image
                             </button>
                         </form>
-                        <div id="generation-progress" class="generation-progress" style="display: none;">
+                        <div id="generation-progress" class="generation-progress is-hidden">
                             <div class="progress-bar">
                                 <div class="progress-fill" id="progress-fill"></div>
                             </div>
@@ -286,7 +286,7 @@
                                         <span class="setting-description">Show debug console with logs and diagnostics</span>
                                     </div>
                                     <label class="toggle-switch">
-                                        <input type="checkbox" id="setting-debug-mode" onchange="app.toggleDebugMode(this.checked)">
+                                        <input type="checkbox" id="setting-debug-mode" data-change-action="toggleDebugMode" data-pass="checked">
                                         <span class="toggle-slider"></span>
                                     </label>
                                 </div>
@@ -296,7 +296,7 @@
                                         <span class="setting-description">Include detailed request/response data in logs</span>
                                     </div>
                                     <label class="toggle-switch">
-                                        <input type="checkbox" id="setting-verbose-logging" onchange="app.updateSetting('verbose_logging', this.checked)">
+                                        <input type="checkbox" id="setting-verbose-logging" data-change-action="updateSetting" data-arg="verbose_logging" data-pass="checked">
                                         <span class="toggle-slider"></span>
                                     </label>
                                 </div>
@@ -306,7 +306,7 @@
                                         <span class="setting-description">Automatically reconnect WebSocket on disconnect</span>
                                     </div>
                                     <label class="toggle-switch">
-                                        <input type="checkbox" id="setting-auto-reconnect" checked onchange="app.updateSetting('auto_reconnect', this.checked)">
+                                        <input type="checkbox" id="setting-auto-reconnect" checked data-change-action="updateSetting" data-arg="auto_reconnect" data-pass="checked">
                                         <span class="toggle-slider"></span>
                                     </label>
                                 </div>
@@ -316,7 +316,7 @@
                                         <span class="setting-description">Play sound on new messages and alerts</span>
                                     </div>
                                     <label class="toggle-switch">
-                                        <input type="checkbox" id="setting-sound-notifications" onchange="app.updateSetting('sound_notifications', this.checked)">
+                                        <input type="checkbox" id="setting-sound-notifications" data-change-action="updateSetting" data-arg="sound_notifications" data-pass="checked">
                                         <span class="toggle-slider"></span>
                                     </label>
                                 </div>
@@ -326,7 +326,7 @@
                                         <span class="setting-description">Use dark color scheme (default)</span>
                                     </div>
                                     <label class="toggle-switch">
-                                        <input type="checkbox" id="setting-dark-theme" checked onchange="app.updateSetting('dark_theme', this.checked)">
+                                        <input type="checkbox" id="setting-dark-theme" checked data-change-action="updateSetting" data-arg="dark_theme" data-pass="checked">
                                         <span class="toggle-slider"></span>
                                     </label>
                                 </div>
@@ -404,11 +404,11 @@
     </div>
 
     <!-- Debug Panel -->
-    <div id="debug-panel" class="debug-panel" style="display: none;">
+    <div id="debug-panel" class="debug-panel is-hidden">
         <div class="debug-header">
             <h4>Debug Console</h4>
             <div class="debug-controls">
-                <select id="debug-filter" onchange="app.filterDebugLogs(this.value)">
+                <select id="debug-filter" data-change-action="filterDebugLogs" data-pass="value">
                     <option value="all">All</option>
                     <option value="info">Info</option>
                     <option value="warn">Warnings</option>
@@ -416,17 +416,17 @@
                     <option value="network">Network</option>
                     <option value="websocket">WebSocket</option>
                 </select>
-                <button class="btn btn-small btn-secondary" onclick="app.clearDebugLogs()">Clear</button>
-                <button class="btn btn-small btn-secondary" onclick="app.exportDebugLogs()">Export</button>
-                <button class="debug-minimize" onclick="app.minimizeDebugPanel()">_</button>
-                <button class="debug-close" onclick="app.toggleDebugMode(false)">&times;</button>
+                <button class="btn btn-small btn-secondary" data-action="clearDebugLogs">Clear</button>
+                <button class="btn btn-small btn-secondary" data-action="exportDebugLogs">Export</button>
+                <button class="debug-minimize" data-action="minimizeDebugPanel">_</button>
+                <button class="debug-close" data-action="closeDebugPanel">&times;</button>
             </div>
         </div>
         <div class="debug-tabs">
-            <button class="debug-tab active" data-tab="logs" onclick="app.switchDebugTab('logs')">Logs</button>
-            <button class="debug-tab" data-tab="network" onclick="app.switchDebugTab('network')">Network</button>
-            <button class="debug-tab" data-tab="state" onclick="app.switchDebugTab('state')">State</button>
-            <button class="debug-tab" data-tab="performance" onclick="app.switchDebugTab('performance')">Performance</button>
+            <button class="debug-tab active" data-tab="logs" data-action="switchDebugTab" data-arg="logs">Logs</button>
+            <button class="debug-tab" data-tab="network" data-action="switchDebugTab" data-arg="network">Network</button>
+            <button class="debug-tab" data-tab="state" data-action="switchDebugTab" data-arg="state">State</button>
+            <button class="debug-tab" data-tab="performance" data-action="switchDebugTab" data-arg="performance">Performance</button>
         </div>
         <div class="debug-content">
             <div id="debug-logs" class="debug-tab-content active">
