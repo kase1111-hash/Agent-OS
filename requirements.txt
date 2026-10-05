@@ -16,7 +16,7 @@ redis>=5.0,<8.0
 httpx>=0.28,<1.0
 
 # Cryptography (AES-256-GCM encryption, key derivation, signing)
-cryptography>=42.0,<47.0
+cryptography>=50.0,<51.0
 
 # Vector math for Seshat memory agent (embeddings, similarity search)
 numpy>=1.24,<3.0

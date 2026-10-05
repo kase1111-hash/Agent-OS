@@ -936,9 +936,10 @@ class UserStore:
 
         with self._lock:
             cursor = self._connection.cursor()
+            # Column names are fixed above; values are bound parameters.
             cursor.execute(
-                f"UPDATE users SET {', '.join(updates)} WHERE user_id = ?", params
-            )  # nosec B608 - column names are hardcoded
+                f"UPDATE users SET {', '.join(updates)} WHERE user_id = ?", params  # nosec B608
+            )
             self._connection.commit()
             return cursor.rowcount > 0
 

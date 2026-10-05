@@ -70,13 +70,7 @@ pytest tests/
 pytest --cov=src tests/
 
 # Run specific test file
-pytest tests/test_kernel.py
-```
-
-### Run Benchmarks
-
-```bash
-pytest benchmarks/
+pytest tests/test_constitution_core.py
 ```
 
 ---

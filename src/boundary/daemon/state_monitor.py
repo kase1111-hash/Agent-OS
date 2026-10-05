@@ -391,7 +391,8 @@ class StateMonitor:
                         local_addr, local_port = self._parse_hex_address(local)
                         remote_addr, remote_port = self._parse_hex_address(remote)
 
-                        if remote_addr != "0.0.0.0":  # Has remote connection
+                        # Address comparison, not a bind.
+                        if remote_addr != "0.0.0.0":  # nosec B104
                             connections.append(
                                 NetworkConnection(
                                     local_addr=local_addr,
@@ -412,7 +413,8 @@ class StateMonitor:
                 if result == 0:
                     connections.append(
                         NetworkConnection(
-                            local_addr="0.0.0.0",
+                            # Placeholder address, not a bind.
+                            local_addr="0.0.0.0",  # nosec B104
                             local_port=0,
                             remote_addr="8.8.8.8",
                             remote_port=53,
@@ -457,11 +459,12 @@ class StateMonitor:
             port = int(port_hex, 16)
             return addr, port
         except Exception:
-            return "0.0.0.0", 0
+            # Unparseable address; this is a return value, not a bind.
+            return "0.0.0.0", 0  # nosec B104
 
     def _is_local_address(self, addr: str) -> bool:
         """Check if address is local/loopback."""
-        local_prefixes = ["127.", "0.0.0.0", "::1", "localhost"]
+        local_prefixes = ["127.", "0.0.0.0", "::1", "localhost"]  # nosec B104
         return any(addr.startswith(prefix) for prefix in local_prefixes)
 
 

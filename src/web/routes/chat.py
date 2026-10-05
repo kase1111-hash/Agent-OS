@@ -26,10 +26,7 @@ from src.web.conversation_store import (
     ConversationStore,
 )
 from src.web.conversation_store import MessageRole as StoredMessageRole
-from src.web.conversation_store import (
-    StoredMessage,
-    get_conversation_store,
-)
+from src.web.conversation_store import StoredMessage, get_conversation_store
 
 logger = logging.getLogger(__name__)
 
