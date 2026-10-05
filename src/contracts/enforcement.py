@@ -732,8 +732,11 @@ class LearningContractsEngine:
                 details={"hook": "before_export"},
             )
 
-        # OBSERVATION and PROHIBITED contracts never allow export
-        if contract.contract_type in [ContractType.OBSERVATION, ContractType.PROHIBITED]:
+        # OBSERVATION and prohibiting contracts never allow export
+        if (
+            contract.contract_type == ContractType.OBSERVATION
+            or contract.contract_type.blocks_learning()
+        ):
             return EnforcementResult(
                 decision=EnforcementDecision.DENY,
                 allowed=False,
