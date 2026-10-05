@@ -1338,7 +1338,8 @@ class UserStore:
         from src.web.config import get_config
 
         config = get_config()
-        if config.api_key and hmac.compare_digest(raw_key, config.api_key):
+        # Compare bytes: compare_digest raises TypeError on non-ASCII str input
+        if config.api_key and hmac.compare_digest(raw_key.encode(), config.api_key.encode()):
             logger.warning(
                 "DEPRECATED: Legacy single AGENT_OS_API_KEY used. "
                 "Migrate to scoped API keys via POST /auth/api-keys."
