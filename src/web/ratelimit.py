@@ -234,11 +234,21 @@ class InMemoryStorage(RateLimitStorage):
 
 
 class RedisStorage(RateLimitStorage):
-    """Redis-based rate limit storage."""
+    """Redis-based rate limit storage.
+
+    While Redis is unreachable, limits are tracked in process memory and Redis
+    is retried every RETRY_INTERVAL seconds, so an outage degrades rate
+    limiting to per-process instead of failing every request.
+    """
+
+    RETRY_INTERVAL = 30.0
+    TIMEOUT = 2.0
 
     def __init__(self, redis_url: str = "redis://localhost:6379"):
         self._redis_url = redis_url
         self._client: Optional[Any] = None
+        self._fallback = InMemoryStorage()
+        self._retry_at = 0.0
 
     async def _get_client(self) -> Any:
         """Get or create Redis client."""
@@ -246,32 +256,60 @@ class RedisStorage(RateLimitStorage):
             try:
                 import redis.asyncio as redis
 
-                self._client = redis.from_url(self._redis_url)
+                self._client = redis.from_url(
+                    self._redis_url,
+                    socket_connect_timeout=self.TIMEOUT,
+                    socket_timeout=self.TIMEOUT,
+                )
             except ImportError:
                 raise ImportError("redis package required for Redis storage")
         return self._client
+
+    def _redis_usable(self) -> bool:
+        return time.monotonic() >= self._retry_at
+
+    def _redis_failed(self, error: Exception) -> None:
+        self._retry_at = time.monotonic() + self.RETRY_INTERVAL
+        logger.warning(
+            f"Redis rate-limit storage unavailable ({error}); "
+            f"using in-memory limits, retrying in {self.RETRY_INTERVAL:.0f}s"
+        )
 
     async def get(self, key: str) -> Optional[Dict[str, Any]]:
         """Get rate limit data for a key."""
         import json
 
-        client = await self._get_client()
-        data = await client.get(key)
-        if data is None:
-            return None
-        return json.loads(data)
+        if self._redis_usable():
+            try:
+                client = await self._get_client()
+                data = await client.get(key)
+                return None if data is None else json.loads(data)
+            except Exception as e:
+                self._redis_failed(e)
+        return await self._fallback.get(key)
 
     async def set(self, key: str, data: Dict[str, Any], ttl: int) -> None:
         """Set rate limit data with TTL."""
         import json
 
-        client = await self._get_client()
-        await client.setex(key, ttl, json.dumps(data))
+        if self._redis_usable():
+            try:
+                client = await self._get_client()
+                await client.setex(key, ttl, json.dumps(data))
+                return
+            except Exception as e:
+                self._redis_failed(e)
+        await self._fallback.set(key, data, ttl)
 
     async def increment(self, key: str, amount: int = 1) -> int:
         """Increment counter and return new value."""
-        client = await self._get_client()
-        return await client.incrby(key, amount)
+        if self._redis_usable():
+            try:
+                client = await self._get_client()
+                return await client.incrby(key, amount)
+            except Exception as e:
+                self._redis_failed(e)
+        return await self._fallback.increment(key, amount)
 
 
 class RateLimiter:
