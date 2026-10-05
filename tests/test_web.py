@@ -80,6 +80,16 @@ class TestWebConfig:
             assert config.port == 9000
             assert config.debug is True
 
+    def test_config_data_dir_from_env(self, tmp_path):
+        """AGENT_OS_DATA_DIR relocates the databases (Docker mounts its volume there)."""
+        from src.web.config import WebConfig
+
+        default_dir = WebConfig().data_dir
+        with patch.dict("os.environ", {"AGENT_OS_DATA_DIR": str(tmp_path)}):
+            assert WebConfig.from_env().data_dir == tmp_path
+        with patch.dict("os.environ", {"AGENT_OS_DATA_DIR": ""}):
+            assert WebConfig.from_env().data_dir == default_dir
+
     def test_get_config(self):
         """Test global config getter."""
         from src.web.config import WebConfig, get_config, set_config

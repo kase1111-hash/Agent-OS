@@ -30,6 +30,10 @@ echo [INFO] Starting web server on http://localhost:8080
 echo [INFO] Press Ctrl+C to stop
 echo.
 
-python -m uvicorn src.web.app:get_app --factory --host 0.0.0.0 --port 8080
+:: Load settings (including AGENT_OS_API_KEY) from .env when present
+set ENV_FILE_ARG=
+if exist ".env" set ENV_FILE_ARG=--env-file .env
+
+python -m uvicorn src.web.app:get_app --factory --host 0.0.0.0 --port 8080 %ENV_FILE_ARG%
 
 pause

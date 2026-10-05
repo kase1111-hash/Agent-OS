@@ -148,6 +148,11 @@ class WebConfig:
             cors_origins=_parse_cors_origins(os.getenv("AGENT_OS_CORS_ORIGINS", "")),
         )
 
+        # Persistent data location (e.g. the /app/data volume in Docker)
+        data_dir = os.getenv("AGENT_OS_DATA_DIR")
+        if data_dir:
+            config.data_dir = Path(data_dir)
+
         if validate:
             config.validate()
 
