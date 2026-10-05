@@ -3,43 +3,38 @@ Learning Contracts API Routes
 
 Provides endpoints for managing learning consent contracts.
 Each user has their own contracts - contracts are isolated by user_id.
+
+Backed by the persistent ``src.contracts`` ContractStore, stored in
+``<data_dir>/contracts.db``.
 """
 
 import logging
+import math
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
+
+from src.contracts import (
+    ContractQuery,
+    ContractScope,
+    ContractStatus,
+    ContractStore,
+    ContractTemplate,
+    ContractType,
+    LearningContract,
+    LearningScope,
+    create_contract_store,
+)
+from src.contracts import get_template as get_contract_template
+from src.contracts import list_templates as list_contract_templates
 
 from ..auth_helpers import require_authenticated_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-# Try to import real contracts module
-try:
-    from src.contracts import (
-        CONTRACT_TEMPLATES,
-        ContractQuery,
-        ContractScope,
-        ContractStatus,
-        ContractStore,
-        ContractTemplate,
-        ContractType,
-        LearningContract,
-        LearningScope,
-        create_contract_from_template,
-        create_contract_store,
-        ensure_default_contracts,
-        get_template,
-        list_templates,
-    )
-
-    REAL_CONTRACTS_AVAILABLE = True
-except ImportError as e:
-    REAL_CONTRACTS_AVAILABLE = False
-    logger.warning(f"Real contracts module not available: {e}")
 
 
 # =============================================================================
@@ -135,386 +130,317 @@ class ContractsStats(BaseModel):
 
 
 # =============================================================================
-# Mock Data Store
+# Contracts Store Adapter
 # =============================================================================
+
+
+class TemplateNotFoundError(LookupError):
+    """Raised when a contract template name is unknown."""
+
+
+# Contract types offered through the web API (the learning-contracts spec types).
+# The legacy ContractType members (FULL_CONSENT, LIMITED_CONSENT, ...) are not offered.
+_CONTRACT_TYPE_DESCRIPTIONS: Dict[ContractType, str] = {
+    ContractType.OBSERVATION: "Permits watching signals only - no storage or inference",
+    ContractType.EPISODIC: "Store specific instances only - no cross-context generalization",
+    ContractType.PROCEDURAL: "Derive reusable heuristics and patterns",
+    ContractType.STRATEGIC: "Long-term pattern inference across contexts",
+    ContractType.PROHIBITED: "Explicitly blocks all learning from this domain",
+}
+
+# Display names for the templates in CONTRACT_TEMPLATES (keyed by template name).
+_TEMPLATE_DISPLAY: Dict[str, Dict[str, str]] = {
+    "coding": {
+        "name": "Coding Assistant",
+        "recommended_for": "Developers wanting personalized coding assistance",
+    },
+    "gaming": {
+        "name": "Gaming Assistant",
+        "recommended_for": "Gamers wanting session-based memory",
+    },
+    "journaling": {
+        "name": "Personal Journal",
+        "recommended_for": "Private journaling and self-reflection",
+    },
+    "work_projects": {
+        "name": "Work Projects",
+        "recommended_for": "Professional project management",
+    },
+    "restricted": {
+        "name": "Restricted Domains",
+        "recommended_for": "GDPR/HIPAA compliant privacy protection",
+    },
+    "study": {
+        "name": "Study Assistant",
+        "recommended_for": "Students wanting learning assistance",
+    },
+    "strategy": {
+        "name": "Strategic Learning",
+        "recommended_for": "Trusted long-term AI relationships",
+    },
+}
+
+# ContractStore clamps query limits to this value; used for "all of a user's contracts".
+_MAX_QUERY_LIMIT = 10000
+
+# Upper bound for duration_days (100 years); keeps expiry dates representable.
+_MAX_DURATION_DAYS = 36500
+
+
+def _clean_domains(domains: Optional[List[str]]) -> List[str]:
+    """Strip whitespace, drop empty entries and duplicates (order preserved)."""
+    cleaned: List[str] = []
+    for domain in domains or []:
+        domain = domain.strip()
+        if domain and domain not in cleaned:
+            cleaned.append(domain)
+    return cleaned
+
+
+def _duration_from_days(duration_days: Optional[int]) -> Optional[timedelta]:
+    """Convert a request's duration in days to a timedelta (None/0 = no expiry)."""
+    if not duration_days:
+        return None
+    if duration_days < 0 or duration_days > _MAX_DURATION_DAYS:
+        raise ValueError(f"duration_days must be between 1 and {_MAX_DURATION_DAYS}")
+    return timedelta(days=duration_days)
 
 
 class ContractsStore:
     """
-    Contracts store that integrates with the real ContractStore.
+    Web adapter over the persistent ``src.contracts.ContractStore``.
 
-    Falls back to mock data if real contracts aren't available.
+    Every contract read and write is scoped to a user: a contract owned by
+    another user is reported as not found.
     """
 
-    def __init__(self):
-        self._real_store: Optional[Any] = None
-        self._mock_contracts: Dict[str, ContractModel] = {}
-        self._mock_templates: Dict[str, ContractTemplateModel] = {}
-        self._use_real_contracts = False
+    def __init__(self, db_path: Optional[Path] = None):
+        """
+        Open (or create) the contracts database.
 
-        # Try to initialize real contract store
-        if REAL_CONTRACTS_AVAILABLE:
-            try:
-                self._real_store = create_contract_store()
-                # Ensure default Agent-OS contracts exist
-                ensure_default_contracts(self._real_store, user_id="default")
-                self._use_real_contracts = True
-                logger.info("Connected to real contracts store with default contracts")
-            except Exception as e:
-                logger.warning(f"Failed to initialize real contracts store: {e}")
-                self._use_real_contracts = False
+        Args:
+            db_path: SQLite database file; None keeps contracts in memory only.
+        """
+        if db_path is not None:
+            db_path = Path(db_path)
+            db_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Initialize mock data as fallback
-        if not self._use_real_contracts:
-            self._init_mock_data()
+        self._store: ContractStore = create_contract_store(db_path=db_path)
 
-    def _init_mock_data(self):
-        """Initialize mock contracts and templates matching real Agent-OS defaults."""
-        now = datetime.utcnow()
+        if db_path is not None:
+            from ..dependencies import _harden_sqlite_path
 
-        # Mock templates matching CONTRACT_TEMPLATES from store.py
-        self._mock_templates = {
-            "coding": ContractTemplateModel(
-                id="coding",
-                name="Coding Assistant",
-                description="Learn from code patterns, style preferences, and project structures",
-                contract_type="PROCEDURAL",
-                default_domains=["coding", "programming", "development", "debugging"],
-                default_duration_days=365,
-                recommended_for="Developers wanting personalized coding assistance",
-            ),
-            "journaling": ContractTemplateModel(
-                id="journaling",
-                name="Personal Journal",
-                description="Remember personal reflections with highest privacy",
-                contract_type="EPISODIC",
-                default_domains=["personal", "journal", "diary", "notes"],
-                default_duration_days=None,
-                recommended_for="Private journaling and self-reflection",
-            ),
-            "work_projects": ContractTemplateModel(
-                id="work_projects",
-                name="Work Projects",
-                description="Learn project patterns while respecting confidentiality",
-                contract_type="PROCEDURAL",
-                default_domains=["work", "professional", "business"],
-                default_duration_days=180,
-                recommended_for="Professional project management",
-            ),
-            "gaming": ContractTemplateModel(
-                id="gaming",
-                name="Gaming Assistant",
-                description="Remember game preferences and strategies",
-                contract_type="EPISODIC",
-                default_domains=["gaming", "games", "entertainment"],
-                default_duration_days=1,
-                recommended_for="Gamers wanting session-based memory",
-            ),
-            "study": ContractTemplateModel(
-                id="study",
-                name="Study Assistant",
-                description="Learn study patterns and help with retention",
-                contract_type="PROCEDURAL",
-                default_domains=["education", "study", "learning", "courses"],
-                default_duration_days=180,
-                recommended_for="Students wanting learning assistance",
-            ),
-            "restricted": ContractTemplateModel(
-                id="restricted",
-                name="Restricted Domains",
-                description="Block learning for sensitive domains (medical, financial, legal)",
-                contract_type="PROHIBITED",
-                default_domains=["medical", "financial", "legal", "credentials"],
-                default_duration_days=None,
-                recommended_for="GDPR/HIPAA compliant privacy protection",
-            ),
-            "strategy": ContractTemplateModel(
-                id="strategy",
-                name="Strategic Learning",
-                description="High-trust long-term pattern learning across contexts",
-                contract_type="STRATEGIC",
-                default_domains=["general"],
-                default_duration_days=365,
-                recommended_for="Trusted long-term AI relationships",
-            ),
-        }
+            _harden_sqlite_path(db_path)
+        logger.info(f"Contracts store ready ({db_path or 'in-memory'})")
 
-        # Mock contracts matching default Agent-OS contracts
-        self._mock_contracts = {
-            # 1. Code Assistance Contract
-            "aos-code-001": ContractModel(
-                id="aos-code-001",
-                user_id="default",
-                contract_type="PROCEDURAL",
-                status="ACTIVE",
-                domains=["coding", "programming", "development", "debugging", "refactoring"],
-                created_at=now - timedelta(days=30),
-                expires_at=now + timedelta(days=335),
-                description="Enables Agent-OS to learn your coding patterns, style preferences, and project conventions for better code assistance.",
-                metadata={
-                    "category": "technical",
-                    "trust_level": "medium",
-                    "created_by": "agent_os_defaults",
-                },
-            ),
-            # 2. Memory Management Contract (Seshat)
-            "aos-memory-002": ContractModel(
-                id="aos-memory-002",
-                user_id="default",
-                contract_type="EPISODIC",
-                status="ACTIVE",
-                domains=["memory", "recall", "context", "conversation"],
-                created_at=now - timedelta(days=30),
-                expires_at=None,
-                description="Allows the Seshat memory agent to store conversation context and recall relevant information without cross-context generalization.",
-                metadata={
-                    "category": "memory",
-                    "agent": "seshat",
-                    "created_by": "agent_os_defaults",
-                },
-            ),
-            # 3. Constitutional Compliance Contract (Smith)
-            "aos-smith-003": ContractModel(
-                id="aos-smith-003",
-                user_id="default",
-                contract_type="OBSERVATION",
-                status="ACTIVE",
-                domains=["constitution", "safety", "compliance", "ethics"],
-                created_at=now - timedelta(days=30),
-                expires_at=None,
-                description="Allows the Smith constitutional agent to observe interactions for safety compliance without storing or learning from content.",
-                metadata={"category": "safety", "agent": "smith", "observation_only": True},
-            ),
-            # 4. Security Prohibition Contract
-            "aos-security-004": ContractModel(
-                id="aos-security-004",
-                user_id="default",
-                contract_type="PROHIBITED",
-                status="ACTIVE",
-                domains=[
-                    "credentials",
-                    "passwords",
-                    "api_keys",
-                    "secrets",
-                    "tokens",
-                    "private_keys",
-                ],
-                created_at=now - timedelta(days=30),
-                expires_at=None,
-                description="Explicitly prohibits Agent-OS from learning or storing any credentials, API keys, passwords, or other security-sensitive data.",
-                metadata={"category": "security", "immutable": True, "priority": "critical"},
-            ),
-            # 5. Intent Classification Contract (Whisper)
-            "aos-whisper-005": ContractModel(
-                id="aos-whisper-005",
-                user_id="default",
-                contract_type="PROCEDURAL",
-                status="ACTIVE",
-                domains=["intent", "routing", "classification", "commands"],
-                created_at=now - timedelta(days=30),
-                expires_at=now + timedelta(days=150),
-                description="Enables the Whisper agent to learn user intent patterns for improved request classification and agent routing.",
-                metadata={
-                    "category": "routing",
-                    "agent": "whisper",
-                    "created_by": "agent_os_defaults",
-                },
-            ),
-            # 6. Personal Data Protection Contract
-            "aos-privacy-006": ContractModel(
-                id="aos-privacy-006",
-                user_id="default",
-                contract_type="PROHIBITED",
-                status="ACTIVE",
-                domains=["medical", "health", "financial", "banking", "legal", "biometric"],
-                created_at=now - timedelta(days=30),
-                expires_at=None,
-                description="Prohibits Agent-OS from learning personal health, financial, legal, or biometric information to protect user privacy.",
-                metadata={"category": "privacy", "gdpr_compliant": True, "hipaa_compliant": True},
-            ),
-            # 7. General Assistance Contract
-            "aos-general-007": ContractModel(
-                id="aos-general-007",
-                user_id="default",
-                contract_type="EPISODIC",
-                status="ACTIVE",
-                domains=["general", "chat", "assistance", "help", "questions"],
-                created_at=now - timedelta(days=30),
-                expires_at=now + timedelta(days=0),  # Expires today for demo
-                description="Allows Agent-OS to remember conversation context for general assistance without cross-session learning.",
-                metadata={"category": "general", "session_memory": True},
-            ),
-        }
+    def close(self) -> None:
+        """Close the underlying database connection."""
+        self._store.close()
 
-    def _convert_real_contract(self, contract: Any) -> ContractModel:
-        """Convert a real LearningContract to ContractModel."""
+    # -- conversion helpers ---------------------------------------------------
+
+    @staticmethod
+    def _to_model(contract: LearningContract) -> ContractModel:
+        """Convert a LearningContract to the API model."""
         return ContractModel(
-            id=contract.id,
+            id=contract.contract_id,
             user_id=contract.user_id,
-            contract_type=(
-                contract.contract_type.name
-                if hasattr(contract.contract_type, "name")
-                else str(contract.contract_type)
-            ),
-            status=(
-                contract.status.name if hasattr(contract.status, "name") else str(contract.status)
-            ),
-            domains=list(contract.scope.domains) if hasattr(contract.scope, "domains") else [],
+            contract_type=contract.contract_type.name,
+            status=contract.status.name,
+            domains=sorted(contract.scope.domains),
             created_at=contract.created_at,
             expires_at=contract.expires_at,
-            description=contract.description if hasattr(contract, "description") else "",
-            metadata=contract.metadata if hasattr(contract, "metadata") else {},
+            description=contract.description,
+            metadata=contract.metadata,
         )
 
-    def _convert_real_template(self, template: Any) -> ContractTemplateModel:
-        """Convert a real ContractTemplate to ContractTemplateModel."""
+    @staticmethod
+    def _template_to_model(template: ContractTemplate) -> ContractTemplateModel:
+        """Convert a ContractTemplate to the API model (id = template name)."""
+        display = _TEMPLATE_DISPLAY.get(template.name, {})
+        duration_days = None
+        if template.default_duration:
+            duration_days = max(1, math.ceil(template.default_duration.total_seconds() / 86400))
         return ContractTemplateModel(
-            id=template.id,
-            name=template.name,
+            id=template.name,
+            name=display.get("name", template.name.replace("_", " ").title()),
             description=template.description,
-            contract_type=(
-                template.contract_type.name
-                if hasattr(template.contract_type, "name")
-                else str(template.contract_type)
-            ),
-            default_domains=(
-                list(template.default_domains) if hasattr(template, "default_domains") else []
-            ),
-            default_duration_days=(
-                template.default_duration_days
-                if hasattr(template, "default_duration_days")
-                else None
-            ),
-            recommended_for=(
-                template.recommended_for if hasattr(template, "recommended_for") else ""
-            ),
+            contract_type=template.contract_type.name,
+            default_domains=sorted(template.scope.domains),
+            default_duration_days=duration_days,
+            recommended_for=display.get("recommended_for", ""),
         )
+
+    @staticmethod
+    def _parse_contract_type(name: str) -> ContractType:
+        """Resolve an API contract type name (e.g. "EPISODIC")."""
+        for contract_type in _CONTRACT_TYPE_DESCRIPTIONS:
+            if contract_type.name == name.strip().upper():
+                return contract_type
+        valid = [t.name for t in _CONTRACT_TYPE_DESCRIPTIONS]
+        raise ValueError(f"Invalid contract type. Valid types: {valid}")
+
+    @staticmethod
+    def _parse_status(name: str) -> ContractStatus:
+        """Resolve an API status filter (e.g. "ACTIVE", case-insensitive)."""
+        try:
+            return ContractStatus[name.strip().upper()]
+        except KeyError:
+            valid = [s.name for s in ContractStatus]
+            raise ValueError(f"Invalid status. Valid statuses: {valid}") from None
+
+    def _refresh_expiry(self, contract: LearningContract) -> LearningContract:
+        """Persist the ACTIVE -> EXPIRED transition once a contract's expiry has passed."""
+        if (
+            contract.status == ContractStatus.ACTIVE
+            and contract.expires_at is not None
+            and datetime.utcnow() >= contract.expires_at
+        ):
+            self._store.expire_contract(contract.contract_id)
+            contract.status = ContractStatus.EXPIRED
+        return contract
+
+    def _get_owned(self, contract_id: str, user_id: str) -> Optional[LearningContract]:
+        """Fetch a contract only if it belongs to user_id."""
+        if not user_id:
+            return None
+        contract = self._store.get_contract(contract_id)
+        if contract is None or contract.user_id != user_id:
+            return None
+        return self._refresh_expiry(contract)
+
+    # -- templates and types --------------------------------------------------
 
     def get_templates(self) -> List[ContractTemplateModel]:
         """Get all available templates."""
-        if self._use_real_contracts:
-            try:
-                templates = list_templates()
-                return [self._convert_real_template(t) for t in templates]
-            except Exception as e:
-                logger.error(f"Error getting templates: {e}")
-        return list(self._mock_templates.values())
+        templates = (get_contract_template(name) for name in list_contract_templates())
+        return [self._template_to_model(t) for t in templates if t is not None]
 
     def get_template(self, template_id: str) -> Optional[ContractTemplateModel]:
-        """Get a specific template."""
-        if self._use_real_contracts:
-            try:
-                template = get_template(template_id)
-                if template:
-                    return self._convert_real_template(template)
-            except Exception as e:
-                logger.error(f"Error getting template {template_id}: {e}")
-        return self._mock_templates.get(template_id)
+        """Get a specific template by id (its name, e.g. "coding")."""
+        template = get_contract_template(template_id)
+        return self._template_to_model(template) if template else None
 
-    def get_contracts(
-        self, status: Optional[str] = None, user_id: str = "default"
-    ) -> List[ContractModel]:
-        """Get all contracts, optionally filtered by status."""
-        if self._use_real_contracts and self._real_store:
-            try:
-                query = ContractQuery(user_id=user_id)
-                if status:
-                    query.status = ContractStatus[status]
-                contracts = self._real_store.query(query)
-                return [self._convert_real_contract(c) for c in contracts]
-            except Exception as e:
-                logger.error(f"Error getting contracts: {e}")
+    def get_contract_types(self) -> List[ContractTypeModel]:
+        """Get the contract types that can be created, with their permissions."""
+        return [
+            ContractTypeModel(
+                name=contract_type.name,
+                description=description,
+                allows_storage=contract_type.allows_storage(),
+                allows_generalization=contract_type.allows_generalization(),
+                allows_cross_context=contract_type.allows_cross_context(),
+                allows_long_term_patterns=contract_type.allows_long_term_patterns(),
+            )
+            for contract_type, description in _CONTRACT_TYPE_DESCRIPTIONS.items()
+        ]
 
-        contracts = list(self._mock_contracts.values())
-        if status:
-            contracts = [c for c in contracts if c.status == status]
-        return contracts
+    # -- contracts ------------------------------------------------------------
 
-    def get_contract(self, contract_id: str) -> Optional[ContractModel]:
-        """Get a specific contract."""
-        if self._use_real_contracts and self._real_store:
-            try:
-                contract = self._real_store.get(contract_id)
-                if contract:
-                    return self._convert_real_contract(contract)
-            except Exception as e:
-                logger.error(f"Error getting contract {contract_id}: {e}")
-        return self._mock_contracts.get(contract_id)
+    def get_contracts(self, user_id: str, status: Optional[str] = None) -> List[ContractModel]:
+        """
+        Get a user's contracts, newest first, optionally filtered by status.
 
-    def create_contract(self, request: CreateContractRequest) -> ContractModel:
-        """Create a new contract."""
-        now = datetime.utcnow()
-        expires_at = None
-        if request.duration_days:
-            expires_at = now + timedelta(days=request.duration_days)
+        Raises:
+            ValueError: If status is not a ContractStatus name.
+        """
+        status_filter = self._parse_status(status) if status else None
+        if not user_id:
+            # An empty user_id would make ContractQuery match every user's contracts.
+            return []
 
-        if self._use_real_contracts and self._real_store:
-            try:
-                contract = LearningContract(
-                    user_id=request.user_id,
-                    contract_type=ContractType[request.contract_type],
-                    scope=ContractScope(domains=set(request.domains)),
-                    expires_at=expires_at,
-                    description=request.description,
-                    metadata=request.metadata,
-                )
-                self._real_store.store(contract)
-                return self._convert_real_contract(contract)
-            except Exception as e:
-                logger.error(f"Error creating contract: {e}")
+        query = ContractQuery(user_id=user_id, include_expired=True, limit=_MAX_QUERY_LIMIT)
+        contracts = [self._refresh_expiry(c) for c in self._store.query_contracts(query)]
+        if status_filter is not None:
+            contracts = [c for c in contracts if c.status == status_filter]
+        return [self._to_model(c) for c in contracts]
 
-        # Mock creation
-        contract_id = f"contract-{len(self._mock_contracts) + 1:03d}"
-        contract = ContractModel(
-            id=contract_id,
-            user_id=request.user_id,
-            contract_type=request.contract_type,
-            status="ACTIVE",
-            domains=request.domains,
-            created_at=now,
-            expires_at=expires_at,
+    def get_contract(self, contract_id: str, user_id: str) -> Optional[ContractModel]:
+        """Get a contract owned by user_id (None if missing or owned by someone else)."""
+        contract = self._get_owned(contract_id, user_id)
+        return self._to_model(contract) if contract else None
+
+    def create_contract(self, user_id: str, request: CreateContractRequest) -> ContractModel:
+        """
+        Create and activate a contract for user_id.
+
+        An empty domain list creates a contract covering all domains.
+
+        Raises:
+            ValueError: If the contract type or duration is invalid.
+        """
+        if not user_id:
+            raise ValueError("user_id is required")
+        contract_type = self._parse_contract_type(request.contract_type)
+        duration = _duration_from_days(request.duration_days)
+        domains = _clean_domains(request.domains)
+        scope = ContractScope(
+            scope_type=LearningScope.DOMAIN_SPECIFIC if domains else LearningScope.ALL,
+            domains=set(domains),
+        )
+
+        contract = self._store.create_contract(
+            user_id=user_id,
+            contract_type=contract_type,
+            scope=scope,
+            duration=duration,
             description=request.description,
-            metadata=request.metadata,
+            consent_method="explicit",
+            metadata=dict(request.metadata),
+            auto_activate=True,
         )
-        self._mock_contracts[contract_id] = contract
-        return contract
+        return self._to_model(contract)
 
-    def create_from_template(self, request: CreateFromTemplateRequest) -> ContractModel:
-        """Create a contract from a template."""
-        template = self.get_template(request.template_id)
-        if not template:
-            raise ValueError(f"Template not found: {request.template_id}")
+    def create_from_template(
+        self, user_id: str, request: CreateFromTemplateRequest
+    ) -> ContractModel:
+        """
+        Create and activate a contract for user_id from a template.
 
-        domains = request.domains if request.domains else template.default_domains
-        duration = (
-            request.duration_days if request.duration_days else template.default_duration_days
-        )
+        Request domains, when given, replace the template's domains; the rest of
+        the template scope (exclusions, content types, tasks) is kept.
 
-        create_request = CreateContractRequest(
-            user_id=request.user_id,
+        Raises:
+            TemplateNotFoundError: If the template does not exist.
+            ValueError: If the duration is invalid.
+        """
+        if not user_id:
+            raise ValueError("user_id is required")
+        template = get_contract_template(request.template_id)
+        if template is None:
+            raise TemplateNotFoundError(f"Template not found: {request.template_id}")
+
+        duration = _duration_from_days(request.duration_days) or template.default_duration
+
+        # Copy the scope so the shared template definition is never mutated.
+        scope = ContractScope.from_dict(template.scope.to_dict())
+        domains = _clean_domains(request.domains)
+        if domains:
+            scope.domains = set(domains)
+            if scope.scope_type == LearningScope.ALL:
+                scope.scope_type = LearningScope.DOMAIN_SPECIFIC
+
+        contract = self._store.create_contract(
+            user_id=user_id,
             contract_type=template.contract_type,
-            domains=domains,
-            duration_days=duration,
-            description=f"Created from template: {template.name}",
+            scope=scope,
+            duration=duration,
+            description=template.description,
+            consent_method="explicit",
+            metadata={**template.metadata, "template": template.name},
+            auto_activate=True,
         )
-        return self.create_contract(create_request)
+        return self._to_model(contract)
 
-    def revoke_contract(self, contract_id: str) -> bool:
-        """Revoke a contract."""
-        if self._use_real_contracts and self._real_store:
-            try:
-                return self._real_store.revoke(contract_id)
-            except Exception as e:
-                logger.error(f"Error revoking contract {contract_id}: {e}")
+    def revoke_contract(self, contract_id: str, user_id: str, reason: str = "") -> bool:
+        """Revoke a contract owned by user_id. Returns False if not found or not revocable."""
+        if self._get_owned(contract_id, user_id) is None:
+            return False
+        return self._store.revoke_contract(contract_id, revoked_by=user_id, reason=reason)
 
-        if contract_id in self._mock_contracts:
-            self._mock_contracts[contract_id].status = "REVOKED"
-            return True
-        return False
-
-    def get_stats(self, user_id: str = "default") -> ContractsStats:
-        """Get contract statistics."""
-        contracts = self.get_contracts(user_id=user_id)
+    def get_stats(self, user_id: str) -> ContractsStats:
+        """Get contract statistics for user_id."""
+        contracts = self.get_contracts(user_id)
 
         stats = ContractsStats(
             total_contracts=len(contracts),
@@ -530,68 +456,27 @@ class ContractsStore:
 
         return stats
 
-    def get_contract_types(self) -> List[ContractTypeModel]:
-        """Get available contract types."""
-        types = [
-            ContractTypeModel(
-                name="OBSERVATION",
-                description="Permits watching signals only - no storage or inference",
-                allows_storage=False,
-                allows_generalization=False,
-                allows_cross_context=False,
-                allows_long_term_patterns=False,
-            ),
-            ContractTypeModel(
-                name="EPISODIC",
-                description="Store specific instances only - no cross-context generalization",
-                allows_storage=True,
-                allows_generalization=False,
-                allows_cross_context=False,
-                allows_long_term_patterns=False,
-            ),
-            ContractTypeModel(
-                name="PROCEDURAL",
-                description="Derive reusable heuristics and patterns",
-                allows_storage=True,
-                allows_generalization=True,
-                allows_cross_context=False,
-                allows_long_term_patterns=False,
-            ),
-            ContractTypeModel(
-                name="STRATEGIC",
-                description="Long-term pattern inference across contexts",
-                allows_storage=True,
-                allows_generalization=True,
-                allows_cross_context=True,
-                allows_long_term_patterns=True,
-            ),
-            ContractTypeModel(
-                name="PROHIBITED",
-                description="Explicitly blocks all learning from this domain",
-                allows_storage=False,
-                allows_generalization=False,
-                allows_cross_context=False,
-                allows_long_term_patterns=False,
-            ),
-        ]
-        return types
-
-    @property
-    def is_using_real_contracts(self) -> bool:
-        """Check if using real contracts store."""
-        return self._use_real_contracts
-
 
 # Global store instance
 _store: Optional[ContractsStore] = None
 
 
 def get_store() -> ContractsStore:
-    """Get the contracts store."""
+    """Get the contracts store, persisted under the configured data directory."""
     global _store
     if _store is None:
-        _store = ContractsStore()
+        from ..config import get_config
+
+        _store = ContractsStore(db_path=get_config().data_dir / "contracts.db")
     return _store
+
+
+def reset_store() -> None:
+    """Close and forget the contracts store (it is reopened from config on next use)."""
+    global _store
+    if _store is not None:
+        _store.close()
+        _store = None
 
 
 # =============================================================================
@@ -605,27 +490,11 @@ def get_current_user_id(request: Request, session_token: Optional[str] = None) -
 
     Returns the authenticated user's ID.
     Raises HTTPException 401 if not authenticated.
+
+    Note: This wraps require_authenticated_user for endpoints that call it
+    directly instead of via Depends().
     """
-    try:
-        from ..auth import get_user_store
-
-        # Get token from cookie or header
-        token = session_token
-        if not token:
-            auth_header = request.headers.get("authorization")
-            if auth_header and auth_header.startswith("Bearer "):
-                token = auth_header[7:]
-
-        if token:
-            store = get_user_store()
-            user = store.validate_session(token)
-            if user:
-                return user.user_id
-
-    except Exception as e:
-        logger.debug(f"Auth check failed: {e}")
-
-    raise HTTPException(status_code=401, detail="Authentication required")
+    return require_authenticated_user(request, session_token)
 
 
 # =============================================================================
@@ -647,7 +516,10 @@ async def list_contracts(
     """
     user_id = get_current_user_id(request, session_token)
     store = get_store()
-    contracts = store.get_contracts(status=status, user_id=user_id)
+    try:
+        contracts = store.get_contracts(user_id=user_id, status=status)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     return [
         ContractSummary(
@@ -714,14 +586,11 @@ async def get_contract(
     """Get detailed information about a specific contract (must be owned by current user)."""
     user_id = get_current_user_id(request, session_token)
     store = get_store()
-    contract = store.get_contract(contract_id)
+    # Contracts owned by other users are reported as not found.
+    contract = store.get_contract(contract_id, user_id=user_id)
 
     if not contract:
         raise HTTPException(status_code=404, detail=f"Contract not found: {contract_id}")
-
-    # Verify ownership
-    if contract.user_id != user_id:
-        raise HTTPException(status_code=403, detail="Access denied to this contract")
 
     return contract
 
@@ -736,17 +605,14 @@ async def create_contract(
     user_id = get_current_user_id(request, session_token)
     store = get_store()
 
-    # Override user_id with authenticated user
+    # The contract always belongs to the authenticated user, whatever the body says.
     body.user_id = user_id
 
-    # Validate contract type
-    valid_types = [t.name for t in store.get_contract_types()]
-    if body.contract_type not in valid_types:
-        raise HTTPException(
-            status_code=400, detail=f"Invalid contract type. Valid types: {valid_types}"
-        )
-
-    contract = store.create_contract(body)
+    try:
+        # Validates the contract type against the names listed by GET /types.
+        contract = store.create_contract(user_id, body)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     # Log intent
     try:
@@ -780,30 +646,32 @@ async def create_contract_from_template(
     user_id = get_current_user_id(request, session_token)
     store = get_store()
 
-    # Override user_id with authenticated user
+    # The contract always belongs to the authenticated user, whatever the body says.
     body.user_id = user_id
 
     try:
-        contract = store.create_from_template(body)
-
-        # Log intent
-        try:
-            from ..intent_log import IntentType, log_user_intent
-
-            log_user_intent(
-                user_id=user_id,
-                intent_type=IntentType.CONTRACT_CREATE,
-                description=f"Created contract from template: {body.template_id}",
-                details={"contract_id": contract.id, "template_id": body.template_id},
-                related_entity_type="contract",
-                related_entity_id=contract.id,
-            )
-        except Exception as e:
-            logger.debug(f"Failed to log intent: {e}")
-
-        return contract
-    except ValueError as e:
+        contract = store.create_from_template(user_id, body)
+    except TemplateNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Log intent
+    try:
+        from ..intent_log import IntentType, log_user_intent
+
+        log_user_intent(
+            user_id=user_id,
+            intent_type=IntentType.CONTRACT_CREATE,
+            description=f"Created contract from template: {body.template_id}",
+            details={"contract_id": contract.id, "template_id": body.template_id},
+            related_entity_type="contract",
+            related_entity_id=contract.id,
+        )
+    except Exception as e:
+        logger.debug(f"Failed to log intent: {e}")
+
+    return contract
 
 
 @router.post("/{contract_id}/revoke")
@@ -815,19 +683,22 @@ async def revoke_contract(
     """Revoke an active contract (must be owned by current user)."""
     user_id = get_current_user_id(request, session_token)
     store = get_store()
-    contract = store.get_contract(contract_id)
+    # Contracts owned by other users are reported as not found.
+    contract = store.get_contract(contract_id, user_id=user_id)
 
     if not contract:
         raise HTTPException(status_code=404, detail=f"Contract not found: {contract_id}")
 
-    # Verify ownership
-    if contract.user_id != user_id:
-        raise HTTPException(status_code=403, detail="Access denied to this contract")
-
     if contract.status == "REVOKED":
         return {"status": "already_revoked", "contract_id": contract_id}
 
-    success = store.revoke_contract(contract_id)
+    if contract.status == "EXPIRED":
+        # Expired contracts are terminal; there is nothing left to revoke.
+        return {"status": "already_expired", "contract_id": contract_id}
+
+    success = store.revoke_contract(
+        contract_id, user_id=user_id, reason="Revoked by user via web interface"
+    )
 
     if success:
         # Log intent
