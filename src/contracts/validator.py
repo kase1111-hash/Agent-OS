@@ -331,8 +331,8 @@ class ContractValidator:
                     "Contract only allows abstracted learning, not raw storage",
                 )
 
-        # Check no-learning contracts
-        if contract.contract_type == ContractType.NO_LEARNING:
+        # Check no-learning / prohibited contracts
+        if contract.contract_type.blocks_learning():
             result.add_issue(
                 ValidationCode.DOMAIN_NOT_ALLOWED,
                 ValidationSeverity.ERROR,

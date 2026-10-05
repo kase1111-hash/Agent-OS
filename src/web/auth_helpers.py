@@ -26,14 +26,16 @@ def _extract_token(request: Request, session_token: Optional[str] = None) -> Opt
 
 
 def _try_api_key_auth(request: Request) -> Optional[tuple]:
-    """Try to authenticate via scoped API key. Returns (user_id, scoped_key) or None."""
+    """Try to authenticate via API key. Returns (user_id, scoped_key) or None.
+
+    Accepts both scoped ``aos_`` keys and the configured AGENT_OS_API_KEY, so the
+    token is not filtered by prefix here; ``validate_api_key`` handles both.
+    """
     auth_header = request.headers.get("authorization") or request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         return None
 
     token = auth_header[7:]
-    if not token.startswith("aos_"):
-        return None
 
     from .auth import get_user_store
 

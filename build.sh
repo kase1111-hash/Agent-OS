@@ -68,8 +68,10 @@ if [ ! -f ".env" ]; then
         echo ""
         echo "Creating .env from .env.example..."
         cp .env.example .env
-        echo "[OK] .env file created"
-        echo "IMPORTANT: Edit .env and set GRAFANA_ADMIN_PASSWORD before deployment!"
+        # Authentication is on by default and the server refuses to start without a key
+        API_KEY=$(python -c 'import secrets; print(secrets.token_urlsafe(32))')
+        sed -i.bak "s|^# AGENT_OS_API_KEY=.*|AGENT_OS_API_KEY=$API_KEY|" .env && rm -f .env.bak
+        echo "[OK] .env file created with a generated AGENT_OS_API_KEY"
     fi
 fi
 

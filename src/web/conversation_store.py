@@ -383,9 +383,10 @@ class ConversationStore:
 
         with self._lock:
             cursor = self._conn.cursor()
+            # Column names are fixed above; values are bound parameters.
             cursor.execute(
-                f"UPDATE conversations SET {', '.join(updates)} WHERE id = ?", params
-            )  # nosec B608 - column names are hardcoded
+                f"UPDATE conversations SET {', '.join(updates)} WHERE id = ?", params  # nosec B608
+            )
             self._conn.commit()
             return cursor.rowcount > 0
 

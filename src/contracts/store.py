@@ -65,6 +65,10 @@ class ContractType(Enum):
         }
         return mapping.get(legacy_type, legacy_type)
 
+    def blocks_learning(self) -> bool:
+        """Check if this contract type explicitly prohibits learning."""
+        return self in [self.PROHIBITED, self.NO_LEARNING]
+
     def allows_storage(self) -> bool:
         """Check if this contract type allows any storage."""
         return self not in [self.OBSERVATION, self.PROHIBITED, self.NO_LEARNING]
@@ -184,7 +188,7 @@ class LearningContract:
         if not self.is_valid():
             return False
 
-        if self.contract_type == ContractType.NO_LEARNING:
+        if self.contract_type.blocks_learning():
             return False
 
         return self.scope.matches(domain=domain, task=task, agent=agent)
@@ -312,7 +316,8 @@ class ContractStore:
         """
         self.db_path = db_path
         self.default_deny = default_deny
-        self._lock = threading.Lock()
+        # Re-entrant: cleanup_expired() calls expire_contract() while holding it
+        self._lock = threading.RLock()
         self._connection: Optional[sqlite3.Connection] = None
         self._initialized = False
 
@@ -598,8 +603,13 @@ class ContractStore:
         # Filter to valid contracts
         valid = [c for c in contracts if c.is_valid()]
 
-        # Find matching contracts
-        matching = [c for c in valid if c.allows_learning(domain=domain, task=task, agent=agent)]
+        # Find contracts whose scope covers the request, including prohibitions
+        matching = [c for c in valid if c.scope.matches(domain=domain, task=task, agent=agent)]
+
+        # An explicit prohibition takes precedence over any consent
+        prohibitions = [c for c in matching if c.contract_type.blocks_learning()]
+        if prohibitions:
+            matching = prohibitions
 
         if not matching:
             return None
@@ -637,8 +647,7 @@ class ContractStore:
         )
 
         if contract:
-            allowed = contract.contract_type != ContractType.NO_LEARNING
-            return allowed, contract
+            return not contract.contract_type.blocks_learning(), contract
 
         # No contract - use default policy
         return not self.default_deny, None

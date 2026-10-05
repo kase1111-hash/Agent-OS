@@ -127,11 +127,12 @@ class MigrationRunner:
     def get_applied_migrations(self) -> List[MigrationRecord]:
         """Get list of all applied migrations."""
         conn = self._get_connection()
+        # MIGRATIONS_TABLE is a class constant, not user input.
         cursor = conn.execute(f"""
             SELECT * FROM {self.MIGRATIONS_TABLE}
             WHERE success = 1
             ORDER BY version
-        """)
+        """)  # nosec B608
         return [
             MigrationRecord(
                 version=row["version"],
@@ -417,8 +418,9 @@ class MigrationRunner:
             # Remove from tracking if successful
             if success and not dry_run:
                 conn = self._get_connection()
+                # MIGRATIONS_TABLE is a class constant, not user input.
                 conn.execute(
-                    f"DELETE FROM {self.MIGRATIONS_TABLE} WHERE version = ?",
+                    f"DELETE FROM {self.MIGRATIONS_TABLE} WHERE version = ?",  # nosec B608
                     (record.version,),
                 )
                 conn.commit()

@@ -53,7 +53,10 @@ python -m uvicorn src.web.app:get_app --factory --host 127.0.0.1 --port 8080
 (For a throwaway local session you can instead set `AGENT_OS_REQUIRE_AUTH=false`
 and `AGENT_OS_WEB_DEBUG=true`.)
 
-Then open http://localhost:8080 in your browser.
+Then open http://localhost:8080 in your browser and use **Sign Up** to create
+your account. The API key is the admin credential for the REST API: send it as
+`Authorization: Bearer $AGENT_OS_API_KEY` to reach admin-only endpoints such as
+`/api/system/settings` and `/api/security/*`.
 
 ---
 

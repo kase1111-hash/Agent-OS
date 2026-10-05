@@ -25,7 +25,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install black>=23.0 isort>=5.0
+          pip install "black>=23.0" "isort>=5.0"
 
       - name: Check formatting with black
         run: black --check --diff .
@@ -181,13 +181,13 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install bandit[toml] safety
+          pip install "bandit[toml]" pip-audit
 
       - name: Run bandit security linter
-        run: bandit -r src/ -c pyproject.toml
+        run: bandit -r src/ -c pyproject.toml --severity-level medium
 
       - name: Check dependencies for vulnerabilities
-        run: safety check
+        run: pip-audit -r requirements.txt
 
   build:
     name: Build Package

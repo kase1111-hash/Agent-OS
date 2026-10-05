@@ -65,7 +65,10 @@ if not exist ".env" (
     if exist ".env.example" (
         echo [INFO] Creating .env from .env.example...
         copy .env.example .env >nul
-        echo [OK] Created .env file
+        rem Authentication is on by default and the server refuses to start without a key
+        for /f "delims=" %%k in ('python -c "import secrets; print(secrets.token_urlsafe(32))"') do set API_KEY=%%k
+        >>.env echo AGENT_OS_API_KEY=!API_KEY!
+        echo [OK] Created .env file with a generated AGENT_OS_API_KEY
     )
 )
 

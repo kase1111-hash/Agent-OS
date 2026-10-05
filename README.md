@@ -83,7 +83,8 @@ export AGENT_OS_API_KEY=$(python -c "import secrets; print(secrets.token_urlsafe
 python -m uvicorn src.web.app:get_app --factory --host 127.0.0.1 --port 8080
 ```
 
-Visit http://localhost:8080 to access the web interface.
+Visit http://localhost:8080 and use **Sign Up** to create an account. The API key
+is the admin credential for the REST API (`Authorization: Bearer $AGENT_OS_API_KEY`).
 
 See [START_HERE.md](./START_HERE.md) for the complete getting started guide.
 

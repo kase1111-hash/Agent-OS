@@ -380,13 +380,14 @@ class VaultIndex:
             params.append(created_before.isoformat())
 
         if tags:
+            # Only "?" placeholders are interpolated; tags are bound parameters.
             placeholders = ",".join("?" * len(tags))
             query += f"""
                 AND blob_id IN (
                     SELECT blob_id FROM blob_tags
                     WHERE tag IN ({placeholders})
                 )
-            """
+            """  # nosec B608
             params.extend(tags)
 
         query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"

@@ -57,7 +57,8 @@ class DreamingService:
 
     def __init__(self, throttle_interval: float = THROTTLE_INTERVAL):
         self._status = DreamingStatus()
-        self._lock = threading.Lock()
+        # Re-entrant: get_status() applies pending updates via _do_update() while holding it.
+        self._lock = threading.RLock()
         self._throttle_interval = throttle_interval
         self._last_update_time: float = 0
         self._pending_message: Optional[str] = None

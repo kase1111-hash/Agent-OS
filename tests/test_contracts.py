@@ -1452,3 +1452,82 @@ class TestLearningContractsIntegration:
             assert len(contracts) == 1
 
             client2.shutdown()
+
+
+class TestProhibitingContracts:
+    """PROHIBITED (and legacy NO_LEARNING) contracts must block learning."""
+
+    @staticmethod
+    def _domain(*domains):
+        return ContractScope(scope_type=LearningScope.DOMAIN_SPECIFIC, domains=set(domains))
+
+    @pytest.mark.parametrize("blocking_type", [ContractType.PROHIBITED, ContractType.NO_LEARNING])
+    def test_prohibition_overrides_broader_consent(self, blocking_type):
+        store = create_contract_store()
+        store.create_contract(
+            user_id="u1",
+            contract_type=ContractType.STRATEGIC,
+            scope=ContractScope(scope_type=LearningScope.ALL),
+            auto_activate=True,
+        )
+        prohibition = store.create_contract(
+            user_id="u1",
+            contract_type=blocking_type,
+            scope=self._domain("medical"),
+            auto_activate=True,
+        )
+
+        allowed, contract = store.check_learning_allowed("u1", domain="medical")
+        assert not allowed
+        assert contract.contract_id == prohibition.contract_id
+
+        allowed, _ = store.check_learning_allowed("u1", domain="general")
+        assert allowed
+        store.close()
+
+    def test_prohibited_contract_does_not_allow_learning(self):
+        store = create_contract_store()
+        contract = store.create_contract(
+            user_id="u1",
+            contract_type=ContractType.PROHIBITED,
+            scope=self._domain("medical"),
+            auto_activate=True,
+        )
+        assert not contract.allows_learning(domain="medical")
+        store.close()
+
+    def test_engine_denies_learning_under_prohibited_contract(self):
+        engine = create_learning_contracts_engine()
+        engine.create_contract(
+            user_id="u1",
+            contract_type=ContractType.PROHIBITED,
+            scope=self._domain("hobbies"),
+            auto_activate=True,
+        )
+
+        result = engine.check_learning(user_id="u1", content="likes chess", domain="hobbies")
+
+        assert not result.allowed
+        engine.shutdown()
+
+    def test_cleanup_expired_does_not_deadlock(self):
+        import threading
+
+        store = create_contract_store()
+        contract = store.create_contract(
+            user_id="u1",
+            contract_type=ContractType.EPISODIC,
+            scope=ContractScope(scope_type=LearningScope.ALL),
+            duration=timedelta(seconds=-1),
+            auto_activate=True,
+        )
+        result = {}
+        worker = threading.Thread(
+            target=lambda: result.update(count=store.cleanup_expired()), daemon=True
+        )
+        worker.start()
+        worker.join(5)
+
+        assert not worker.is_alive(), "cleanup_expired() deadlocked"
+        assert result["count"] == 1
+        assert store.get_contract(contract.contract_id).status == ContractStatus.EXPIRED

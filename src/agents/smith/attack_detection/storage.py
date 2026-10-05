@@ -1351,12 +1351,13 @@ class SQLiteStorage(AttackStorage):
                 cursor = conn.cursor()
                 placeholders = ",".join("?" * len(event_ids))
                 try:
+                    # Only "?" placeholders are interpolated; values are bound parameters.
                     cursor.execute(
                         f"""
                         UPDATE siem_events
                         SET processed = 1, attack_id = ?
                         WHERE event_id IN ({placeholders})
-                        """,
+                        """,  # nosec B608
                         [attack_id] + event_ids,
                     )
                     conn.commit()

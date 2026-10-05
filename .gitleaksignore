@@ -1,0 +1,35 @@
+# Reviewed gitleaks false positives (fingerprint: commit:file:rule:line).
+# Fake credentials in redaction/secret-detection test fixtures, test log
+# output, a PEM header template string and an enum value ("password") in
+# removed federation code. None are real secrets.
+12f5d12d2aa2b29045f192ff46304db9923685c2:tests/test_boundary_integration.py:stripe-access-token:265
+1931348fcd1dcc2c5a53423c36c2aa38264612a4:tests/test_utils.py:aws-access-token:249
+1931348fcd1dcc2c5a53423c36c2aa38264612a4:tests/test_utils.py:aws-access-token:251
+1931348fcd1dcc2c5a53423c36c2aa38264612a4:tests/test_utils.py:generic-api-key:200
+1931348fcd1dcc2c5a53423c36c2aa38264612a4:tests/test_utils.py:generic-api-key:207
+1931348fcd1dcc2c5a53423c36c2aa38264612a4:tests/test_utils.py:generic-api-key:214
+1931348fcd1dcc2c5a53423c36c2aa38264612a4:tests/test_utils.py:generic-api-key:338
+1931348fcd1dcc2c5a53423c36c2aa38264612a4:tests/test_utils.py:hashicorp-tf-password:102
+1931348fcd1dcc2c5a53423c36c2aa38264612a4:tests/test_utils.py:hashicorp-tf-password:228
+1931348fcd1dcc2c5a53423c36c2aa38264612a4:tests/test_utils.py:jwt:242
+22b07815849d00b1cdff395cb88448e92f675c50:tests/test_utils.py:generic-api-key:401
+3592ef945b12ad7552a92c78720203708d3ab981:tests/test_post_quantum.py:generic-api-key:258
+3592ef945b12ad7552a92c78720203708d3ab981:tests/test_post_quantum.py:generic-api-key:358
+3592ef945b12ad7552a92c78720203708d3ab981:tests/test_post_quantum.py:generic-api-key:405
+5c2dadea90eb5086c4b1119cd80354d6dab75670:test-baseline.txt:generic-api-key:4136
+5c2dadea90eb5086c4b1119cd80354d6dab75670:test-baseline.txt:generic-api-key:4139
+5c2dadea90eb5086c4b1119cd80354d6dab75670:test-baseline.txt:generic-api-key:4242
+5c2dadea90eb5086c4b1119cd80354d6dab75670:test-baseline.txt:generic-api-key:4245
+5eb36cad3b89234e970cea9631503b0dc820154e:src/federation/identity.py:private-key:112
+6749fe50e411d19fcf6e44860e6b1871ae6a36e5:tests/test_memory_vault.py:generic-api-key:163
+9f9f8417fb54cf06cc015f18e9273330bb5ac3bb:tests/e2e_simulation.py:generic-api-key:144
+b3052cb1014d2608efeb906e9af2ecf8a17d8fa2:src/federation/pq/backup.py:hashicorp-tf-password:72
+b3052cb1014d2608efeb906e9af2ecf8a17d8fa2:tests/test_pq_production.py:hashicorp-tf-password:338
+cd058dab8b004fef8ae6486d0269c23184ed86a0:tests/test_utils.py:aws-access-token:416
+cd058dab8b004fef8ae6486d0269c23184ed86a0:tests/test_utils.py:aws-access-token:417
+cd058dab8b004fef8ae6486d0269c23184ed86a0:tests/test_utils.py:generic-api-key:400
+cd058dab8b004fef8ae6486d0269c23184ed86a0:tests/test_utils.py:generic-api-key:401
+cd058dab8b004fef8ae6486d0269c23184ed86a0:tests/test_utils.py:generic-api-key:403
+cd058dab8b004fef8ae6486d0269c23184ed86a0:tests/test_utils.py:hashicorp-tf-password:409
+cd058dab8b004fef8ae6486d0269c23184ed86a0:tests/test_utils.py:jwt:427
+f9096eeb6786a61a512bce864f11696bf698998a:tests/test_smith_coverage.py:generic-api-key:223
