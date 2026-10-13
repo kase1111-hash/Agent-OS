@@ -91,7 +91,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.11'
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           files: ./coverage.xml
           fail_ci_if_error: false
@@ -159,7 +159,7 @@ jobs:
           pytest tests/ --collect-only -q 2>/dev/null | grep -E "skipped|skip" || echo "No skipped tests reported"
 
       - name: Upload full coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           files: ./coverage-full.xml
           flags: full-deps
