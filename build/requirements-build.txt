@@ -1,7 +1,7 @@
 # Build dependencies for Agent OS distributable packages
 
 # PyInstaller for creating standalone executables
-pyinstaller>=6.0
+pyinstaller>=6.22.3
 
 # UPX compression support (optional, install separately)
 # Download from: https://github.com/upx/upx/releases
