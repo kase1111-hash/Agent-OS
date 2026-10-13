@@ -95,7 +95,7 @@ jobs:
           fi
 
       - name: Upload bandit results
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: bandit-results
           path: bandit-results.json
